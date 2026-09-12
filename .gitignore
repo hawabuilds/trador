@@ -1,0 +1,11 @@
+node_modules
+.next
+out
+.env*.local
+*.tsbuildinfo
+next-env.d.ts
+.next-verify
+.vercel
+.tools/
+scripts/.cursor-*.json
+probe-output/

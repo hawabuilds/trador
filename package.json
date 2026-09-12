@@ -1,0 +1,68 @@
+{
+  "name": "trador",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node --max-http-header-size=65536 node_modules/next/dist/bin/next dev",
+    "build": "next build",
+    "start": "node --max-http-header-size=65536 node_modules/next/dist/bin/next start",
+    "verify": "node scripts/verify-build.mjs",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import ./test/resolver.mjs --test \"test/**/*.test.ts\"",
+    "test:live": "TRADOR_LIVE_TESTS=1 node --import ./test/resolver.mjs --test \"test/live/**/*.test.ts\"",
+    "worker": "node --import ./test/resolver.mjs src/worker/index.ts",
+    "probe:accounts": "node --import ./test/resolver.mjs --env-file=.env.local scripts/probe-accounts.ts",
+    "probe:pump": "node --import ./test/resolver.mjs --env-file=.env.local scripts/probe-pump-curve.ts",
+    "seed:stocks": "node --import ./test/resolver.mjs --env-file=.env.local scripts/seed-stocks.ts",
+    "backfill:launches": "node --import ./test/resolver.mjs --env-file=.env.local scripts/backfill-launches.ts",
+    "backfill:prices": "node --import ./test/resolver.mjs --env-file=.env.local scripts/backfill-prices.ts",
+    "create:dry-run": "CREATE_DRY_RUN=1 node --import ./test/resolver.mjs --env-file=.env.local scripts/create-dry-run.ts",
+    "cron:railway": "node --import ./test/resolver.mjs scripts/railway-cron.ts",
+    "vapid": "node --import ./test/resolver.mjs scripts/vapid-keys.ts"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.31.1",
+    "@nirholas/pump-sdk": "^1.36.0",
+    "@privy-io/react-auth": "^3.37.1",
+    "@privy-io/server-auth": "^1.32.5",
+    "@raydium-io/raydium-sdk-v2": "^0.2.68-alpha",
+    "@solana/spl-token": "^0.4.14",
+    "@solana/web3.js": "^1.98.4",
+    "@supabase/supabase-js": "^2.112.4",
+    "@tanstack/react-query": "^5.101.4",
+    "bn.js": "^5.2.2",
+    "bs58": "^6.0.0",
+    "lightweight-charts": "^5.2.1",
+    "next": "14.2.35",
+    "pg": "^8.23.0",
+    "react": "^18",
+    "react-dom": "^18",
+    "sharp": "^0.35.4",
+    "web-push": "^3.6.7",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/bn.js": "^5.2.0",
+    "@types/node": "^20",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "@types/web-push": "^3.6.4",
+    "autoprefixer": "^10",
+    "eslint": "^8",
+    "eslint-config-next": "14.2.35",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5"
+  },
+  "overrides": {
+    "@solana/web3.js": "^1.98.4",
+    "@solana/spl-token": "^0.4.14",
+    "bn.js": "^5.2.2",
+    "bs58": "^6.0.0"
+  }
+}
