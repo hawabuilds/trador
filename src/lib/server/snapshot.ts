@@ -35,6 +35,8 @@ interface RawStonk {
   creator: string;
   priceUsd: number | null;
   changePct: number | null;
+  decimals: number | null;
+  circulatingSupply: number | null;
   marketCapUsd: number | null;
   liquidityUsd: number | null;
   isTradeable: boolean | null;
@@ -86,14 +88,21 @@ const STONKS: readonly Stonk[] = (SNAP.stonks ?? []).map((raw) => {
     // not claim every rewards launch has paid out nothing.
     rewards24hUsd: null,
     price: priceFrom(raw.priceUsd),
-    // Measured: price × real supply, computed at capture time.
+    // Measured: price × real supply. Supply is carried too, so the chart page
+    // can rescale the cap against a fresher price instead of reprinting a
+    // figure from capture time.
     marketCapUsd: raw.marketCapUsd,
+    decimals: raw.decimals,
+    circulatingSupply: raw.circulatingSupply,
     volume24hUsd: null,
     liquidityUsd: raw.liquidityUsd,
     isTradeable: raw.isTradeable,
     changePct: raw.changePct,
     series: [],
     listedAt: raw.listedAt,
+    // Creator-supplied links are not indexed yet, and inventing them would be
+    // worse than their absence.
+    socials: null,
   } satisfies Stonk;
 });
 
@@ -132,10 +141,45 @@ export function snapshotStocks(): FeedPage<Stock> {
       marketCapUsd: raw?.underlying?.mcap ?? null,
       changePct: raw?.changePct ?? null,
       series: [],
+      description: describeStock(stock.ticker, stock.name, stock.kind),
     } satisfies Stock;
   });
 
   return {items, cursor: null, source: "snapshot", capturedAt: CAPTURED_AT};
+}
+
+/**
+ * One line on what a stock actually is.
+ *
+ * Generated from facts already in the registry rather than written per ticker:
+ * a hand-kept blurb for every asset drifts, and the useful information here is
+ * structural anyway — who issues it, what it tracks, and whether a public
+ * market exists to price it.
+ */
+function describeStock(
+  ticker: string,
+  name: string,
+  kind: "equity" | "etf" | "pre-ipo" | "commodity",
+): string {
+  const base = name.replace(/\s+(xStock|PreStocks)$/i, "");
+
+  switch (kind) {
+    case "pre-ipo":
+      return (
+        `${ticker} is tokenized pre-IPO exposure to ${base}. The company is not ` +
+        `publicly listed, so there is no exchange quote behind this price — only ` +
+        `what the pool says.`
+      );
+    case "etf":
+      return `${ticker} tracks the ${base} fund, held by a custodian and issued on Solana.`;
+    case "commodity":
+      return `${ticker} is tokenized ${base.toLowerCase()}, backed one-for-one by the metal in custody.`;
+    default:
+      return (
+        `${ticker} is a tokenized share of ${base}, backed one-for-one by real ` +
+        `stock held in custody and tradeable around the clock.`
+      );
+  }
 }
 
 export function snapshotStonk(mint: string): Stonk | null {

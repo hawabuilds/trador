@@ -24,6 +24,14 @@ interface AvatarProps {
   name?: string | null;
   /** Mint or other stable id — decides the colour. */
   seed?: string | null;
+  /**
+   * An image to show instead of the monogram, when one exists.
+   *
+   * Optional because most rows have none: coin art needs a fetch-resize-serve
+   * pipeline before it can be trusted in a list, and a profile picture only
+   * exists once someone has signed in.
+   */
+  src?: string | null;
   size?: number;
   className?: string;
 }
@@ -37,8 +45,22 @@ interface AvatarProps {
  * seeded gradient and an initial are stable from the first paint, and the row
  * geometry is already correct for when artwork lands.
  */
-export function Avatar({name, seed, size = 40, className}: AvatarProps) {
+export function Avatar({name, seed, src, size = 40, className}: AvatarProps) {
   const initial = (name?.trim()?.[0] ?? "?").toUpperCase();
+
+  if (src) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={src}
+        alt=""
+        width={size}
+        height={size}
+        style={{width: size, height: size}}
+        className={cn("shrink-0 rounded-full object-cover", className)}
+      />
+    );
+  }
 
   return (
     <span

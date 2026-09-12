@@ -1,7 +1,7 @@
-import {ComingSoon} from "@/components/ComingSoon";
+import {NewsScreen} from "./NewsScreen";
 
 export const metadata = {title: "News"};
 
 export default function NewsPage() {
-  return <ComingSoon route="news" />;
+  return <NewsScreen />;
 }

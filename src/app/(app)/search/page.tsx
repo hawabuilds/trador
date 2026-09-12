@@ -1,7 +1,7 @@
-import {ComingSoon} from "@/components/ComingSoon";
+import {SearchScreen} from "./SearchScreen";
 
 export const metadata = {title: "Search"};
 
 export default function SearchPage() {
-  return <ComingSoon route="search" />;
+  return <SearchScreen />;
 }

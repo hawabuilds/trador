@@ -1,7 +1,7 @@
 import type {LaunchpadId} from "./programs";
 import type {Pubkey} from "./pubkey";
-import type {PriceAuthority, StockIssuer, StockKind} from "./stocks/registry";
 import type {SectorId} from "./sectors";
+import type {PriceAuthority, StockIssuer, StockKind} from "./stocks/registry";
 import type {CoinStatus, QuoteKind} from "./universe";
 
 /**
@@ -12,6 +12,13 @@ import type {CoinStatus, QuoteKind} from "./universe";
  * type would let a component forget which it was holding.
  */
 export type AssetKind = "stonk" | "stock";
+
+export interface SocialLinks {
+  x: string | null;
+  telegram: string | null;
+  website: string | null;
+  discord: string | null;
+}
 
 export type PriceSource = "oracle" | "pool" | "curve" | "snapshot";
 
@@ -65,6 +72,9 @@ export interface Stonk extends AssetBase {
   readonly liquidityUsd: number | null;
   readonly isTradeable: boolean | null;
   readonly listedAt: string | null;
+  readonly decimals: number | null;
+  readonly circulatingSupply: number | null;
+  readonly socials: SocialLinks | null;
 }
 
 /** A verified tokenized stock. */
@@ -79,10 +89,119 @@ export interface Stock extends AssetBase {
   readonly sector: SectorId | null;
   /** How many launches are priced against it — the app's own signal. */
   readonly launchesQuotedAgainst: number;
+  /** The *company's* market cap, when a provider carries it. Never the token's. */
   readonly marketCapUsd: number | null;
+  readonly description: string | null;
 }
 
 export type Asset = Stonk | Stock;
+
+// ---------------------------------------------------------------------------
+// Charts
+// ---------------------------------------------------------------------------
+
+export interface ChartPoint {
+  /** Epoch milliseconds. */
+  t: number;
+  price: number;
+  /** Real OHLC when the provider sent it. Missing means close-only. */
+  open?: number;
+  high?: number;
+  low?: number;
+}
+
+export type ChartStyle = "line" | "candles";
+
+export const TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1D"] as const;
+export type Timeframe = (typeof TIMEFRAMES)[number];
+
+/**
+ * A tokenized stock tracks an equity that only trades in session hours, so the
+ * fine buckets are mostly empty. Its chart offers only windows the underlying
+ * tape can actually fill.
+ */
+export const STOCK_TIMEFRAMES = ["5m", "1h", "1D"] as const;
+export type StockTimeframe = (typeof STOCK_TIMEFRAMES)[number];
+
+/** Active pill / header: show the bucket that was actually drawn. */
+export function timeframeLabel(
+  requested: Timeframe,
+  resolved?: Timeframe | null,
+): string {
+  if (resolved && resolved !== requested) return `${requested} · ${resolved}`;
+  return requested;
+}
+
+/** Windows for the Stonkfolio equity chart — total wallet value over time. */
+export const PORTFOLIO_RANGES = ["1H", "1D", "1W", "1M", "1Y", "ALL"] as const;
+export type PortfolioRange = (typeof PORTFOLIO_RANGES)[number];
+
+// ---------------------------------------------------------------------------
+// The tape
+// ---------------------------------------------------------------------------
+
+export interface Trade {
+  id: string;
+  side: "buy" | "sell";
+  /** Base units of the asset moved. */
+  amount: number;
+  amountUsd: number;
+  priceUsd: number;
+  /** Wallet that traded. Rendered short, links to the explorer. */
+  maker: string;
+  /** The transaction the fill settled in. Shown in the TXN column. */
+  txHash: string;
+  /** Set when the maker is someone with a profile in the app. */
+  makerHandle: string | null;
+  at: string;
+}
+
+// ---------------------------------------------------------------------------
+// Social
+// ---------------------------------------------------------------------------
+
+export interface CommentAuthor {
+  handle: string;
+  displayName: string;
+  pfpUrl: string | null;
+}
+
+export interface AssetComment {
+  id: string;
+  assetId: string;
+  parentId: string | null;
+  author: CommentAuthor;
+  body: string;
+  createdAt: string;
+}
+
+export interface CommentThread {
+  root: AssetComment;
+  replies: AssetComment[];
+}
+
+// ---------------------------------------------------------------------------
+// News
+// ---------------------------------------------------------------------------
+
+export interface NewsItem {
+  id: string;
+  title: string;
+  url: string;
+  source: string;
+  publishedAt: string;
+  summary: string | null;
+}
+
+export const NEWS_WINDOWS = ["latest", "24h", "7d", "30d", "all"] as const;
+export type NewsWindow = (typeof NEWS_WINDOWS)[number];
+
+export const NEWS_TOPICS = ["all", "stocks", "launches", "solana"] as const;
+export type NewsTopic = (typeof NEWS_TOPICS)[number];
+
+// ---------------------------------------------------------------------------
+// Feed
+// ---------------------------------------------------------------------------
 
 /** Sorts on the Stonks tab. */
 export type StonkSort = "trending" | "new" | "marketCap" | "rewards";
@@ -99,13 +218,13 @@ export interface FeedPage<T> {
   readonly capturedAt: string | null;
 }
 
-export const TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1d"] as const;
-export type Timeframe = (typeof TIMEFRAMES)[number];
+// ---------------------------------------------------------------------------
+// Stonkfolio
+// ---------------------------------------------------------------------------
 
-export interface ChartPoint {
-  readonly t: number;
-  readonly o: number;
-  readonly h: number;
-  readonly l: number;
-  readonly c: number;
+export interface Holding {
+  readonly asset: Asset;
+  /** Base units held. */
+  readonly amount: number;
+  readonly valueUsd: number | null;
 }

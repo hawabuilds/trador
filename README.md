@@ -13,9 +13,10 @@ npm install
 npm run dev
 ```
 
-Copy `.env.local.example` to `.env.local`. It runs with no keys — without Privy
-the login is faked in the browser, and without Supabase the feed reads a seeded
-snapshot. The indexer and the probe scripts need an RPC that allows
+It runs with no keys. Without Privy the session is a demo that cannot sign;
+without Supabase the feed reads a captured snapshot of real launches. Charts,
+the trade tape, news, search, the Stonkfolio and Jupiter quotes all work
+keyless. The indexer and the probe scripts need an RPC that allows
 `getProgramAccounts`, which public endpoints refuse.
 
 ## Vocabulary
@@ -26,21 +27,35 @@ against one. The two words stay distinct throughout because one of the two is
 backed by an asset and the other is not, and a shared word would hide precisely
 that. Your holdings are your **Stonkfolio**.
 
+## Screens
+
+| Route | What it is |
+| --- | --- |
+| `/` | Landing, with real counts from the universe |
+| `/home` | Watchlist / Stonks / Stocks, with per-tab sort rails |
+| `/stonk/[mint]` | Chart, timeframes, live tape, comments, info, Buy/Sell |
+| `/stock/[ticker]` | Same, plus issuer, sector and price-source honesty |
+| `/search` | Stocks and coins; a pasted mint resolves directly |
+| `/news` | Coverage of the companies behind the stocks being traded against |
+| `/learn` | Three lessons. Finishing them unlocks Create |
+| `/stonkfolio` | On-chain holdings, split into stocks and stonks |
+| `/create` | Plan a launch against live chain state |
+
 ## What is live
 
 | Surface | Source |
 | --- | --- |
-| Coin universe, search, New feed | Supabase, filled by the on-chain indexer |
-| Stock prices | Pyth, for anything with a listed underlying |
-| Stonk prices, candles, tape | Jupiter / DexScreener / GeckoTerminal decorate rows that already exist |
-| Stonkfolio balances | On-chain, across Privy and imported wallets |
-| Buy / sell | Jupiter Swap API, 50 bps platform fee, one signature |
-| Create | pump.fun and StonkFun launch instructions, simulated before signing |
-| Comments, profiles, follows, Learn | Supabase when configured |
+| Coin universe | Captured snapshot of real StonkFun launches; Supabase when configured |
+| Prices, liquidity, 24h change | Jupiter |
+| Candles, trade tape | GeckoTerminal, oriented by mint so the chart is never inverted |
+| Market caps | Price × supply measured on chain. Never a guess |
+| News | Yahoo per-ticker RSS, keyless |
+| Stonkfolio | `getTokenAccountsByOwner` across both token programs |
+| Quotes and swaps | Jupiter, 50 bps platform fee, one signature |
+| Create | Plans against chain state; does not sign — see below |
 
-The chain decides what exists. Supabase stores it. Providers only decorate it.
-If every provider is down the feed still renders from Supabase without live
-prices.
+The chain decides what exists. The store keeps it. Providers only decorate it.
+If every provider is down the feed still renders without live prices.
 
 ## Membership
 
@@ -51,7 +66,9 @@ stored as `pending` and hidden; graduated coins are `listed`.
 
 Attribution comes from program-owned account state, never from a token's name,
 symbol or a listing site. A StonkFun launch is identifiable because its
-LaunchLab pool records StonkFun's platform config.
+LaunchLab pool records StonkFun's platform config. Jupiter reports a `launchpad`
+field too and agrees with us on every coin in the snapshot — it is captured as a
+cross-check, never as the authority.
 
 ## The stock registry is a trust boundary
 
@@ -76,6 +93,7 @@ Currently verified: 23 xStocks (one Backed authority) and 6 PreStocks (one
 PreStocks authority). Backpack Securities equities are real and excluded by
 default, because each of their mints carries its own authority — membership
 would be a maintained allowlist rather than one key that proves the family.
+`INCLUDE_BACKPACK=1` on a sync run admits them.
 
 ## Scripts
 
@@ -87,9 +105,7 @@ would be a maintained allowlist rather than one key that proves the family.
 | `npm run probe:accounts` | Read the mainnet accounts the build depends on |
 | `npm run probe:quotes` | Census every quote asset StonkFun launches use |
 | `npm run sync:stocks` | Regenerate the stock registry (`--write` to commit it) |
-| `npm run probe:pump <mint>` | Settle pump.fun's Custom Pairs account layout |
-| `npm run worker` | The always-on launch indexer |
-| `npm run create:dry-run` | Build and simulate a launch without signing |
+| `npm run seed:snapshot` | Recapture the universe snapshot |
 
 ## Two rules that are not negotiable
 
@@ -97,12 +113,14 @@ would be a maintained allowlist rather than one key that proves the family.
 because there is nothing to normalise. Never `.toLowerCase()` a mint — `So111…`
 and `so111…` are different strings and only one is an account. Folding case
 corrupts silently: the lookup misses, or one mint's price is filed under
-another's. `test/pubkey-lint.test.ts` enforces this.
+another's. `test/pubkey-lint.test.ts` enforces this, and it earned its place —
+it caught five real case-folding bugs in code ported from the EVM app, including
+one that would have filed one wallet's holdings under another's cache key.
 
 **Nullable flags are three-state.** `true` show, `false` hide, `null` *not yet
 evaluated* → **show**. Never `.eq(column, true)`. On Solana `eligible` also
 carries confirmation state — a launch seen at `confirmed` is null until it
-finalizes — and `is_custom_pair` stays null until pump.fun's layout is verified.
+finalizes.
 
 ## Where pump.fun Custom Pairs actually live
 
@@ -123,3 +141,23 @@ mint returns real stock-quoted pools whose base mint is a pump.fun coin.
 are shared — which is exactly why pump pools must not be filtered by `dataSize`.
 Pinning 245, the size the SDK types suggest, would find the 4,368 oldest pools
 and silently miss 97% of the program including every Custom Pair.
+
+## Why Create plans but does not sign
+
+The Create screen resolves a real plan from chain state — the program, the
+config that governs it, whether that config is owned by LaunchLab and names
+StonkFun, the quote mint, the rent and fees — and then says it will not sign.
+
+That is not an unfinished feature. **pump.fun is not deployed on devnet**, so its
+create instruction cannot be exercised anywhere except mainnet with real money.
+LaunchLab has a devnet deployment, but its devnet configs do not mirror
+mainnet's, so the stock-quoted path is not meaningfully testable there either.
+An instruction that has never once executed successfully, behind a button that
+spends SOL, is not a feature — it is a way to lose someone else's money while
+looking finished.
+
+One check is also still genuinely open: whether StonkFun's platform config
+permits a third party to launch under it. The config exists, is owned by
+LaunchLab and names StonkFun, but the restriction flags have not been decoded
+from a source worth trusting, so the screen reports that as **not verified**
+rather than guessing.

@@ -1,213 +1,488 @@
-import Link from "next/link";
+"use client";
 
+import {useEffect, useMemo, useState} from "react";
+import dynamic from "next/dynamic";
+import {useRouter} from "next/navigation";
+
+import {APP_SCROLL_PAD_TOP} from "@/components/AppShell";
+import {accountUrl, tokenUrl} from "@/config/explorer";
+import {useAsset, useChart, useTrades} from "@/hooks/useAsset";
+import {useLivePrice} from "@/hooks/useLivePrice";
+import {hoveredCandleChangePct} from "@/lib/chartLwc";
+import {changePctForPoints, mergeTradesIntoChart} from "@/lib/chartLive";
+import {TIMEFRAME_MS, chartWindowMs} from "@/lib/chartPlot";
+import {defaultChartTimeframe} from "@/lib/chartTimeframe";
 import {cn} from "@/lib/cn";
-import {
-  formatCompactUsd,
-  formatPriceUsd,
-  formatUtc,
-  isPriced,
-  tokenAge,
-} from "@/lib/priceFormat";
+import {clock, shortAddress} from "@/lib/format";
+import {publishPrice} from "@/lib/livePrice";
+import {readChartStyle, writeChartStyle} from "@/lib/localStore";
+import {formatLiquidityUsd, formatMarketCapAt, formatPriceUsd} from "@/lib/priceState";
 import {LAUNCHPADS} from "@/lib/programs";
-import {shortPubkey} from "@/lib/pubkey";
 import {SECTOR_LABEL} from "@/lib/sectors";
 import {ISSUERS} from "@/lib/stocks/registry";
-import type {Asset, Stock, Stonk} from "@/lib/types";
+import type {AssetKind, ChartPoint, ChartStyle, Timeframe} from "@/lib/types";
+import {STOCK_TIMEFRAMES, TIMEFRAMES, timeframeLabel} from "@/lib/types";
+import {AssetSkeleton} from "./AssetPageSkeleton";
+import {LaunchpadMark} from "./LaunchpadMark";
+import {PanelTabs, type PanelTab} from "./PanelTabs";
+import {PillRail} from "./PillRail";
+import {TradeBar} from "./TradeBar";
+import {WatchStar} from "./WatchStar";
 import {Avatar} from "./ui/Avatar";
-import {ChevronLeftIcon} from "./ui/Icons";
 import {PairTicker, TypeBadge, VerifiedTick} from "./ui/Badges";
 import {PriceDelta} from "./ui/PriceDelta";
+import {SegmentedToggle} from "./ui/SegmentedToggle";
+import {
+  ArrowUpRightIcon,
+  CandleChartIcon,
+  ChevronLeftIcon,
+  CopyIcon,
+  LineChartIcon,
+} from "./ui/Icons";
+import {PanelError} from "./panels/TradesPanel";
+
+const CommentsPanel = dynamic(() =>
+  import("./panels/CommentsPanel").then((m) => ({default: m.CommentsPanel})),
+);
+const InfoPanel = dynamic(() =>
+  import("./panels/InfoPanel").then((m) => ({default: m.InfoPanel})),
+);
+const NewsPanel = dynamic(() =>
+  import("./panels/NewsPanel").then((m) => ({default: m.NewsPanel})),
+);
+const TradesPanel = dynamic(() =>
+  import("./panels/TradesPanel").then((m) => ({default: m.TradesPanel})),
+);
+const OrderSheet = dynamic(
+  () => import("./OrderSheet").then((m) => ({default: m.OrderSheet})),
+  {ssr: false},
+);
+const PriceChart = dynamic(
+  () => import("./PriceChart").then((m) => ({default: m.PriceChart})),
+  {
+    ssr: false,
+    loading: () => <div className="mt-3 h-[220px] animate-pulse rounded-xl bg-wash" />,
+  },
+);
+
+type PanelKey = "trades" | "comments" | "detail";
 
 /**
- * The asset page.
+ * The chart page, shared by both sides of the universe.
  *
- * One component for both sides of the universe, because the page is the same
- * shape for each: identity, the one number that matters, then the facts behind
- * it. What differs is which facts exist — a stock has an issuer and a
- * custodian, a coin has a launchpad and a creator — so the stat block is built
- * per kind rather than the whole page being forked.
- *
- * The chart, the trade tape and the order ticket land here next. Until they do,
- * the page says so rather than showing an empty frame where a chart will be.
+ * One component rather than two because everything below the header is
+ * identical — chart, timeframes, trades, comments — and the third tab is the
+ * only real fork: a coin gets pool and supply stats, a stock gets coverage.
  */
-export function AssetPage({asset}: {asset: Asset}) {
-  const stock = asset.kind === "stock";
-  const symbol = stock ? asset.ticker : asset.symbol;
+export function AssetPage({
+  kind,
+  id,
+  requestedTimeframe,
+}: {
+  kind: AssetKind;
+  id: string;
+  /** `?tf=` from the chart URL. Clicks from the New sort send `1m`. */
+  requestedTimeframe?: string | null;
+}) {
+  const router = useRouter();
+  const {asset, isLoading, error} = useAsset(kind, id);
+
+  const listedAt = asset?.kind === "stonk" ? asset.listedAt : null;
+  const autoTimeframe = defaultChartTimeframe({kind, listedAt, requested: requestedTimeframe});
+
+  // The picked timeframe is scoped to the asset, so navigating from one coin to
+  // another does not carry a 1m pick onto something listed last year.
+  const scope = `${kind}:${id}`;
+  const [picked, setPicked] = useState<Timeframe | null>(null);
+  const [pickedScope, setPickedScope] = useState<string | null>(null);
+  const timeframe = pickedScope === scope && picked ? picked : autoTimeframe;
+  const setTimeframe = (next: Timeframe) => {
+    setPicked(next);
+    setPickedScope(scope);
+  };
+
+  const tfOptions: readonly Timeframe[] = kind === "stock" ? STOCK_TIMEFRAMES : TIMEFRAMES;
+  const [panel, setPanel] = useState<PanelKey>("trades");
+  const [scrubbed, setScrubbed] = useState<ChartPoint | null>(null);
+  const [orderSide, setOrderSide] = useState<"buy" | "sell" | null>(null);
+  const [chartStyle, setChartStyle] = useState<ChartStyle>("line");
+  useEffect(() => setChartStyle(readChartStyle()), []);
+
+  const chart = useChart(kind, id, timeframe);
+  const trades = useTrades(kind, id, true);
+
+  const symbol = asset?.kind === "stock" ? asset.ticker : (asset?.symbol ?? "");
+
+  const livePoints = useMemo(
+    () =>
+      mergeTradesIntoChart(
+        chart.points,
+        trades.trades,
+        TIMEFRAME_MS[chart.resolvedTimeframe],
+      ),
+    [chart.points, chart.resolvedTimeframe, trades.trades],
+  );
+
+  /**
+   * The tape is the freshest thing this app has, so it publishes into the
+   * shared price store. The feed row for this same asset reads it too, which is
+   * what keeps two surfaces from showing two different numbers for one coin.
+   */
+  const newestFill = trades.trades[0];
+  useEffect(() => {
+    if (!newestFill) return;
+    publishPrice(id, newestFill.priceUsd, Date.parse(newestFill.at));
+  }, [id, newestFill]);
+
+  const livePrice = useLivePrice(id);
+  const liveChange = changePctForPoints(livePoints) ?? asset?.changePct ?? 0;
+  const positive = liveChange >= 0;
+
+  const tabs: PanelTab<PanelKey>[] = useMemo(
+    () => [
+      {value: "trades", label: "Trades"},
+      {value: "comments", label: "Comments"},
+      {value: "detail", label: kind === "stock" ? "About" : "Info"},
+    ],
+    [kind],
+  );
+
+  if (!asset) {
+    if (isLoading) return <AssetSkeleton />;
+    return (
+      <div className={APP_SCROLL_PAD_TOP}>
+        <BackButton onClick={() => router.push("/home")} />
+        <p className="mt-5 text-[14px] text-muted">
+          {error?.message ?? "That asset is not listed here."}
+        </p>
+      </div>
+    );
+  }
+
+  // While scrubbing, the header reports the point under the finger; otherwise
+  // the live price. A hovered candle's percentage is that bar's open→close, not
+  // the cumulative move across the window.
+  const shownPrice =
+    scrubbed?.price ?? livePrice ?? newestFill?.priceUsd ?? asset.price.usd ?? 0;
+  const shownChange = scrubbed
+    ? (hoveredCandleChangePct(livePoints, scrubbed) ?? liveChange)
+    : liveChange;
+
+  // One calculation, one price. Both live in shared modules precisely so this
+  // header and the panel further down the page cannot disagree.
+  const shownMarketCap = formatMarketCapAt(asset, shownPrice);
 
   return (
-    <div className="pt-[calc(18px+env(safe-area-inset-top,0px))]">
-      <Link
-        href="/home"
-        aria-label="Back"
-        className="-ml-1.5 inline-flex h-9 w-9 items-center justify-center rounded-full text-muted transition-colors duration-150 hover:bg-[var(--overlay-wash)] hover:text-ink"
-      >
-        <ChevronLeftIcon className="h-[20px] w-[20px]" />
-      </Link>
+    <div className={cn(APP_SCROLL_PAD_TOP, "pb-[calc(84px+env(safe-area-inset-bottom))]")}>
+      <BackButton onClick={() => router.back()} />
 
-      <header className="mt-3 flex items-start gap-3">
-        {stock ? null : <Avatar name={symbol} seed={asset.mint} size={46} />}
-
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-1.5">
-            <h1 className="truncate text-[24px] font-extrabold tracking-[-0.03em] text-ink">
-              {symbol}
-            </h1>
-            {stock ? <VerifiedTick /> : <PairTicker ticker={asset.quoteTicker} />}
-          </div>
-          <p className="mt-0.5 truncate text-[13px] font-semibold text-muted">
-            {asset.name}
-          </p>
-        </div>
-      </header>
-
-      <div className="mt-5">
-        <div className="tabular-nums text-[34px] font-extrabold leading-none tracking-[-0.035em] text-ink">
-          {formatPriceUsd(asset.price.usd)}
-        </div>
-        <div className="mt-2 flex items-center gap-2">
-          {asset.changePct === null ? (
-            <span className="text-[13px] font-bold text-faint">
-              No 24h change recorded
+      {asset.kind === "stock" ? (
+        // A tokenized equity is listed by symbol, with no artwork — the way a
+        // brokerage lists it — so the company name carries the header.
+        <div className="mt-2">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[12px] font-extrabold uppercase tracking-[0.06em] text-faint">
+              {asset.ticker}
             </span>
-          ) : (
-            <>
-              <PriceDelta value={asset.changePct} className="text-[14px] font-extrabold" />
-              <span className="text-[12.5px] font-semibold text-faint">24h</span>
-            </>
-          )}
+            <VerifiedTick size={14} />
+            <TypeBadge kind={asset.stockKind} />
+            <WatchStar
+              kind={asset.kind}
+              id={asset.id}
+              addPrice={asset.price.usd ?? 0}
+              className="-my-1 ml-auto"
+            />
+          </div>
+          <h1 className="mt-1 text-[24px] font-extrabold leading-tight tracking-[-0.035em]">
+            {asset.name}
+          </h1>
         </div>
+      ) : (
+        <div className="mt-3 flex items-start gap-3">
+          <Avatar name={symbol} seed={asset.mint} size={44} />
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-center gap-1">
+              <h1 className="truncate text-[20px] font-extrabold tracking-[-0.03em]">
+                {symbol}
+              </h1>
+              <WatchStar
+                kind={asset.kind}
+                id={asset.id}
+                addPrice={asset.price.usd ?? 0}
+              />
+            </div>
+            <div className="-mt-0.5 truncate text-[13px] font-semibold text-faint">
+              {asset.name}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+        {asset.kind === "stock" ? (
+          <>
+            {asset.sector ? (
+              <span className="rounded-[8px] bg-[var(--overlay-wash)] px-2 py-1 text-[11.5px] font-extrabold text-muted">
+                {SECTOR_LABEL.get(asset.sector)}
+              </span>
+            ) : null}
+            <span className="rounded-[8px] bg-[var(--overlay-wash)] px-2 py-1 text-[11.5px] font-extrabold text-muted">
+              {ISSUERS[asset.issuer].label}
+            </span>
+            {/*
+              Said out loud on the page, not buried in a tooltip. A pre-IPO name
+              has no public market, so nothing here is an exchange quote.
+            */}
+            {asset.priceAuthority === "none" ? (
+              <span
+                title="Not publicly listed, so no exchange quote exists"
+                className="rounded-[8px] bg-[var(--overlay-wash)] px-2 py-1 text-[11.5px] font-extrabold text-faint"
+              >
+                Pool-priced
+              </span>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <PairTicker ticker={asset.quoteTicker} />
+            {asset.paysHolders ? (
+              <span
+                title={`A share of every trade goes back to holders, in ${asset.quoteTicker}`}
+                className="rounded-[8px] bg-[var(--overlay-wash)] px-2 py-1 text-[11.5px] font-extrabold text-price-up"
+              >
+                Pays {asset.quoteTicker}
+              </span>
+            ) : null}
+            <a
+              href={LAUNCHPADS[asset.launchpad].url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={`Launched on ${LAUNCHPADS[asset.launchpad].label}`}
+              className="flex items-center gap-1.5 rounded-[8px] bg-[var(--overlay-wash)] py-1 pl-1 pr-2 text-[11.5px] font-extrabold transition-colors hover:bg-[var(--overlay-wash-hover)]"
+            >
+              <LaunchpadMark launchpad={asset.launchpad} size={16} />
+              {LAUNCHPADS[asset.launchpad].label}
+            </a>
+          </>
+        )}
       </div>
 
       {/*
-        A placeholder that names what is missing rather than an empty chart
-        frame. A blank panel reads as a failure; this reads as unfinished.
+        The mint sits on its own line rather than in the rail above. It is the
+        longest chip by far and the only one people copy rather than read, so
+        sharing a wrapping row pushed the others around by address length.
       */}
-      <div className="mt-5 grid h-[150px] place-items-center rounded-[18px] bg-[var(--overlay-wash)]">
-        <p className="px-8 text-center text-[12.5px] leading-[1.55] text-faint">
-          Chart, trade tape and the order ticket are next.
-        </p>
+      <div className="mt-2 flex">
+        <MintChip mint={asset.mint} />
       </div>
 
-      {stock ? <StockStats stock={asset} /> : <StonkStats stonk={asset} />}
-
-      {asset.price.source === "snapshot" && asset.price.at ? (
-        <p className="pt-6 text-center text-[11.5px] leading-[1.55] text-faint">
-          Price captured {formatUtc(asset.price.at)}.
-        </p>
+      {asset.kind === "stock" && asset.description ? (
+        <p className="mt-3 text-[13px] leading-[1.55] text-muted">{asset.description}</p>
       ) : null}
+
+      <div className="mt-4 flex items-end justify-between gap-3">
+        <div>
+          <div className="tabular-nums text-[32px] font-extrabold leading-none tracking-[-0.035em]">
+            {formatPriceUsd(shownPrice)}
+          </div>
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[13.5px] font-bold">
+            <PriceDelta value={shownChange} />
+            <span className="font-semibold text-faint">
+              {scrubbed
+                ? clock(scrubbed.t)
+                : timeframeLabel(timeframe, chart.resolvedTimeframe)}
+            </span>
+          </div>
+        </div>
+
+        <div className="text-right">
+          <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-faint">
+            {asset.kind === "stock" ? "Company cap" : "Market cap"}
+          </div>
+          <div className="tabular-nums text-[15px] font-extrabold tracking-[-0.02em]">
+            {shownMarketCap}
+          </div>
+          {asset.kind === "stonk" ? (
+            <div className="tabular-nums mt-0.5 inline-flex items-center gap-1 rounded-[6px] bg-[var(--overlay-wash)] px-1.5 py-[3px] text-[11px] font-bold">
+              <span className="text-faint">Liq</span>
+              <span className="text-muted">{formatLiquidityUsd(asset.liquidityUsd)}</span>
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      {chart.error && livePoints.length < 2 ? (
+        <div className="mt-3 h-[220px] rounded-xl bg-wash">
+          <PanelError message={chart.error} onRetry={chart.retry} />
+        </div>
+      ) : (
+        <PriceChart
+          points={livePoints}
+          positive={positive}
+          windowMs={chartWindowMs(timeframe)}
+          emptyLabel={`Not enough history for ${timeframe}`}
+          style={chartStyle}
+          showBaseline={asset.kind === "stock"}
+          floorPrice={livePoints[0]?.price}
+          onScrub={setScrubbed}
+          className="mt-3"
+        />
+      )}
+
+      <div className="mb-5 mt-2 flex items-center gap-2">
+        <PillRail
+          label="Chart timeframe"
+          options={tfOptions}
+          value={timeframe}
+          resolvedValue={chart.resolvedTimeframe}
+          onChange={setTimeframe}
+          positive={positive}
+          className="mb-0 mt-0 min-w-0 flex-1"
+        />
+        <SegmentedToggle
+          value={chartStyle}
+          onChange={(next) => {
+            setChartStyle(next);
+            writeChartStyle(next);
+          }}
+          options={[
+            {value: "line", label: "Line", icon: <LineChartIcon className="h-3.5 w-3.5" />},
+            {
+              value: "candles",
+              label: "Candles",
+              icon: <CandleChartIcon className="h-3.5 w-3.5" />,
+            },
+          ]}
+        />
+      </div>
+
+      <PanelTabs tabs={tabs} value={panel} onChange={setPanel} />
+
+      <div className="pt-3">
+        {panel === "trades" ? (
+          <TradesPanel
+            trades={trades.trades}
+            symbol={symbol}
+            isLoading={trades.isLoading}
+            error={trades.error}
+            onRetry={trades.retry}
+          />
+        ) : panel === "comments" ? (
+          <CommentsPanel kind={asset.kind} assetId={asset.id} symbol={symbol} />
+        ) : asset.kind === "stonk" ? (
+          <InfoPanel stonk={asset} />
+        ) : (
+          <StockAbout
+            issuer={ISSUERS[asset.issuer].label}
+            launches={asset.launchesQuotedAgainst}
+            poolPriced={asset.priceAuthority === "none"}
+            ticker={asset.ticker}
+          />
+        )}
+      </div>
+
+      <TradeBar
+        symbol={symbol}
+        onBuy={() => setOrderSide("buy")}
+        onSell={() => setOrderSide("sell")}
+      />
+
+      <OrderSheet
+        asset={orderSide ? asset : null}
+        side={orderSide ?? "buy"}
+        onClose={() => setOrderSide(null)}
+      />
     </div>
   );
 }
 
-function StonkStats({stonk}: {stonk: Stonk}) {
-  const launchpad = LAUNCHPADS[stonk.launchpad];
-
-  return (
-    <dl className="mt-6 divide-y divide-[var(--border-subtle)]">
-      <Stat label="Market cap" value={formatMcap(stonk.marketCapUsd)} />
-      <Stat
-        label="Liquidity"
-        value={
-          stonk.liquidityUsd === null
-            ? "Not measured"
-            : formatCompactUsd(stonk.liquidityUsd)
-        }
-        /*
-          A coin on a bonding curve has no pool, and the curve's seeded reserves
-          are not liquidity. Unmeasured says so instead of printing a number
-          that would be wrong by orders of magnitude.
-        */
-        hint={stonk.liquidityUsd === null ? "No pool measured yet" : undefined}
-      />
-      <Stat label="Priced in" value={stonk.quoteTicker} />
-      <Stat
-        label="Holder rewards"
-        value={stonk.paysHolders ? `Paid in ${stonk.quoteTicker}` : "None"}
-        hint={
-          stonk.paysHolders
-            ? "A share of every trade goes back to holders, in stock"
-            : undefined
-        }
-      />
-      <Stat label="Launchpad" value={launchpad.label} />
-      <Stat label="Creator" value={shortPubkey(stonk.creator, 4, 4)} />
-      <Stat label="Mint" value={shortPubkey(stonk.mint, 4, 4)} />
-      {stonk.listedAt ? (
-        <Stat label="Age" value={tokenAge(stonk.listedAt)} />
-      ) : null}
-    </dl>
-  );
-}
-
-function StockStats({stock}: {stock: Stock}) {
-  return (
-    <dl className="mt-6 divide-y divide-[var(--border-subtle)]">
-      <Stat
-        label="Type"
-        value={<TypeBadge kind={stock.stockKind} />}
-      />
-      <Stat label="Issuer" value={ISSUERS[stock.issuer].label} />
-      {stock.sector ? (
-        <Stat label="Sector" value={SECTOR_LABEL.get(stock.sector) ?? "—"} />
-      ) : null}
-      <Stat
-        label="Coins priced in it"
-        value={stock.launchesQuotedAgainst.toLocaleString("en-US")}
-      />
-      <Stat
-        label="Underlying market cap"
-        value={formatMcap(stock.marketCapUsd)}
-        hint="The company's own market cap, not the token's"
-      />
-      {/*
-        The honest note on a pre-IPO name: there is no listed equity, so no
-        oracle and no exchange quote can be authoritative about its price. The
-        only number available is what a pool says.
-      */}
-      <Stat
-        label="Price source"
-        value={stock.priceAuthority === "none" ? "Pool only" : "Oracle"}
-        hint={
-          stock.priceAuthority === "none"
-            ? "Not publicly listed, so no exchange quote exists"
-            : undefined
-        }
-      />
-      <Stat label="Mint" value={shortPubkey(stock.mint, 4, 4)} />
-    </dl>
-  );
-}
-
-function formatMcap(value: number | null): string {
-  return isPriced(value) ? formatCompactUsd(value) : "Not measured";
-}
-
-function Stat({
-  label,
-  value,
-  hint,
+function StockAbout({
+  issuer,
+  launches,
+  poolPriced,
+  ticker,
 }: {
-  label: string;
-  value: React.ReactNode;
-  hint?: string;
+  issuer: string;
+  launches: number;
+  poolPriced: boolean;
+  ticker: string;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 py-3">
-      <dt className="text-[13px] font-semibold text-muted">
-        {label}
-        {hint ? (
-          <span className="mt-0.5 block max-w-[22ch] text-[11.5px] font-medium leading-[1.45] text-faint">
-            {hint}
-          </span>
-        ) : null}
-      </dt>
-      <dd
-        className={cn(
-          "tabular-nums shrink-0 text-right text-[13.5px] font-extrabold text-ink",
-        )}
-      >
-        {value}
-      </dd>
+    <div className="overflow-hidden rounded-2xl bg-surface-card shadow-card">
+      <AboutRow label="Issuer" value={issuer} />
+      <AboutRow label="Coins priced in it" value={launches.toLocaleString("en-US")} />
+      <AboutRow
+        label="Price source"
+        value={poolPriced ? "Pool only" : "Exchange-backed"}
+      />
+      <div className="px-4 py-3 text-[12.5px] leading-[1.55] text-muted">
+        {poolPriced
+          ? `${ticker} has no public market behind it, so its price is whatever the ` +
+            `pool says. Treat it as a market's opinion, not a quote.`
+          : `${ticker} is backed one-for-one by shares in custody, so its price ` +
+            `tracks the underlying equity around the clock.`}
+      </div>
     </div>
+  );
+}
+
+function AboutRow({label, value}: {label: string; value: string}) {
+  return (
+    <div className="flex items-center justify-between gap-3 px-4 py-3 even:bg-[var(--overlay-wash)]/40">
+      <span className="text-[12.5px] font-bold text-faint">{label}</span>
+      <span className="tabular-nums text-[13px] font-extrabold">{value}</span>
+    </div>
+  );
+}
+
+function BackButton({onClick}: {onClick: () => void}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="Back"
+      className="-ml-1.5 grid h-9 w-9 place-items-center rounded-full text-muted transition-colors hover:bg-[var(--overlay-wash)] hover:text-ink"
+    >
+      <ChevronLeftIcon className="h-5 w-5" />
+    </button>
+  );
+}
+
+function MintChip({mint}: {mint: string}) {
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(mint);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  return (
+    <span className="flex items-center gap-0.5 rounded-[8px] bg-[var(--overlay-wash)] py-0.5 pl-2 pr-0.5 text-[11.5px] font-semibold text-muted">
+      <span className="font-mono text-[11px]">
+        {copied ? "Copied" : shortAddress(mint, 5)}
+      </span>
+      <button
+        type="button"
+        onClick={() => void copy()}
+        aria-label="Copy mint address"
+        className="grid h-6 w-6 place-items-center rounded-full text-faint transition-colors hover:text-ink"
+      >
+        <CopyIcon className="h-3 w-3" />
+      </button>
+      <a
+        href={tokenUrl(mint)}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="View mint on the explorer"
+        className="grid h-6 w-6 place-items-center rounded-full text-faint transition-colors hover:text-ink"
+      >
+        <ArrowUpRightIcon className="h-3 w-3" />
+      </a>
+    </span>
   );
 }

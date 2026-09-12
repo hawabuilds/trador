@@ -161,10 +161,11 @@ async function main(): Promise<void> {
 
       // Measured, not guessed: price × real circulating supply. Without both,
       // there is no market cap and the row shows a price instead.
+      const circulatingSupply =
+        supply && decimals !== null ? Number(supply.supply) / 10 ** decimals : null;
+
       const marketCapUsd =
-        price !== null && supply && decimals !== null
-          ? price * (Number(supply.supply) / 10 ** decimals)
-          : null;
+        price !== null && circulatingSupply !== null ? price * circulatingSupply : null;
 
       return {
         mint,
@@ -179,6 +180,10 @@ async function main(): Promise<void> {
         creator: launch.pool.creator,
         priceUsd: price,
         changePct: jup?.priceChange24h ?? null,
+        // Stored so the chart page can rescale the cap against a fresher price
+        // rather than showing a figure computed at capture time.
+        decimals,
+        circulatingSupply,
         marketCapUsd,
         liquidityUsd: jup?.liquidity ?? null,
         isTradeable: isTradeableFromLiquidity(jup?.liquidity ?? null, MIN_LIQUIDITY_USD),

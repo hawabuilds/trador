@@ -1,7 +1,7 @@
-import {ComingSoon} from "@/components/ComingSoon";
+import {StonkfolioScreen} from "./StonkfolioScreen";
 
 export const metadata = {title: "Stonkfolio"};
 
 export default function StonkfolioPage() {
-  return <ComingSoon route="stonkfolio" />;
+  return <StonkfolioScreen />;
 }

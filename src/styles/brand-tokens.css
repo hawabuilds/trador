@@ -1,107 +1,125 @@
 /**
- * HODL brand tokens — single source of truth.
+ * Trador brand tokens — single source of truth.
  *
- * Default palette: terminal — near-black page base (#0D0F18), input-level elevation.
- * Legacy palette: html[data-palette="legacy"] or ?palette=legacy (Step 3 deploy).
+ * Near-black ground, Solana's palette on top: purple (#9945FF) is the app's own
+ * voice — actions, focus, the active tab — and Solana green (#14F195) is price
+ * up. Nothing else uses either.
  *
- * Theme: html.dark (default) | html.light — set by boot script + ThemeProvider.
+ * Three rules the file follows throughout:
+ *
+ *   1. **Purple is never used for price, and green is never used for anything
+ *      else.** A green number on this screen means exactly one thing. The
+ *      moment green also means "primary action", a rising price stops being
+ *      readable at a glance.
+ *   2. **Every colour is defined on the dark block first.** Light redefines
+ *      only what changes. A token that exists in one theme and not the other is
+ *      a token that vanishes for half the users.
+ *   3. **Colour never carries meaning alone.** Direction always ships with a
+ *      ▲/▼ glyph — see `PriceDelta` — because roughly one in twelve men cannot
+ *      separate red from green, and a screenshot through a filter defeats
+ *      everyone.
+ *
+ * Solana has no red. Down needs one, so it is a coral (#FF5C7A) tuned to sit at
+ * the same weight as the green rather than shouting over it.
  */
 
-/* Brand scale (shared across themes) */
+/* Brand scale — Solana purple, shared across themes. */
 :root {
-  --brand-50: #f0efff;
-  --brand-100: #e0deff;
-  --brand-200: #c4c2ff;
-  --brand-300: #abaef5;
-  --brand-400: #8a85ff;
-  --brand-500: #6860ff;
-  --brand-600: #524bd4;
-  --brand-700: #3f3999;
-  --brand-800: #2d2866;
-  --brand-900: #1e1b45;
-  --brand-disabled: rgb(104 96 255 / 35%);
-  --brand-focus-ring: #abaef5;
+  --brand-50: #f4ecff;
+  --brand-100: #e7d8ff;
+  --brand-200: #cdaeff;
+  --brand-300: #b688ff;
+  --brand-400: #a96bff;
+  --brand-500: #9945ff;
+  --brand-600: #7b2fd6;
+  --brand-700: #5d22a1;
+  --brand-800: #3f1870;
+  --brand-900: #281048;
+  --brand-disabled: rgb(153 69 255 / 35%);
+  --brand-focus-ring: #b688ff;
 }
 
-/* --- Dark terminal palette (default) --- */
+/* --- Dark (default) --- */
 :root,
 html.dark {
-  --bg-base: #0d0f18;
+  --bg-base: #0a0a0b;
   --surface-base: var(--bg-base);
-  /* Small cards only — never sheets, modals, or full-width panels */
-  --surface-card: #161a40;
-  --surface-elevated: #161a40;
-  --surface-hover: #1e2452;
-  --surface-pressed: #121633;
-  --bg-overlay: #080a12;
-  --bg-input: #101428;
-  /* Sheets, modals, dropdowns, floating chrome */
-  --surface-popup: #0d0f18;
+  /* Small cards only — never sheets, modals or full-width panels. */
+  --surface-card: #14141a;
+  --surface-elevated: #14141a;
+  --surface-hover: #1d1d26;
+  --surface-pressed: #101016;
+  --bg-overlay: #06060a;
+  --bg-input: #101016;
+  /* Sheets, modals, dropdowns, floating chrome. */
+  --surface-popup: #0d0d12;
 
-  --border-default: #2e3568;
-  --border-subtle: #1e2452;
-  --divider: #323968;
-  --border-focus: #abaef5;
+  --border-default: #26262f;
+  --border-subtle: #1b1b22;
+  --divider: #2b2b35;
+  --border-focus: #b688ff;
 
-  --text-primary: #f5f6ff;
-  --text-secondary: #9ea2c8;
-  --text-tertiary: #8b90ae;
-  --text-disabled: #4a4580;
+  --text-primary: #f5f3ff;
+  --text-secondary: #a7a3bd;
+  --text-tertiary: #7d7a91;
+  --text-disabled: #4b4860;
 
-  --price-up: #3ddba8;
-  --price-up-light: #047857;
-  --price-up-chart: #4ae8b8;
-  --price-down: #ff6b7a;
-  --price-down-light: #dc2626;
-  --price-up-wash: rgb(61 219 168 / 14%);
-  --price-up-wash-hover: rgb(61 219 168 / 22%);
-  --price-down-wash: rgb(255 107 122 / 14%);
-  --price-down-wash-hover: rgb(255 107 122 / 22%);
+  /* Solana green. Price direction only. */
+  --price-up: #14f195;
+  --price-up-light: #0a9d61;
+  --price-up-chart: #19fb9b;
+  --price-down: #ff5c7a;
+  --price-down-light: #d32748;
+  --price-up-wash: rgb(20 241 149 / 13%);
+  --price-up-wash-hover: rgb(20 241 149 / 21%);
+  --price-down-wash: rgb(255 92 122 / 13%);
+  --price-down-wash-hover: rgb(255 92 122 / 21%);
 
   --success: var(--price-up);
   --error: var(--price-down);
-  --warning: #f59e0b;
+  --warning: #f5a524;
 
-  --accent: #6860ff;
-  --accent-soft: #abaef5;
-  --accent-link: #8a85ff;
+  --accent: #9945ff;
+  --accent-soft: #cdaeff;
+  --accent-link: #a96bff;
 
-  --btn-primary-bg: #6860ff;
-  --btn-primary-bg-hover: #524bd4;
-  --btn-primary-bg-alt: #524bd4;
+  --btn-primary-bg: #9945ff;
+  --btn-primary-bg-hover: #7b2fd6;
+  --btn-primary-bg-alt: #7b2fd6;
   --btn-primary-fg: #ffffff;
 
-  --overlay-wash: rgb(171 174 245 / 8%);
-  --overlay-wash-hover: rgb(171 174 245 / 14%);
-  --border-hover: rgb(171 174 245 / 18%);
-  --border-hover-strong: rgb(171 174 245 / 24%);
-  --scrollbar: rgb(171 174 245 / 16%);
+  --overlay-wash: rgb(183 150 255 / 8%);
+  --overlay-wash-hover: rgb(183 150 255 / 14%);
+  --border-hover: rgb(183 150 255 / 18%);
+  --border-hover-strong: rgb(183 150 255 / 24%);
+  --scrollbar: rgb(183 150 255 / 16%);
 
-  --backdrop-scrim: rgb(8 10 18 / 46%);
+  --backdrop-scrim: rgb(6 6 10 / 52%);
 
-  --shadow-color: rgb(8 10 18 / 55%);
+  --shadow-color: rgb(0 0 0 / 62%);
   --shadow-card: 0 14px 30px -26px var(--shadow-color);
   --shadow-lift: 0 22px 40px -26px var(--shadow-color);
   --shadow-panel: 0 20px 44px -32px var(--shadow-color);
   --shadow-modal: 0 40px 90px -24px var(--shadow-color),
-    0 0 0 1px rgb(171 174 245 / 8%);
+    0 0 0 1px rgb(183 150 255 / 8%);
   --shadow-frame: 0 44px 100px -34px var(--shadow-color),
-    0 0 0 1px rgb(171 174 245 / 8%);
+    0 0 0 1px rgb(183 150 255 / 8%);
   --shadow-menu: 0 24px 50px -18px var(--shadow-color);
   --shadow-dark: 0 16px 34px -14px var(--shadow-color);
-  --shadow-brand: 0 16px 32px -14px rgb(104 96 255 / 45%);
-  --shadow-tab-active: 0 6px 18px -10px rgb(104 96 255 / 45%);
-  --shadow-price-up: 0 16px 32px -14px rgb(61 219 168 / 35%);
-  --shadow-price-down: 0 16px 32px -14px rgb(255 107 122 / 35%);
-  --shadow-inset-soft: inset 0 2px 8px rgb(0 0 0 / 35%);
-  --shadow-inset-focus: inset 0 2px 8px rgb(0 0 0 / 35%),
-    0 0 0 2px rgb(104 96 255 / 14%);
+  --shadow-brand: 0 16px 32px -14px rgb(153 69 255 / 45%);
+  --shadow-tab-active: 0 6px 18px -10px rgb(153 69 255 / 45%);
+  --shadow-price-up: 0 16px 32px -14px rgb(20 241 149 / 32%);
+  --shadow-price-down: 0 16px 32px -14px rgb(255 92 122 / 32%);
+  --shadow-inset-soft: inset 0 2px 8px rgb(0 0 0 / 42%);
+  --shadow-inset-focus: inset 0 2px 8px rgb(0 0 0 / 42%),
+    0 0 0 2px rgb(153 69 255 / 16%);
 
   --segment-track: rgb(255 255 255 / 4%);
 
-  --frame-chrome: #080a12;
-  --frame-chrome-glow: #161a40;
+  --frame-chrome: #06060a;
+  --frame-chrome-glow: #1a1030;
 
+  /* Aliases the ported components still read. */
   --card: var(--surface-card);
   --ink: var(--text-primary);
   --muted: var(--text-secondary);
@@ -119,102 +137,111 @@ html.dark {
   --shadow-green: var(--shadow-price-up);
 }
 
-/* Trade/settings popups — near-black terminal chrome even in legacy + light page themes */
+/*
+ * Trade and settings popups stay on the near-black chrome even when the page is
+ * light. An order ticket is read against the chart behind it, and flipping it to
+ * a white sheet mid-trade is disorienting at exactly the wrong moment.
+ */
 [data-surface="popup"] {
-  --surface-base: #0d0f18;
-  --surface-popup: #0d0f18;
-  --surface-elevated: #101428;
-  --surface-hover: #161a28;
-  --surface-pressed: #121633;
-  --bg-input: #101428;
+  --surface-base: #0d0d12;
+  --surface-popup: #0d0d12;
+  --surface-elevated: #14141a;
+  --surface-hover: #1d1d26;
+  --surface-pressed: #101016;
+  --bg-input: #101016;
   --segment-track: rgb(255 255 255 / 4%);
-  --text-primary: #f5f6ff;
-  --text-secondary: #9ea2c8;
-  --text-tertiary: #8b90ae;
-  --text-disabled: #4a4580;
-  --overlay-wash: rgb(171 174 245 / 8%);
-  --overlay-wash-hover: rgb(171 174 245 / 14%);
+  --text-primary: #f5f3ff;
+  --text-secondary: #a7a3bd;
+  --text-tertiary: #7d7a91;
+  --text-disabled: #4b4860;
+  --overlay-wash: rgb(183 150 255 / 8%);
+  --overlay-wash-hover: rgb(183 150 255 / 14%);
   --ink: var(--text-primary);
   --muted: var(--text-secondary);
   --faint: var(--text-tertiary);
-  --shadow-color: rgb(8 10 18 / 55%);
+  --shadow-color: rgb(0 0 0 / 62%);
 }
 
-/* --- Light palette --- */
+/* --- Light --- */
 html.light {
-  --bg-base: #f5f5ff;
-  --surface-base: #f5f5ff;
-  --surface-card: #fafaff;
+  --bg-base: #faf9ff;
+  --surface-base: #faf9ff;
+  --surface-card: #ffffff;
   --surface-elevated: #ffffff;
-  --surface-hover: #f0efff;
-  --surface-pressed: #e0deff;
-  --bg-overlay: rgb(22 26 64 / 42%);
-  --bg-input: #fafaff;
-  --surface-popup: #0d0f18;
+  --surface-hover: #f3efff;
+  --surface-pressed: #e7d8ff;
+  --bg-overlay: rgb(16 16 22 / 42%);
+  --bg-input: #ffffff;
+  --surface-popup: #0d0d12;
 
-  --border-default: #e0deff;
-  --border-subtle: #f0efff;
-  --divider: #d4d6f0;
-  --border-focus: #6860ff;
+  --border-default: #e6e0f5;
+  --border-subtle: #f1ecfc;
+  --divider: #ddd5f0;
+  --border-focus: #9945ff;
 
-  --text-primary: #161a40;
-  --text-secondary: #525680;
-  --text-tertiary: #6b7089;
-  --text-disabled: #9ea2c8;
+  --text-primary: #17141f;
+  --text-secondary: #565070;
+  --text-tertiary: #726c87;
+  --text-disabled: #a7a3bd;
 
-  --price-up: #047857;
-  --price-up-light: #047857;
-  --price-up-chart: #059669;
-  --price-down: #dc2626;
-  --price-down-light: #dc2626;
-  --price-up-wash: rgb(4 120 87 / 10%);
-  --price-up-wash-hover: rgb(4 120 87 / 16%);
-  --price-down-wash: rgb(220 38 38 / 10%);
-  --price-down-wash-hover: rgb(220 38 38 / 16%);
+  /*
+   * Solana's green is a neon tuned for dark ground; at 3:1 on white it fails
+   * contrast. Light mode uses a deepened version of the same hue so the
+   * meaning carries without the colour becoming unreadable.
+   */
+  --price-up: #067a4c;
+  --price-up-light: #067a4c;
+  --price-up-chart: #0a9d61;
+  --price-down: #cf1f41;
+  --price-down-light: #cf1f41;
+  --price-up-wash: rgb(6 122 76 / 10%);
+  --price-up-wash-hover: rgb(6 122 76 / 16%);
+  --price-down-wash: rgb(207 31 65 / 10%);
+  --price-down-wash-hover: rgb(207 31 65 / 16%);
 
   --success: var(--price-up);
   --error: var(--price-down);
-  --warning: #d97706;
+  --warning: #b4710c;
 
-  --accent: #6860ff;
-  --accent-soft: #524bd4;
-  --accent-link: #6860ff;
+  --accent: #9945ff;
+  --accent-soft: #7b2fd6;
+  --accent-link: #7b2fd6;
 
-  --btn-primary-bg: #6860ff;
-  --btn-primary-bg-hover: #524bd4;
-  --btn-primary-bg-alt: #524bd4;
+  --btn-primary-bg: #9945ff;
+  --btn-primary-bg-hover: #7b2fd6;
+  --btn-primary-bg-alt: #7b2fd6;
   --btn-primary-fg: #ffffff;
 
-  --overlay-wash: rgb(104 96 255 / 6%);
-  --overlay-wash-hover: rgb(104 96 255 / 10%);
-  --border-hover: rgb(104 96 255 / 14%);
-  --border-hover-strong: rgb(104 96 255 / 20%);
-  --scrollbar: rgb(104 96 255 / 18%);
+  --overlay-wash: rgb(153 69 255 / 6%);
+  --overlay-wash-hover: rgb(153 69 255 / 11%);
+  --border-hover: rgb(153 69 255 / 15%);
+  --border-hover-strong: rgb(153 69 255 / 22%);
+  --scrollbar: rgb(153 69 255 / 18%);
 
-  --backdrop-scrim: rgb(22 26 64 / 32%);
+  --backdrop-scrim: rgb(16 16 22 / 32%);
 
-  --shadow-color: rgb(22 26 64 / 10%);
+  --shadow-color: rgb(23 20 31 / 10%);
   --shadow-card: 0 14px 30px -26px var(--shadow-color);
   --shadow-lift: 0 22px 40px -26px var(--shadow-color);
   --shadow-panel: 0 20px 44px -32px var(--shadow-color);
   --shadow-modal: 0 40px 90px -24px var(--shadow-color),
-    0 0 0 1px rgb(104 96 255 / 8%);
+    0 0 0 1px rgb(153 69 255 / 8%);
   --shadow-frame: 0 44px 100px -34px var(--shadow-color),
-    0 0 0 1px rgb(104 96 255 / 10%);
+    0 0 0 1px rgb(153 69 255 / 10%);
   --shadow-menu: 0 24px 50px -18px var(--shadow-color);
   --shadow-dark: 0 16px 34px -14px var(--shadow-color);
-  --shadow-brand: 0 16px 32px -14px rgb(104 96 255 / 28%);
-  --shadow-tab-active: 0 6px 18px -10px rgb(104 96 255 / 22%);
-  --shadow-price-up: 0 16px 32px -14px rgb(4 120 87 / 22%);
-  --shadow-price-down: 0 16px 32px -14px rgb(220 38 38 / 22%);
-  --shadow-inset-soft: inset 0 2px 6px rgb(22 26 64 / 8%);
-  --shadow-inset-focus: inset 0 2px 6px rgb(22 26 64 / 8%),
-    0 0 0 2px rgb(104 96 255 / 12%);
+  --shadow-brand: 0 16px 32px -14px rgb(153 69 255 / 28%);
+  --shadow-tab-active: 0 6px 18px -10px rgb(153 69 255 / 22%);
+  --shadow-price-up: 0 16px 32px -14px rgb(6 122 76 / 22%);
+  --shadow-price-down: 0 16px 32px -14px rgb(207 31 65 / 22%);
+  --shadow-inset-soft: inset 0 2px 6px rgb(23 20 31 / 8%);
+  --shadow-inset-focus: inset 0 2px 6px rgb(23 20 31 / 8%),
+    0 0 0 2px rgb(153 69 255 / 12%);
 
-  --segment-track: rgb(22 26 64 / 5%);
+  --segment-track: rgb(23 20 31 / 5%);
 
-  --frame-chrome: #eef0ff;
-  --frame-chrome-glow: #fafaff;
+  --frame-chrome: #efeaff;
+  --frame-chrome-glow: #ffffff;
 
   --card: var(--surface-card);
   --ink: var(--text-primary);
@@ -225,30 +252,10 @@ html.light {
   --green: var(--price-up);
   --green-deep: var(--price-up);
   --red: var(--price-down);
+  --surface-elevated-legacy: var(--surface-elevated);
   --premium-bg: var(--bg-base);
   --scrollbar-thumb: var(--scrollbar);
-}
-
-/* Step 3 deploy — purple-navy page fill (#161A40 as base), dark only */
-html.dark[data-palette="legacy"],
-html[data-palette="legacy"]:not(.light) {
-  --bg-base: #161a40;
-  --surface-base: #161a40;
-  --surface-card: #1e2452;
-  --surface-elevated: #252b62;
-  --surface-hover: #2c336e;
-  --surface-pressed: #121633;
-  --bg-overlay: #0f1229;
-  --bg-input: #121633;
-
-  --border-default: #2e3568;
-  --border-subtle: #252b62;
-  --divider: #323968;
-
-  --shadow-color: rgb(15 18 41 / 55%);
-  --frame-chrome: #0f1229;
-  --frame-chrome-glow: #1e2452;
-
-  --card: var(--surface-base);
-  --premium-bg: var(--surface-base);
+  --btn-dark-bg: var(--btn-primary-bg);
+  --btn-dark-fg: var(--btn-primary-fg);
+  --shadow-green: var(--shadow-price-up);
 }

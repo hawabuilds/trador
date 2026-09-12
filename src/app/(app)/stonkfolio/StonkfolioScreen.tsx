@@ -1,0 +1,238 @@
+"use client";
+
+import {useMemo, useState} from "react";
+import Link from "next/link";
+import {useQuery} from "@tanstack/react-query";
+
+import {StickyPageHeader} from "@/components/AppShell";
+import {assetHref} from "@/components/AssetRow";
+import {FilterRail, type FilterOption} from "@/components/FilterRail";
+import {Avatar} from "@/components/ui/Avatar";
+import {Button} from "@/components/ui/Button";
+import {PairTicker, VerifiedTick} from "@/components/ui/Badges";
+import {CopyIcon, WalletIcon} from "@/components/ui/Icons";
+import {useUser} from "@/hooks/useUser";
+import {cn} from "@/lib/cn";
+import {compactMoney, units} from "@/lib/format";
+import {formatPriceUsd} from "@/lib/priceState";
+import {shortPubkey} from "@/lib/pubkey";
+import type {Holding} from "@/lib/types";
+
+type Split = "all" | "stonk" | "stock";
+
+const SPLITS: FilterOption<Split>[] = [
+  {value: "all", label: "All"},
+  {value: "stonk", label: "Stonks"},
+  {value: "stock", label: "Stocks"},
+];
+
+interface StonkfolioResponse {
+  holdings: Holding[];
+  otherCount: number;
+  solLamports: number;
+  totalUsd: number;
+  stale: boolean;
+  error?: string;
+}
+
+/**
+ * Your holdings.
+ *
+ * Read from the chain rather than from a stored book, so it is the same number
+ * a block explorer would give. Two honesty rules it follows throughout:
+ * a holding with no price contributes nothing to the total rather than zero,
+ * and tokens outside Trador's universe are counted and named rather than
+ * silently dropped — otherwise the total would quietly disagree with reality.
+ */
+export function StonkfolioScreen() {
+  const {authenticated, wallet, displayName, handle, isDemo, login} = useUser();
+  const [split, setSplit] = useState<Split>("all");
+  const [copied, setCopied] = useState(false);
+
+  const query = useQuery({
+    queryKey: ["stonkfolio", wallet],
+    enabled: Boolean(wallet),
+    queryFn: async (): Promise<StonkfolioResponse> => {
+      const response = await fetch(`/api/stonkfolio?wallet=${wallet}`);
+      const body = (await response.json()) as StonkfolioResponse;
+      if (!response.ok) throw new Error(body.error ?? "Could not read your wallet.");
+      return body;
+    },
+    refetchInterval: 30_000,
+  });
+
+  const holdings = useMemo(() => {
+    const all = query.data?.holdings ?? [];
+    return split === "all" ? all : all.filter((row) => row.asset.kind === split);
+  }, [query.data?.holdings, split]);
+
+  const sol = (query.data?.solLamports ?? 0) / 1_000_000_000;
+
+  if (!authenticated) {
+    return (
+      <div className="grid h-full place-items-center px-8 text-center">
+        <div>
+          <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-wash text-faint">
+            <WalletIcon className="h-6 w-6" />
+          </span>
+          <p className="mt-4 text-[14px] font-bold">Sign in to see your Stonkfolio</p>
+          <p className="mx-auto mt-1.5 max-w-[32ch] text-[13px] leading-[1.5] text-muted">
+            Your holdings are read from the chain, so nothing is stored here.
+          </p>
+          <Button variant="green" className="mt-4" onClick={login}>
+            Sign in
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <StickyPageHeader>
+        <div className="flex items-center gap-3">
+          <Avatar name={displayName ?? handle ?? "?"} seed={wallet ?? "demo"} size={42} />
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-[18px] font-extrabold tracking-[-0.03em]">
+              Stonkfolio
+            </h1>
+            {wallet ? (
+              <button
+                type="button"
+                onClick={() => {
+                  void navigator.clipboard.writeText(wallet).then(
+                    () => {
+                      setCopied(true);
+                      window.setTimeout(() => setCopied(false), 1600);
+                    },
+                    () => setCopied(false),
+                  );
+                }}
+                className="mt-0.5 inline-flex items-center gap-1 text-[12px] font-semibold text-faint transition-colors hover:text-muted"
+              >
+                <span className="font-mono">
+                  {copied ? "Copied" : shortPubkey(wallet, 5, 5)}
+                </span>
+                <CopyIcon className="h-3 w-3" />
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-faint">
+            Trador value
+          </div>
+          <div className="tabular-nums mt-0.5 text-[30px] font-extrabold leading-none tracking-[-0.035em]">
+            {query.isLoading ? "—" : compactMoney(query.data?.totalUsd ?? 0)}
+          </div>
+          <div className="tabular-nums mt-1.5 flex items-center gap-2 text-[12px] font-bold text-faint">
+            <span>{sol.toFixed(3)} SOL</span>
+            {/*
+              Counted and named rather than folded into the total. The number
+              above is what Trador can price, not everything in the wallet.
+            */}
+            {query.data && query.data.otherCount > 0 ? (
+              <span>· {query.data.otherCount} other tokens not in Trador</span>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="py-3.5">
+          <FilterRail label="Split holdings" options={SPLITS} value={split} onChange={setSplit} />
+        </div>
+      </StickyPageHeader>
+
+      {isDemo ? (
+        <p className="mb-3 rounded-2xl bg-[var(--segment-track)] px-3 py-2 text-[11.5px] font-medium leading-[1.45] text-faint shadow-inset-soft">
+          Demo mode reads a sample wallet. Add a Privy app id to see your own.
+        </p>
+      ) : null}
+
+      {query.isLoading ? (
+        <ul>
+          {Array.from({length: 5}).map((_unused, index) => (
+            <li key={index} className="flex items-center gap-3 py-3.5">
+              <div className="h-10 w-10 animate-pulse rounded-full bg-wash" />
+              <div className="flex-1">
+                <div className="h-3.5 w-20 animate-pulse rounded bg-wash" />
+                <div className="mt-2 h-3 w-14 animate-pulse rounded bg-wash" />
+              </div>
+              <div className="h-8 w-16 animate-pulse rounded bg-wash" />
+            </li>
+          ))}
+        </ul>
+      ) : query.error ? (
+        <p className="py-10 text-center text-[13.5px] text-muted">
+          {(query.error as Error).message}
+        </p>
+      ) : holdings.length === 0 ? (
+        <div className="px-6 py-12 text-center">
+          <p className="text-[14px] font-bold">Nothing here yet</p>
+          <p className="mx-auto mt-1.5 max-w-[32ch] text-[13px] leading-[1.5] text-muted">
+            Buy a coin priced in a tokenized stock and it shows up here.
+          </p>
+          <Link
+            href="/home"
+            className="mt-4 inline-flex h-10 items-center rounded-full bg-brand-500 px-5 text-[13.5px] font-extrabold text-white shadow-brand"
+          >
+            Browse the feed
+          </Link>
+        </div>
+      ) : (
+        <ul className="-mx-[22px]">
+          {holdings.map((holding) => (
+            <li key={`${holding.asset.kind}:${holding.asset.id}`}>
+              <HoldingRow holding={holding} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function HoldingRow({holding}: {holding: Holding}) {
+  const {asset} = holding;
+  const stock = asset.kind === "stock";
+  const symbol = stock ? asset.ticker : asset.symbol;
+
+  return (
+    <Link
+      href={assetHref(asset)}
+      className="flex items-center gap-3 px-[22px] py-[13px] transition-colors hover:bg-[var(--overlay-wash)]"
+    >
+      {stock ? (
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[var(--overlay-wash)] text-[12px] font-extrabold text-muted">
+          {symbol.slice(0, 2).toUpperCase()}
+        </span>
+      ) : (
+        <Avatar name={symbol} seed={asset.mint} size={40} />
+      )}
+
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="truncate text-[15px] font-extrabold tracking-[-0.015em]">
+            {symbol}
+          </span>
+          {stock ? <VerifiedTick size={14} /> : <PairTicker ticker={asset.quoteTicker} />}
+        </div>
+        <div className="tabular-nums mt-[3px] text-[12.5px] font-semibold text-faint">
+          {units(holding.amount)} {symbol} · {formatPriceUsd(asset.price.usd)}
+        </div>
+      </div>
+
+      <div className="shrink-0 text-right">
+        <div
+          className={cn(
+            "tabular-nums text-[15px] font-extrabold tracking-[-0.02em]",
+            holding.valueUsd === null && "text-faint",
+          )}
+        >
+          {/* Unpriced says so. It is not worth zero. */}
+          {holding.valueUsd === null ? "Unpriced" : compactMoney(holding.valueUsd)}
+        </div>
+      </div>
+    </Link>
+  );
+}
