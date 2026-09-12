@@ -7,6 +7,7 @@ import {StickyPageHeader} from "@/components/AppShell";
 import {AssetList} from "@/components/AssetRow";
 import {FilterRail, type FilterOption} from "@/components/FilterRail";
 import {HomeTabs, type HomeTab} from "@/components/HomeTabs";
+import {useWatchlistAssets} from "@/hooks/useWatchlist";
 import {RocketIcon, StarIcon} from "@/components/ui/Icons";
 import {APP_NAME} from "@/config/app";
 import {formatUtc} from "@/lib/priceFormat";
@@ -157,8 +158,25 @@ export function HomeFeed({
     }
   }, [stocks.items, sector, stockSort]);
 
+  /**
+   * The watchlist is fetched rather than filtered out of the feed.
+   *
+   * A starred coin has to keep working after it scrolls off the feed's first
+   * page, and it has to show a live price rather than whatever it cost when it
+   * was starred — so the stored keys are resolved against the store on demand.
+   */
+  const watchlist = useWatchlistAssets(tab === "watchlist");
+
+  const watched = useMemo(
+    () =>
+      watchlist.assets.filter(
+        (asset) => watchFilter === "all" || asset.kind === watchFilter,
+      ),
+    [watchlist.assets, watchFilter],
+  );
+
   const showing: readonly Asset[] =
-    tab === "stonks" ? shownStonks : tab === "stocks" ? shownStocks : [];
+    tab === "stonks" ? shownStonks : tab === "stocks" ? shownStocks : watched;
 
   return (
     <div>
@@ -227,8 +245,14 @@ export function HomeFeed({
 
       {showing.length > 0 ? (
         <AssetList assets={showing} now={now} />
+      ) : tab === "watchlist" && watchlist.isLoading ? (
+        <p className="py-10 text-center text-[13.5px] text-muted">Loading your watchlist…</p>
       ) : (
-        <EmptyFeed tab={tab} reason={tab === "stonks" ? stonkSort : undefined} />
+        <EmptyFeed
+          tab={tab}
+          reason={tab === "stonks" ? stonkSort : undefined}
+          watching={watchlist.count > 0}
+        />
       )}
 
       {/*
@@ -247,7 +271,27 @@ export function HomeFeed({
   );
 }
 
-function EmptyFeed({tab, reason}: {tab: HomeTab; reason?: StonkSort}) {
+function EmptyFeed({
+  tab,
+  reason,
+  watching,
+}: {
+  tab: HomeTab;
+  reason?: StonkSort;
+  /** Whether anything is starred at all, as opposed to filtered out. */
+  watching?: boolean;
+}) {
+  // Starred something and still seeing nothing means the filter did it, not an
+  // empty watchlist — telling someone to go star things they already starred is
+  // the kind of copy that makes an app feel broken.
+  if (tab === "watchlist" && watching) {
+    return (
+      <p className="py-10 text-center text-[13.5px] text-muted">
+        Nothing in your watchlist matches this filter.
+      </p>
+    );
+  }
+
   if (tab === "watchlist") {
     return (
       <div className="px-6 py-12 text-center">

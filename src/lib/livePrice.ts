@@ -25,8 +25,19 @@ export interface PriceReading {
 const readings = new Map<string, PriceReading>();
 const listeners = new Set<() => void>();
 
-/** Lower-cased so a checksummed address and its lower-case form agree. */
-const keyFor = (id: string) => id.toLowerCase();
+/**
+ * The id verbatim.
+ *
+ * Its EVM ancestor lower-cased here so a checksummed address and its lowercase
+ * form would agree — correct for hex, and a collision waiting to happen on
+ * base58. Two mints that differ only in case are different accounts, and
+ * folding them together makes this store serve one coin's price under the
+ * other's key. Nothing throws; the number is just wrong.
+ *
+ * Kept as a function rather than inlined because every read and write goes
+ * through it, which is what makes the guarantee checkable in one place.
+ */
+const keyFor = (id: string) => id;
 
 /**
  * Records a price, if it is newer than what is already known.

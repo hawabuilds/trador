@@ -47,7 +47,17 @@ function announce(): void {
 export type WatchKey = string;
 
 export function watchKey(kind: AssetKind, id: string): WatchKey {
-  return `${kind}:${id.toLowerCase()}`;
+  /**
+   * The id verbatim — it is a mint for a coin and a ticker for a stock, and
+   * folding either is wrong.
+   *
+   * Its EVM ancestor lowercased here, which was right for hex and silently
+   * destructive for base58. The key round-trips: `useWatchlist` splits it back
+   * apart to resolve the asset, so a folded mint would store happily and then
+   * match nothing on the way out. Starring a coin would appear to work and the
+   * Watchlist tab would stay empty forever.
+   */
+  return `${kind}:${id}`;
 }
 
 export function readWatchlist(): WatchKey[] {

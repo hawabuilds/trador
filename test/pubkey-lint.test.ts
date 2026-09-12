@@ -26,7 +26,11 @@ import {test} from "node:test";
 const SRC = path.join(process.cwd(), "src");
 const ALLOW = "pubkey-lint-ok";
 
-/** Words that mean "this is an account address, not a label". */
+/**
+ * Words that mean "this is an account address, not a label".
+ *
+ * Matched as substrings, so `quoteMint` and `poolAddress` are both caught.
+ */
 const ADDRESS_WORDS = [
   "mint",
   "address",
@@ -46,6 +50,20 @@ const ADDRESS_WORDS = [
   "feeaccount",
   "ata",
 ];
+
+/**
+ * Receivers that are addresses by what they hold rather than by their name.
+ *
+ * Matched as whole words, because substring matching on something this short
+ * would flag every `valid`, `hidden` and `paid` in the codebase.
+ *
+ * `id` is here because it is the one that actually got through. An asset's id
+ * in this app is a mint for a coin and a ticker for a stock, and `watchKey`
+ * folded it — so starring a coin stored a lowercased mint that could never be
+ * resolved back to an asset. The substring list missed it precisely because the
+ * variable was not called anything address-shaped.
+ */
+const ADDRESS_IDENTIFIERS = ["id", "key", "maker", "holder", "recipient"];
 
 interface Finding {
   file: string;
@@ -89,13 +107,20 @@ function scan(): Finding[] {
       // 1. Case folding something that is an address.
       for (const match of line.matchAll(/([A-Za-z0-9_.[\]"'`)]+)\s*\.toLowerCase\(\)/g)) {
         const receiver = match[1].toLowerCase();
+
         const hit = ADDRESS_WORDS.find((word) => receiver.includes(word));
-        if (hit) {
+
+        // Whole-word match on the final segment, so `asset.id` is caught but
+        // `valid` and `hidden` are not.
+        const segment = receiver.split(/[.[\]()"'`]+/).filter(Boolean).pop() ?? "";
+        const named = ADDRESS_IDENTIFIERS.find((word) => segment === word);
+
+        if (hit || named) {
           findings.push({
             file: relative,
             line: index + 1,
             text: line.trim(),
-            why: `case-folds "${hit}" — base58 is case-sensitive`,
+            why: `case-folds "${hit ?? named}" — base58 is case-sensitive`,
           });
         }
       }
@@ -168,12 +193,40 @@ test("the linter actually catches what it claims to", () => {
     'const a = normalizeAddress(value);',
     'const RE = /^0x[a-f0-9]{40}$/;',
     'const USDG = "0x5fc5360d0400a0fd4f2af552add042d716f1d168";',
+    /*
+     * The two that actually got through a weaker version of this rule, both
+     * found only after the substring list was extended with whole-word
+     * identifiers. Neither variable is named anything address-shaped:
+     *
+     *   - `watchKey` folded an asset id, which is a mint. Starring a coin
+     *     stored a key that could never resolve back to an asset, so the
+     *     Watchlist tab would have stayed empty forever.
+     *   - the shared price store keyed readings by a folded id, which would
+     *     serve one mint's price under another's key.
+     */
+    "return `${kind}:${id.toLowerCase()}`;",
+    "const keyFor = (id: string) => id.toLowerCase();",
+    "const k = asset.id.toLowerCase();",
   ];
 
+  /**
+   * Mirrors `scan`'s rules.
+   *
+   * Written out rather than sharing the scanner's code on purpose: if someone
+   * loosens the real rule, this self-check keeps the old expectation and fails,
+   * which is the point of having it.
+   */
   const catches = (sample: string): boolean => {
     const lowered = sample.toLowerCase();
+
+    for (const match of sample.matchAll(/([A-Za-z0-9_.[\]"'`)]+)\s*\.toLowerCase\(\)/g)) {
+      const receiver = match[1].toLowerCase();
+      if (ADDRESS_WORDS.some((word) => receiver.includes(word))) return true;
+      const segment = receiver.split(/[.[\]()"'`]+/).filter(Boolean).pop() ?? "";
+      if (ADDRESS_IDENTIFIERS.includes(segment)) return true;
+    }
+
     return (
-      /([A-Za-z0-9_.[\]"'`)]+)\s*\.toLowerCase\(\)/.test(sample) ||
       /normalizeaddress|sameaddress\b/.test(lowered) ||
       /\]\{40\}/.test(sample) ||
       /["'`]0x[a-fA-F0-9]{40}["'`]/.test(sample)
@@ -196,6 +249,11 @@ test("the linter actually catches what it claims to", () => {
     "const width = {40: true};",
     'const key = ticker.toUpperCase();',
     "padding: {40}",
+    // Handles are labels, so folding them is correct.
+    "return readFollowing().includes(handle.toLowerCase());",
+    // Short words that merely contain an identifier's letters.
+    "const ok = valid.toLowerCase();",
+    "const s = hidden.toLowerCase();",
   ];
 
   for (const sample of mustNotCatch) {
