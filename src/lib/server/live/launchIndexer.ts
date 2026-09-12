@@ -32,8 +32,10 @@ import {decodeCustomPair} from "@/lib/launchpad/pumpPool";
 import {encodeBase58, type Pubkey} from "@/lib/pubkey";
 import {STOCK_MINTS, stockForMint} from "@/lib/stocks/registry";
 import {quoteKindFor, statusFor} from "@/lib/universe";
+import {hasAdminPg} from "../adminPg";
 import {
   type StonkWrite,
+  updateStonks,
   upsertStats,
   upsertStonks,
   writeIndexerState,
@@ -67,6 +69,39 @@ async function rpc<T>(method: string, params: unknown[]): Promise<T> {
   if (body.error) throw new Error(body.error.message);
   return body.result as T;
 }
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Gap between pump sweep calls. Zero when a paid RPC removes the limit. */
+const PUMP_SWEEP_GAP_MS = process.env.HELIUS_RPC_URL ? 0 : 700;
+
+/**
+ * `rpc`, but it waits out a rate limit instead of failing the pass.
+ *
+ * A throttle mid-sweep would otherwise lose every stock after the one that hit
+ * it, and the pass would report a clean partial result — the universe would
+ * just be quietly missing coins with no error to explain why.
+ */
+async function rpcWithRetry<T>(method: string, params: unknown[]): Promise<T> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      return await rpc<T>(method, params);
+    } catch (error) {
+      lastError = error as Error;
+      if (!/rate limit/i.test(lastError.message)) throw lastError;
+      await sleep(1_500 * 2 ** attempt);
+    }
+  }
+
+  throw lastError ?? new Error("RPC failed.");
+}
+
+/** How many coins one full pass will decorate, and in what batch size. */
+const DECORATE_CAP = 600;
+const DECORATE_BATCH = 120;
 
 const bytes = (base64: string): Uint8Array =>
   Uint8Array.from(Buffer.from(base64, "base64"));
@@ -205,8 +240,16 @@ export async function indexPumpCustomPairs(): Promise<IndexPass> {
   const writes: StonkWrite[] = [];
 
   try {
-    for (const stock of STOCK_MINTS) {
-      const accounts = await rpc<{pubkey: string; account: {data: [string, string]}}[]>(
+    for (const [index, stock] of STOCK_MINTS.entries()) {
+      /*
+       * Pace the sweep. This is 29 getProgramAccounts calls in a row, and the
+       * public endpoint rate-limits well before the end of them — the first
+       * real run got nine in before being cut off. A Helius key removes the
+       * need for this, but the free path has to work too.
+       */
+      if (index > 0) await sleep(PUMP_SWEEP_GAP_MS);
+
+      const accounts = await rpcWithRetry<{pubkey: string; account: {data: [string, string]}}[]>(
         "getProgramAccounts",
         [
           PUMP_AMM,
@@ -346,7 +389,9 @@ export async function decorateStonks(
       );
     }
 
-    await upsertStonks(stonkWrites);
+    // Update, not upsert: decoration enriches coins the reconciler found and
+    // must never be able to create one.
+    await updateStonks(stonkWrites);
     await upsertStats(statWrites);
 
     return {
@@ -367,9 +412,36 @@ export async function indexAll(): Promise<{
   const stonkfun = await indexStonkfun();
   const pumpfun = await indexPumpCustomPairs();
 
+  /**
+   * Decorate everything the reconciler found, not just the first page.
+   *
+   * The token API batches 40 mints per call, so covering a few hundred coins is
+   * a handful of requests rather than a fan-out. Capping at one page left two
+   * thirds of the universe unnamed and unpriced — rows that exist, render, and
+   * show a dash where a price should be.
+   */
+  const {pgListStonks} = await import("../adminPg");
   const {listStonks} = await import("./universeStore");
-  const page = await listStonks({sort: "new", limit: 100});
-  const decorated = await decorateStonks(page.rows.map((row) => row.mint as Pubkey));
+
+  const rows = hasAdminPg
+    ? await pgListStonks(DECORATE_CAP)
+    : (await listStonks({sort: "new", limit: 100})).rows;
+
+  let named = 0;
+  let priced = 0;
+  let decorateError: string | null = null;
+
+  for (let i = 0; i < rows.length; i += DECORATE_BATCH) {
+    const batch = rows.slice(i, i + DECORATE_BATCH).map((row) => row.mint as Pubkey);
+    const result = await decorateStonks(batch);
+    named += result.named;
+    priced += result.priced;
+    // Keep the first error but carry on: one bad batch should not stop the rest
+    // of the universe being priced.
+    if (result.error && !decorateError) decorateError = result.error;
+  }
+
+  const decorated = {named, priced, error: decorateError};
 
   await writeIndexerState("live-tip", {heartbeat_at: new Date().toISOString()});
 

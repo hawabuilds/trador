@@ -23,10 +23,20 @@
 
 create extension if not exists pg_trgm;
 
--- Base58 excludes 0, O, I and l. A 32-byte key is 32–44 characters.
-create domain base58_pubkey as text
-  constraint base58_pubkey_check
-  check (value ~ '^[1-9A-HJ-NP-Za-km-z]{32,44}$');
+-- Base58 excludes 0, O, I and l. A 32-byte key is 32-44 characters.
+--
+-- Wrapped in a DO block because Postgres has no `create domain if not exists`,
+-- and every migration here has to survive being re-run -- that is how a new
+-- file gets applied. The first re-run failed on exactly this line.
+do $$
+begin
+  create domain base58_pubkey as text
+    constraint base58_pubkey_check
+    check (value ~ '^[1-9A-HJ-NP-Za-km-z]{32,44}$');
+exception
+  when duplicate_object then null;
+end
+$$;
 
 -- ---------------------------------------------------------------------------
 -- The universe

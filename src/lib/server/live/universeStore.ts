@@ -14,6 +14,14 @@ import {applyThreeStateFilter, isTradeableFromLiquidity} from "@/lib/threeState"
 import type {PriceState, Stonk} from "@/lib/types";
 import type {QuoteKind} from "@/lib/universe";
 import {db, hasDatabase} from "../db";
+import {
+  hasAdminPg,
+  pgReadIndexerState,
+  pgUpsertStats,
+  pgUpdateStonks,
+  pgUpsertStonks,
+  pgWriteIndexerState,
+} from "../adminPg";
 
 export interface StonkRow {
   mint: string;
@@ -150,8 +158,18 @@ export interface FeedPageRows {
 export async function listStonks(query: FeedQuery): Promise<FeedPageRows> {
   const limit = Math.min(Math.max(query.limit ?? 40, 1), 100);
 
+  /*
+   * Read the view, not the table.
+   *
+   * Stats live in their own table so a provider outage cannot remove a coin,
+   * which means sorting by one has to cross a join. Doing that in memory over
+   * a page ranks whatever arbitrary rows came back rather than the universe —
+   * the first live run put a $39K coin above a $7.6M one. `stonk_feed` is a
+   * LEFT JOIN, so an unpriced coin is still in the result and simply sorts
+   * last.
+   */
   let request = db()
-    .from("stonks")
+    .from("stonk_feed")
     .select("*")
     .eq("status", "listed")
     .not("launchpad", "is", null)
@@ -162,80 +180,77 @@ export async function listStonks(query: FeedQuery): Promise<FeedPageRows> {
 
   if (query.quoteTicker) request = request.eq("quote_ticker", query.quoteTicker);
 
-  if (query.sort === "new") {
-    request = request.order("listed_at", {ascending: false}).order("mint", {ascending: false});
+  const column = SORT_COLUMNS[query.sort];
 
-    if (query.cursor) {
-      const [listedAt, mint] = splitCursor(query.cursor);
-      if (listedAt) {
-        // `or` rather than a compound comparison, because PostgREST has no
-        // row-value syntax: strictly older, or same instant and a lower mint.
-        request = request.or(
-          `listed_at.lt.${listedAt},and(listed_at.eq.${listedAt},mint.lt.${mint})`,
-        );
-      }
+  if (query.sort === "rewards") {
+    // Only coins whose launch actually routes rewards. The rest under this
+    // heading would imply they pay out and merely have not yet.
+    request = request.eq("pays_holders", true);
+  }
+
+  request = request
+    .order(column, {ascending: false, nullsFirst: false})
+    .order("mint", {ascending: false});
+
+  if (query.cursor) {
+    const [value, mint] = splitCursor(query.cursor);
+    if (value) {
+      // PostgREST has no row-value syntax, so this is spelled out: strictly
+      // past the cursor, or level with it and a lower mint.
+      request = request.or(
+        `${column}.lt.${value},and(${column}.eq.${value},mint.lt.${mint})`,
+      );
     }
   }
 
   const {data, error} = await request;
   if (error) throw new Error(`Feed query failed: ${error.message}`);
 
-  const rows = (data ?? []) as StonkRow[];
-  const stats = await statsFor(rows.map((row) => row.mint));
+  const joined = (data ?? []) as (StonkRow & StatRow)[];
+  const rows = joined as unknown as StonkRow[];
 
-  /*
-   * Sorts that depend on provider figures are applied here rather than in SQL.
-   *
-   * Stats live in a separate table precisely so a provider outage cannot drop a
-   * coin from the universe — which means sorting by market cap in SQL would
-   * need a join that silently excludes unpriced rows. Ranking in memory over
-   * one page keeps every row in the feed and just puts the unpriced ones last.
-   */
-  const ranked = rankRows(rows, stats, query.sort);
+  // The view already carried the stats, so no second query is needed.
+  const stats = new Map<string, StatRow>(
+    joined.map((row) => [
+      row.mint,
+      {
+        mint: row.mint,
+        last_price: row.last_price,
+        last_mcap: row.last_mcap,
+        liquidity_usd: row.liquidity_usd,
+        vol_24h: row.vol_24h,
+        price_change_24h: row.price_change_24h,
+        rewards_24h_usd: row.rewards_24h_usd,
+        price_status: row.price_status,
+        price_source: row.price_source,
+        priced_at: row.priced_at,
+      },
+    ]),
+  );
 
-  const last = ranked[ranked.length - 1];
+  const last = joined[joined.length - 1];
   return {
-    rows: ranked,
+    rows,
     stats,
     cursor:
-      ranked.length === limit && last
-        ? `${last.listed_at ?? ""}|${last.mint}`
+      joined.length === limit && last
+        ? `${(last as unknown as Record<string, unknown>)[column] ?? ""}|${last.mint}`
         : null,
   };
 }
+
+/** Which column each sort orders by, in the joined view. */
+const SORT_COLUMNS: Record<FeedSort, string> = {
+  new: "listed_at",
+  marketCap: "last_mcap",
+  trending: "vol_24h",
+  rewards: "rewards_24h_usd",
+};
 
 function splitCursor(cursor: string): [string | null, string] {
   const separator = cursor.lastIndexOf("|");
   if (separator < 0) return [null, ""];
   return [cursor.slice(0, separator) || null, cursor.slice(separator + 1)];
-}
-
-function rankRows(
-  rows: StonkRow[],
-  stats: Map<string, StatRow>,
-  sort: FeedSort,
-): StonkRow[] {
-  const value = (row: StonkRow): number => {
-    const stat = stats.get(row.mint);
-    switch (sort) {
-      case "marketCap":
-        return stat?.last_mcap ?? 0;
-      case "rewards":
-        return stat?.rewards_24h_usd ?? 0;
-      case "trending":
-        return stat?.vol_24h ?? 0;
-      default:
-        return 0;
-    }
-  };
-
-  if (sort === "new") return rows;
-  if (sort === "rewards") {
-    // Only coins whose launch actually routes rewards. Showing the rest under
-    // this heading would imply they pay out and simply have not yet.
-    return rows.filter((row) => row.pays_holders).sort((a, b) => value(b) - value(a));
-  }
-  return [...rows].sort((a, b) => value(b) - value(a));
 }
 
 export async function statsFor(mints: string[]): Promise<Map<string, StatRow>> {
@@ -284,6 +299,20 @@ export async function upsertStonks(writes: StonkWrite[]): Promise<number> {
   // invisible afterwards, because the row simply never matches again.
   for (const write of writes) assertPubkey(write.mint, "stonk mint");
 
+  /**
+   * Direct Postgres when it is available, and not only for speed.
+   *
+   * PostgREST's upsert is `INSERT ... ON CONFLICT`, so every write has to
+   * satisfy the insert path even when the row already exists — a metadata-only
+   * pass that omits `launchpad` is rejected for violating a NOT NULL column it
+   * was never trying to change. The pg path coalesces each optional column
+   * against what is stored, so a pass may write only what it knows.
+   *
+   * This is not hypothetical: the first real indexer run wrote 276 coins and
+   * then failed to decorate a single one, with exactly that error.
+   */
+  if (hasAdminPg) return pgUpsertStonks(writes);
+
   const {error} = await db()
     .from("stonks")
     .upsert(
@@ -295,8 +324,36 @@ export async function upsertStonks(writes: StonkWrite[]): Promise<number> {
   return writes.length;
 }
 
+/**
+ * Enrich existing coins. Creates nothing.
+ *
+ * Decoration must never be able to bring a coin into the universe: only the
+ * reconciler has proved a launch's attribution from chain state, and a
+ * provider's metadata is not evidence a coin exists.
+ */
+export async function updateStonks(writes: StonkWrite[]): Promise<number> {
+  if (writes.length === 0) return 0;
+  for (const write of writes) assertPubkey(write.mint, "stonk mint");
+
+  if (hasAdminPg) return pgUpdateStonks(writes);
+
+  // PostgREST has no bulk update with per-row values, so this is one request
+  // per coin. Acceptable because it only runs when no DATABASE_URL is set.
+  let updated = 0;
+  for (const write of writes) {
+    const {mint, ...patch} = write;
+    const {error} = await db()
+      .from("stonks")
+      .update({...patch, updated_at: new Date().toISOString()})
+      .eq("mint", mint);
+    if (!error) updated += 1;
+  }
+  return updated;
+}
+
 export async function upsertStats(rows: Partial<StatRow>[]): Promise<number> {
   if (rows.length === 0) return 0;
+  if (hasAdminPg) return pgUpsertStats(rows);
 
   const {error} = await db()
     .from("stonk_stats")
@@ -349,6 +406,13 @@ export interface IndexerState {
 }
 
 export async function readIndexerState(name: string): Promise<IndexerState | null> {
+  if (hasAdminPg) {
+    const row = await pgReadIndexerState(name);
+    return row
+      ? {name, last_slot: row.last_slot, slots_behind: null, last_run_at: null, heartbeat_at: row.heartbeat_at}
+      : null;
+  }
+
   const {data} = await db().from("indexer_state").select("*").eq("name", name).maybeSingle();
   return (data as IndexerState) ?? null;
 }
@@ -357,6 +421,15 @@ export async function writeIndexerState(
   name: string,
   patch: Partial<Omit<IndexerState, "name">>,
 ): Promise<void> {
+  if (hasAdminPg) {
+    await pgWriteIndexerState(name, {
+      last_slot: patch.last_slot,
+      slots_behind: patch.slots_behind ?? null,
+      heartbeat_at: patch.heartbeat_at ?? null,
+    });
+    return;
+  }
+
   const {error} = await db()
     .from("indexer_state")
     .upsert({name, ...patch, last_run_at: new Date().toISOString()}, {onConflict: "name"});
@@ -371,4 +444,5 @@ export async function universeCount(): Promise<number> {
   return count ?? 0;
 }
 
+export const storeReady = hasDatabase || hasAdminPg;
 export {hasDatabase};
