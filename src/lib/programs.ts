@@ -111,37 +111,54 @@ export const PUMP_SEEDS = {
 } as const;
 
 /**
- * What is *not* established about pump.fun Custom Pairs.
+ * PumpSwap's `Pool` account — where pump.fun Custom Pairs actually live.
  *
- * pump.fun's published program README documents a SOL-only bonding curve, and
- * `@nirholas/pump-sdk@1.36.0` agrees: its `BondingCurve` interface carries no
- * quote mint, and `createV2Instruction` takes no quote mint argument. Yet the
- * same SDK derives `bonding-curve-v2` and `pool-v2` PDAs it neither decodes nor
- * builds for, and Custom Pairs shipped in September 2026.
+ * This was the project's biggest unknown and the answer turned out to be a
+ * layer up from where everyone looks. pump.fun's `BondingCurve` genuinely has
+ * no quote mint — confirmed against the IDL bundled with `@nirholas/pump-sdk`,
+ * whose fields are just the four reserves, `token_total_supply`, `complete`,
+ * `creator`, `is_mayhem_mode`, `is_cashback_coin` — and neither `create` nor
+ * `create_v2` accepts one. The bonding curve is SOL-only and always has been.
  *
- * The likely explanation is that Custom Pairs live in that v2 account family,
- * because appending a field to a live Anchor account would break every decoder
- * in the ecosystem. That is a reading of the evidence, not a fact.
+ * Custom Pairs are an **AMM** feature. PumpSwap's `Pool` carries `base_mint`
+ * and `quote_mint` side by side, and `create_pool` takes both, so a coin priced
+ * in NVDAx is a PumpSwap pool whose quote mint is the stock.
  *
- * Guessing wrong here is expensive precisely because it is quiet. Read 32 bytes
- * at an offset that is actually padding and every Custom Pair either reports as
- * SOL-quoted — mispricing the coin by the whole SOL/stock ratio and dropping it
- * out of the universe test — or a SOL-quoted coin acquires a quote mint made of
- * arbitrary bytes. Neither throws. Both just make the numbers wrong.
+ * Offsets derived from the IDL and then confirmed on mainnet: a `memcmp` for
+ * WSOL at offset 75 returns 146,685 pools, and the same filter for a stock mint
+ * returns real stock-quoted pools whose `base_mint` is a pump.fun coin.
  *
- * So the flag defaults off, `is_custom_pair` is stored three-state, and
- * `npm run probe:pump` against a real Custom Pair coin is what moves anything
- * out of here.
+ * **Two sizes are live and both matter.** 301 is current (142,317 pools) and
+ * 245 is legacy (4,368). Fields were appended rather than inserted, so every
+ * offset below is valid for both — which is exactly why this must not be
+ * filtered by `dataSize`. Pinning 245 would have found the 4,368 oldest pools
+ * and silently missed 97% of the program, including every Custom Pair.
  */
-export const UNVERIFIED = {
-  pumpCustomPairs: {
-    hypothesis:
-      "Custom Pairs use the bonding-curve-v2 / pool-v2 account family, with the " +
-      "quote mint stored on the v2 curve account.",
-    verifyWith: "npm run probe:pump -- <mint of a known Custom Pair coin>",
-    enabled: process.env.NEXT_PUBLIC_ENABLE_PUMP_CUSTOM_PAIR === "1",
-  },
+export const PUMPSWAP_POOL = {
+  /** Current account size. Legacy pools are 245; offsets are shared. */
+  SPAN: 301,
+  LEGACY_SPAN: 245,
+  POOL_BUMP: 8,
+  INDEX: 9,
+  CREATOR: 11,
+  BASE_MINT: 43,
+  QUOTE_MINT: 75,
+  LP_MINT: 107,
+  BASE_TOKEN_ACCOUNT: 139,
+  QUOTE_TOKEN_ACCOUNT: 171,
+  LP_SUPPLY: 203,
+  COIN_CREATOR: 211,
 } as const;
+
+/**
+ * Find pump.fun pools priced against one mint.
+ *
+ * No `dataSize` filter, deliberately — see the note above. The quote-mint
+ * memcmp alone is both correct and highly selective.
+ */
+export function pumpPoolFilters(quoteMint: Pubkey) {
+  return [{memcmp: {offset: PUMPSWAP_POOL.QUOTE_MINT, bytes: quoteMint}}];
+}
 
 // ---------------------------------------------------------------------------
 // LaunchpadPool layout

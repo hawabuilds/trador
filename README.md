@@ -104,17 +104,22 @@ evaluated* → **show**. Never `.eq(column, true)`. On Solana `eligible` also
 carries confirmation state — a launch seen at `confirmed` is null until it
 finalizes — and `is_custom_pair` stays null until pump.fun's layout is verified.
 
-## Known unknown: pump.fun Custom Pairs
+## Where pump.fun Custom Pairs actually live
 
-pump.fun's published program docs describe a SOL-only bonding curve, and
-`@nirholas/pump-sdk` agrees — no quote mint on `BondingCurve`, none in
-`createV2Instruction`. Yet the same SDK derives `bonding-curve-v2` and `pool-v2`
-PDAs it neither decodes nor builds for, and Custom Pairs shipped in September
-2026.
+Worth writing down, because the obvious place is the wrong one.
 
-The working hypothesis is that Custom Pairs live in that v2 account family. It
-is a hypothesis, so it is gated behind `NEXT_PUBLIC_ENABLE_PUMP_CUSTOM_PAIR` and
-`is_custom_pair` is stored three-state. Guessing the offset wrong does not
-throw — 32 bytes of padding decode to a well-formed address — it just makes
-every stock-paired pump coin quietly wrong. StonkFun needs none of this and is
-the primary path.
+pump.fun's bonding curve is SOL-only and always has been — its `BondingCurve`
+account carries no quote mint, and neither `create` nor `create_v2` accepts one.
+Custom Pairs are a **PumpSwap AMM** feature: the `Pool` account holds `base_mint`
+and `quote_mint` side by side, so a coin priced in NVDAx is a PumpSwap pool whose
+quote mint is the stock.
+
+Offsets were derived from the IDL and then confirmed against mainnet: a `memcmp`
+for WSOL at `quote_mint` returns 146,685 pools, and the same filter for a stock
+mint returns real stock-quoted pools whose base mint is a pump.fun coin.
+
+**Two account sizes are live and both matter.** 301 is current (142,317 pools),
+245 is legacy (4,368). Fields were appended rather than inserted, so the offsets
+are shared — which is exactly why pump pools must not be filtered by `dataSize`.
+Pinning 245, the size the SDK types suggest, would find the 4,368 oldest pools
+and silently miss 97% of the program including every Custom Pair.

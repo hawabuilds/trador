@@ -112,7 +112,12 @@ function scan(): Finding[] {
       }
 
       // 3. A 40-hex-character pattern is an EVM address by construction.
-      if (/\{40\}/.test(line) || /0x\[?[a-fA-F0-9-]*\]?\{40\}/.test(line)) {
+      //
+      //    Anchored on `]{40}` — the close of a character class — because that
+      //    is how every such regex is written (`[a-fA-F0-9]{40}`). Matching a
+      //    bare `{40}` also flags `size={40}` in JSX, and a linter that cries
+      //    wolf on ordinary markup is a linter somebody switches off.
+      if (/\]\{40\}/.test(line)) {
         findings.push({
           file: relative,
           line: index + 1,
@@ -165,14 +170,36 @@ test("the linter actually catches what it claims to", () => {
     'const USDG = "0x5fc5360d0400a0fd4f2af552add042d716f1d168";',
   ];
 
-  for (const sample of samples) {
+  const catches = (sample: string): boolean => {
     const lowered = sample.toLowerCase();
-    const caught =
+    return (
       /([A-Za-z0-9_.[\]"'`)]+)\s*\.toLowerCase\(\)/.test(sample) ||
       /normalizeaddress|sameaddress\b/.test(lowered) ||
-      /\{40\}/.test(sample) ||
-      /["'`]0x[a-fA-F0-9]{40}["'`]/.test(sample);
-    assert.equal(caught, true, `linter missed: ${sample}`);
+      /\]\{40\}/.test(sample) ||
+      /["'`]0x[a-fA-F0-9]{40}["'`]/.test(sample)
+    );
+  };
+
+  for (const sample of samples) {
+    assert.equal(catches(sample), true, `linter missed: ${sample}`);
+  }
+
+  /**
+   * And the false positives it must not produce.
+   *
+   * `size={40}` is the one that actually fired — ordinary JSX that looked like
+   * a hex-length quantifier. A rule that flags markup gets disabled, and a
+   * disabled rule protects nothing, so the negative cases are pinned too.
+   */
+  const mustNotCatch = [
+    "<Avatar name={symbol} seed={asset.mint} size={40} />",
+    "const width = {40: true};",
+    'const key = ticker.toUpperCase();',
+    "padding: {40}",
+  ];
+
+  for (const sample of mustNotCatch) {
+    assert.equal(catches(sample), false, `linter false-positived on: ${sample}`);
   }
 });
 

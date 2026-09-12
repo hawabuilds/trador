@@ -1,0 +1,282 @@
+"use client";
+
+import {useMemo, useState} from "react";
+import Link from "next/link";
+
+import {StickyPageHeader} from "@/components/AppShell";
+import {AssetList} from "@/components/AssetRow";
+import {FilterRail, type FilterOption} from "@/components/FilterRail";
+import {HomeTabs, type HomeTab} from "@/components/HomeTabs";
+import {RocketIcon, StarIcon} from "@/components/ui/Icons";
+import {APP_NAME} from "@/config/app";
+import {formatUtc} from "@/lib/priceFormat";
+import {SECTORS, type SectorId} from "@/lib/sectors";
+import type {
+  Asset,
+  FeedPage,
+  Stock,
+  StockSort,
+  Stonk,
+  StonkSort,
+  WatchFilter,
+} from "@/lib/types";
+
+/**
+ * The sort rails under the tabs — the "subheadings" of the feed.
+ *
+ * Each tab gets the sorts that make sense for what it holds, and only those.
+ * A shared rail would have to offer Rewards on the Stocks tab, where the idea
+ * is meaningless.
+ */
+const STONK_SORTS: FilterOption<StonkSort>[] = [
+  {value: "trending", label: "Trending"},
+  {
+    value: "new",
+    label: "New",
+    title: "Newest graduations — coins that have bonded into a real pool",
+  },
+  {value: "marketCap", label: "Market cap"},
+  {
+    value: "rewards",
+    label: "Rewards",
+    title: "Coins whose launch routes a share of every trade to holders, in stock",
+  },
+];
+
+const STOCK_SORTS: FilterOption<StockSort>[] = [
+  {
+    value: "launches",
+    label: "Most traded against",
+    title: "Stocks the most coins are priced in",
+  },
+  {value: "marketCap", label: "Price"},
+  {value: "movers", label: "Movers", title: "Largest move in either direction"},
+];
+
+const WATCH_FILTERS: FilterOption<WatchFilter>[] = [
+  {value: "all", label: "All"},
+  {value: "stonk", label: "Stonks"},
+  {value: "stock", label: "Stocks"},
+];
+
+export function HomeFeed({
+  stonks,
+  stocks,
+  now,
+}: {
+  stonks: FeedPage<Stonk>;
+  stocks: FeedPage<Stock>;
+  /** Server render time, so age strings match after hydration. */
+  now: number;
+}) {
+  const [tab, setTab] = useState<HomeTab>("stonks");
+  const [stonkSort, setStonkSort] = useState<StonkSort>("trending");
+  const [stockSort, setStockSort] = useState<StockSort>("launches");
+  const [sector, setSector] = useState<SectorId | "all">("all");
+  const [quote, setQuote] = useState<string>("all");
+  const [watchFilter, setWatchFilter] = useState<WatchFilter>("all");
+
+  /**
+   * The quote-asset rail, built from what is actually in the feed rather than
+   * from the whole registry — so a chip never leads to an empty list, which is
+   * the commonest way a filter row lies to someone.
+   */
+  const quoteOptions = useMemo<FilterOption<string>[]>(() => {
+    const counts = new Map<string, number>();
+    for (const stonk of stonks.items) {
+      counts.set(stonk.quoteTicker, (counts.get(stonk.quoteTicker) ?? 0) + 1);
+    }
+    return [
+      {value: "all", label: "All", hint: String(stonks.items.length)},
+      ...[...counts.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([ticker, count]) => ({
+          value: ticker,
+          label: ticker,
+          hint: String(count),
+        })),
+    ];
+  }, [stonks.items]);
+
+  const sectorOptions = useMemo<FilterOption<SectorId | "all">[]>(() => {
+    const counts = new Map<SectorId, number>();
+    for (const stock of stocks.items) {
+      if (stock.sector) counts.set(stock.sector, (counts.get(stock.sector) ?? 0) + 1);
+    }
+    return [
+      {value: "all", label: "All"},
+      ...SECTORS.filter((entry) => counts.has(entry.id)).map((entry) => ({
+        value: entry.id,
+        label: entry.label,
+        hint: String(counts.get(entry.id) ?? 0),
+      })),
+    ];
+  }, [stocks.items]);
+
+  const shownStonks = useMemo(() => {
+    const list = stonks.items.filter(
+      (stonk) => quote === "all" || stonk.quoteTicker === quote,
+    );
+
+    switch (stonkSort) {
+      case "rewards":
+        // Only coins that actually route rewards, ranked by what they paid.
+        return list
+          .filter((stonk) => stonk.paysHolders)
+          .sort((a, b) => (b.rewards24hUsd ?? 0) - (a.rewards24hUsd ?? 0));
+      case "marketCap":
+        return [...list].sort((a, b) => (b.marketCapUsd ?? 0) - (a.marketCapUsd ?? 0));
+      case "new":
+        return [...list].sort(
+          (a, b) =>
+            new Date(b.listedAt ?? 0).getTime() - new Date(a.listedAt ?? 0).getTime(),
+        );
+      default:
+        return [...list].sort((a, b) => (b.price.usd ?? 0) - (a.price.usd ?? 0));
+    }
+  }, [stonks.items, quote, stonkSort]);
+
+  const shownStocks = useMemo(() => {
+    const list = stocks.items.filter(
+      (stock) => sector === "all" || stock.sector === sector,
+    );
+
+    switch (stockSort) {
+      case "marketCap":
+        return [...list].sort((a, b) => (b.price.usd ?? 0) - (a.price.usd ?? 0));
+      // Movers ranks by the size of the move, not its direction — a stock down
+      // nine percent is as much of a mover as one up nine.
+      case "movers":
+        return [...list].sort(
+          (a, b) => Math.abs(b.changePct ?? 0) - Math.abs(a.changePct ?? 0),
+        );
+      default:
+        return [...list].sort(
+          (a, b) => b.launchesQuotedAgainst - a.launchesQuotedAgainst,
+        );
+    }
+  }, [stocks.items, sector, stockSort]);
+
+  const showing: readonly Asset[] =
+    tab === "stonks" ? shownStonks : tab === "stocks" ? shownStocks : [];
+
+  return (
+    <div>
+      <StickyPageHeader>
+        <div className="mb-4 flex items-center justify-between">
+          <span className="text-[22px] font-extrabold tracking-[-0.035em] text-ink">
+            {APP_NAME}
+          </span>
+
+          {/*
+            Create is the app's one outbound action, so it gets the only filled
+            brand-coloured control on the screen.
+          */}
+          <Link
+            href="/create"
+            className="inline-flex h-[34px] items-center gap-1.5 rounded-full bg-brand-500 px-3.5 text-[12.5px] font-extrabold text-white shadow-brand transition-transform duration-150 hover:-translate-y-0.5"
+          >
+            <RocketIcon className="h-[15px] w-[15px]" />
+            Create
+          </Link>
+        </div>
+
+        <HomeTabs value={tab} onChange={setTab} />
+
+        <div className="py-3.5">
+          {tab === "stonks" ? (
+            <div className="flex flex-col gap-2.5">
+              <FilterRail
+                label="Sort coins"
+                options={STONK_SORTS}
+                value={stonkSort}
+                onChange={setStonkSort}
+              />
+              <FilterRail
+                label="Filter by the stock a coin is priced in"
+                options={quoteOptions}
+                value={quote}
+                onChange={setQuote}
+              />
+            </div>
+          ) : tab === "stocks" ? (
+            <div className="flex flex-col gap-2.5">
+              <FilterRail
+                label="Filter by sector"
+                options={sectorOptions}
+                value={sector}
+                onChange={setSector}
+              />
+              <FilterRail
+                label="Sort stocks"
+                options={STOCK_SORTS}
+                value={stockSort}
+                onChange={setStockSort}
+              />
+            </div>
+          ) : (
+            <FilterRail
+              label="Filter watchlist"
+              options={WATCH_FILTERS}
+              value={watchFilter}
+              onChange={setWatchFilter}
+            />
+          )}
+        </div>
+      </StickyPageHeader>
+
+      {showing.length > 0 ? (
+        <AssetList assets={showing} now={now} />
+      ) : (
+        <EmptyFeed tab={tab} reason={tab === "stonks" ? stonkSort : undefined} />
+      )}
+
+      {/*
+        Say where the numbers came from. A snapshot presented as live is the
+        kind of small dishonesty that costs all the trust at once.
+      */}
+      {stonks.source === "snapshot" && stonks.capturedAt ? (
+        <p className="px-2 pb-2 pt-6 text-center text-[11.5px] leading-[1.55] text-faint">
+          Snapshot of real StonkFun launches, captured{" "}
+          {formatUtc(stonks.capturedAt)}.
+          <br />
+          Add an RPC and Supabase for live prices.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function EmptyFeed({tab, reason}: {tab: HomeTab; reason?: StonkSort}) {
+  if (tab === "watchlist") {
+    return (
+      <div className="px-6 py-12 text-center">
+        <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-wash text-faint">
+          <StarIcon className="h-6 w-6" />
+        </span>
+        <p className="mt-4 text-[14px] font-bold">Nothing watched yet</p>
+        <p className="mx-auto mt-1.5 max-w-[30ch] text-[13px] leading-[1.5] text-muted">
+          Tap the star on any coin or stock to keep it here.
+        </p>
+      </div>
+    );
+  }
+
+  if (reason === "rewards") {
+    return (
+      <div className="px-6 py-12 text-center">
+        <p className="text-[14px] font-bold">No stock payouts recorded yet</p>
+        <p className="mx-auto mt-1.5 max-w-[34ch] text-[13px] leading-[1.5] text-muted">
+          These are coins whose launch routes a share of every trade back to
+          holders, paid in the stock they are priced in.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <p className="py-10 text-center text-[13.5px] text-muted">
+      Nothing to show here right now.
+    </p>
+  );
+}

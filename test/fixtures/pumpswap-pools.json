@@ -1,0 +1,63 @@
+{
+  "capturedAt": "2026-09-12T13:03:59.324Z",
+  "program": "pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA",
+  "note": "Real finalized PumpSwap Pool accounts. Custom Pairs (stock quote_mint) are size 301; older SOL-quoted pools are 245. quote_mint sits at offset 75 in both. Labels are derived from the decoded quote mint, not hand-typed.",
+  "pools": [
+    {
+      "label": "custom-pair-NVDAx",
+      "quoteTicker": "NVDAx",
+      "pubkey": "4suTaABgaohAotDsGb3Yfc5NTbJJjbQEvq82PTPTzx7v",
+      "data": "8ZptBBGxbbz/AADIEP/Htp1XythWu58DKTkbLfABvaGvWPZ1BJZvR/ZDz3EyxhDAoEz2ld89EZdq+obkjfLkJZ+XMFuzC0ksgNhfB+ilDhQP2leR9FZqlX/Trj+HPmo0Zv/BPXkRnfqatQoJFsqEEdBZD06SJb919CwjmLqP4mfDz4CZ3Fk3UhXJGooAR0q1j1Dn8/tcmBsvQfTUKwU0CqmPKg5JWMItjGG0C9LfF8ngp8tjgQIcqj80o/ii0NtGAX8E5LLB/XN55zM5njG19QAAAPRAoei5Jh8w5fD94w1LpS8eYEiefaMktJV1F9gjMKaTAADtS2FCAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+      "size": 301
+    },
+    {
+      "label": "custom-pair-SPYx",
+      "quoteTicker": "SPYx",
+      "pubkey": "3bSgdG3owZm1R5ErZ6c5Z3vrKjCXYYX1brWEpfDXQTzq",
+      "data": "8ZptBBGxbbz/AAA/S9OqXNHHS1eY3ufF+z6lE4F/qSAVwj5T3udv142DxtcDNms4/aqRndpFKikaO8lA9YHtblePGRL9RKxdXXTKB+jcLN57I6DXQ/jxJ2tlfYqe6gaVC6Z6jTAzxTxM3k+Sm+KlVkwqqO62iv37b6p5rDMcxJsE8OHJPcgd+FnpinSKlNCixjbn0GHYlTsssrSojF1RYhow57P+bIazp0OTd+mE08vNRd+gDpbCS2BcLS6l/VIHdCuEiKWAR0eYZ8WL7kwRhQAAAOLKam9KrzdbgIXCcUlBSEftWxQb6TJyfOmfaBcTuCHdAABwEngTAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+      "size": 301
+    },
+    {
+      "label": "custom-pair-GLDx",
+      "quoteTicker": "GLDx",
+      "pubkey": "5JcBDQNKhugbToDEuoXyPfiJkWXVGT62ooLDBp7cKtC3",
+      "data": "8ZptBBGxbbz/AABhtJDgZ4xXupqJeydyj64e+Q2F7QKW3v3USI93Q/CqYxqX3oaw++j+P4PEALVDpkODQEQ1Y6JWhvHfySFW4ZPqB+j+3/YAqx5dhJ+pCXhiDc6ZN7jopA40FNxi/tmwBldSIg4uKUFTFLOX0u3RW3A+KE2aPjixiEyypAsv8MyHAEBZV9qCiN8oqyeFBALVd9JpW2chry2WnuOyGi/RTaQSbgOU1Si4h9Sp9LbT22FrxLqmDviC0PTRcc2NENCpzlvflJm6uAAAAA5WOWFv3/AZ5ad7nYKEnrA8dvCEJkCoObl2WrpeBj3OAAG6RIUlAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+      "size": 301
+    },
+    {
+      "label": "custom-pair-TSLAx",
+      "quoteTicker": "TSLAx",
+      "pubkey": "ZLe9BUo6kmxnZEgHa8rSyMQ7DoWouauJHnK1dgZzG7A",
+      "data": "8ZptBBGxbbz+AADcGLG/n146rbvvUuYgNleWgwnfLGq1kDMH0QI0b/t2bPLuCuCM8+f/o1mmuzlgdIIYFVjA9KWW1MXhgAtO2KYfB+g1gkEf6hSC8JlLgKpRKpfJTyXfKDvsWmejgfyGK0rTgvNpZiQG4XbQYwYp0VgMmuvXcuKw/Kk/3BJmCxgX357sbnQaTVEGe4zgScVw5Mx6hnn7em3P20UbFkNnwV/f19OSGtH9ndBCc6YAajLKQ0Lbv+xfm38Ydjgx2h+m9I4Fj+J7wAAAAAlzjK1Ssp4Ms2GecKFZc2E5ADTRrPVSaHQ9zPp3Gm9cAABNqrwoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+      "size": 301
+    },
+    {
+      "label": "custom-pair-QQQx",
+      "quoteTicker": "QQQx",
+      "pubkey": "4WNU9y2d13kfNDVKfbKZqAnAfyrhRkdteFSFeBf2bidJ",
+      "data": "8ZptBBGxbbz/AACmuPkkyfJmEwL7JUZPpfQLEnv74CQbYULhSqGZktS7zs1wNnHI/0WxKsp78pMDKjrbuWlaSUd1/D7KYSbO+qDPB+gatQnh5SmUbnpjiHsTBheq4t2F7+0aBNpWDAYjdiQd3mY+KrQShgS7DzO+64vXNOrt0nEuE2EGYsZeYL3sWd3cKATKCddIhoh49Y29nMDw9lM40LsaKhyZbhPJR/cS76xMnwWhiD1DOWQ5P7QCgZdlz+jA5gwwoZgdaoE/A/r01TyciQAAALbCMXMNYi1DMmvLygyBzfbk6jT/3uAYBlMoV8cgXSElAAGELdIUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+      "size": 301
+    },
+    {
+      "label": "custom-pair-COINx",
+      "quoteTicker": "COINx",
+      "pubkey": "8d9bccvGL66DXMEQgCgYSuEaK6nHByXGC8asACv2fZPz",
+      "data": "8ZptBBGxbbz9AAB+Zd+Xq5WkvxKKTUcpTSa0xcJ5EBlCeiqDxzMP1c3aaVj+4O6c2hgGlnADg+3AWKNYKLqZ67evC84ZxAoDX1v/B+gWX1JUkT8QnysQsjbnrjcVgoc7cukm9TIM/mEmqZJilA1r/85UFvXF7Jneajf8rNMwf02zHrzwcOlLDzTqDOLoknbXGz2UC84vRdqcRMBsFvQmnYQIoJCYOET7eaV+WpI0Fynrq0rBrCMvF5vwq2CkZQpmE7IvW41gY20dccdjKWcYFAEAAAmWZvp6Kq3cBhcJ83o0Xqvaw3rLepVylYeKiANPgLktAAGHc9BTAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+      "size": 301
+    },
+    {
+      "label": "sol-quoted-245",
+      "quoteTicker": "SOL",
+      "pubkey": "1Ly6KunLHhsnuVePhnZ8rUsUEWTDAmJpzAqBzbe36c4",
+      "data": "8ZptBBGxbbz+AQAEjejMKUE95XYMIF3WdKPG9OyxqHyR2oAAnG5lVOGVCWPzVm4rVIHQ1LMP71rno2teCLLlpykhuQM7mLo0BzbhBpuIV/6rgYT7aH9jRhjANdrEOdwa6ztVmKDwAAAAAAEX1x4JFQlZ4MxhVXS2wNT7qhAn49A09+B7nf/irbjA+8OSKn3TdHcQBlYhidY/X9HxCp25d0qJO+uZfDA+vDq/zq0KXCD0Q2BeICZOhW/Tjxipm5GuBg+gHJ9gt440vzlmRwIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+      "size": 245
+    },
+    {
+      "label": "sol-quoted-301",
+      "quoteTicker": "SOL",
+      "pubkey": "11CwRL2M8m5EeZUphCx8BvD6GXjw9VGTQUhjrWkjr3L",
+      "data": "8ZptBBGxbbz9AQC+Mj2s79+tK3HxeB2jHQtDE9ZRh6ioiaAGFUDu7NPme3rx51fCB/r0ox/EfbVkZBStEoxjtTxyeTMHE7QSszPPBpuIV/6rgYT7aH9jRhjANdrEOdwa6ztVmKDwAAAAAAHDYq5gYFlqZmlwc9E7kMrNePusPlkDlfoR+8hwXFNUf/dLec5+u2iT+XgjAJWE9t4KWBF62rs7VzqTfnt+49aLwrmW2LGWBR00AMkkUlohmhSmdJK6xzgmICPisuv6ukhlAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+      "size": 301
+    }
+  ]
+}
