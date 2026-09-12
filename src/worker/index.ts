@@ -14,9 +14,12 @@
  *   npm run worker
  */
 
-import {hasDatabase} from "@/lib/server/db";
 import {indexAll} from "@/lib/server/live/launchIndexer";
-import {readIndexerState, writeIndexerState} from "@/lib/server/live/universeStore";
+import {
+  readIndexerState,
+  storeReady,
+  writeIndexerState,
+} from "@/lib/server/live/universeStore";
 
 /** How often to sweep. A reconciler is idempotent, so this is a cost dial. */
 const INTERVAL_MS = Number(process.env.INDEX_INTERVAL_MS ?? 90_000);
@@ -60,15 +63,21 @@ async function pass(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  if (!hasDatabase) {
+  /*
+   * Either driver will do. The worker writes in batches, so it prefers direct
+   * Postgres via DATABASE_URL — checking only for the Supabase service key
+   * would make it exit on a deployment that is perfectly able to index.
+   */
+  if (!storeReady) {
     /*
      * Exit rather than idle. A worker with nowhere to write is a process that
      * looks healthy on a dashboard and does nothing, which is worse than a
      * crash loop nobody can miss.
      */
     console.error(
-      "[worker] No database configured. Set NEXT_PUBLIC_SUPABASE_URL and " +
-        "SUPABASE_SERVICE_ROLE_KEY. Exiting rather than idling.",
+      "[worker] No store configured. Set DATABASE_URL, or " +
+        "NEXT_PUBLIC_SUPABASE_URL together with SUPABASE_SERVICE_ROLE_KEY. " +
+        "Exiting rather than idling.",
     );
     process.exit(1);
   }

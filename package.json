@@ -27,7 +27,7 @@
     "index:once": "node --import ./test/resolver.mjs --env-file=.env.local scripts/index-once.ts"
   },
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.18.0"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",

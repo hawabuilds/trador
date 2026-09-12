@@ -1,0 +1,15 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "provider": "node",
+  "packages": {
+    "node": "24"
+  },
+  "steps": {
+    "build": {
+      "commands": ["echo 'no build step: the worker runs TypeScript from source'"]
+    }
+  },
+  "deploy": {
+    "startCommand": "npm run worker"
+  }
+}

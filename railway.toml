@@ -1,9 +1,23 @@
 # The always-on indexer.
 #
+# One service, not two. An earlier plan had a separate cron service refreshing
+# prices, but the worker's own loop already does discovery and decoration in
+# the same pass — a second service would re-price the same coins on a different
+# schedule and double the RPC bill for nothing.
+#
 # One replica, deliberately. The sweep is idempotent, so a second replica would
-# not corrupt anything — it would just double the RPC bill and make the write
-# ordering between them undefined. ALWAYS restart, because a worker that has
-# exited is a feed that has stopped growing, and that should self-heal.
+# not corrupt anything; it would pay twice for the same work and make the write
+# ordering between them undefined. The concurrency design is one replica plus a
+# heartbeat, and /api/cron/index reads that heartbeat to decide whether Vercel
+# needs to index at all.
+#
+# ALWAYS restart: a worker that has exited is a feed that has stopped growing,
+# and nothing else notices — there is no request to fail and no error page to
+# see. It has to come back on its own.
+#
+# Note: Railway is moving config-as-code to .railway/railway.ts and this format
+# sunsets 2026-12-01. The migration is a one-liner (`railway config migrate`)
+# but today's SDK and CLI do not agree on a version check, so it waits.
 
 [build]
 builder = "NIXPACKS"
