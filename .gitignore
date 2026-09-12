@@ -9,3 +9,5 @@ next-env.d.ts
 .tools/
 scripts/.cursor-*.json
 probe-output/
+
+.vercel
