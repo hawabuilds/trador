@@ -10,7 +10,8 @@ import {FilterRail, type FilterOption} from "@/components/FilterRail";
 import {Avatar} from "@/components/ui/Avatar";
 import {Button} from "@/components/ui/Button";
 import {PairTicker, VerifiedTick} from "@/components/ui/Badges";
-import {CopyIcon, WalletIcon} from "@/components/ui/Icons";
+import {CopyIcon, SettingsIcon, WalletIcon} from "@/components/ui/Icons";
+import {SettingsMenu} from "@/components/SettingsMenu";
 import {useUser} from "@/hooks/useUser";
 import {cn} from "@/lib/cn";
 import {compactMoney, units} from "@/lib/format";
@@ -48,6 +49,7 @@ export function StonkfolioScreen() {
   const {authenticated, wallet, displayName, handle, isDemo, login} = useUser();
   const [split, setSplit] = useState<Split>("all");
   const [copied, setCopied] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const query = useQuery({
     queryKey: ["stonkfolio", wallet],
@@ -117,6 +119,19 @@ export function StonkfolioScreen() {
               </button>
             ) : null}
           </div>
+
+          {/*
+            The gear sits in the header rather than in the tab bar: settings are
+            about this account, and the Stonkfolio is the only screen that is.
+          */}
+          <button
+            type="button"
+            onClick={() => setSettingsOpen(true)}
+            aria-label="Settings"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted transition-colors hover:bg-[var(--overlay-wash)] hover:text-ink"
+          >
+            <SettingsIcon className="h-[19px] w-[19px]" />
+          </button>
         </div>
 
         <div className="mt-4">
@@ -188,6 +203,8 @@ export function StonkfolioScreen() {
           ))}
         </ul>
       )}
+
+      <SettingsMenu open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }

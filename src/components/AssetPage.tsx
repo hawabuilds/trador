@@ -199,7 +199,7 @@ export function AssetPage({
         </div>
       ) : (
         <div className="mt-3 flex items-start gap-3">
-          <Avatar name={symbol} seed={asset.mint} size={44} />
+          <Avatar name={symbol} src={asset.imageUrl} seed={asset.mint} size={44} />
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1">
               <h1 className="truncate text-[20px] font-extrabold tracking-[-0.03em]">

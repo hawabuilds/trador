@@ -72,6 +72,8 @@ export interface Stonk extends AssetBase {
   readonly liquidityUsd: number | null;
   readonly isTradeable: boolean | null;
   readonly listedAt: string | null;
+  /** Creator artwork, already resolved to a fetchable URL. */
+  readonly imageUrl: string | null;
   readonly decimals: number | null;
   readonly circulatingSupply: number | null;
   readonly socials: SocialLinks | null;
@@ -191,6 +193,8 @@ export interface NewsItem {
   source: string;
   publishedAt: string;
   summary: string | null;
+  /** Real article artwork from the page's OG tags. Null when it has none. */
+  imageUrl: string | null;
 }
 
 export const NEWS_WINDOWS = ["latest", "24h", "7d", "30d", "all"] as const;

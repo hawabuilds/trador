@@ -112,22 +112,39 @@ export function NewsScreen() {
                 href={item.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="-mx-[22px] block px-[22px] py-3.5 transition-colors hover:bg-[var(--overlay-wash)]"
+                className="-mx-[22px] flex gap-3 px-[22px] py-3.5 transition-colors hover:bg-[var(--overlay-wash)]"
               >
-                <div className="text-[13.5px] font-semibold leading-[1.4] tracking-[-0.01em]">
-                  {item.title}
+                <div className="min-w-0 flex-1">
+                  <div className="text-[13.5px] font-semibold leading-[1.4] tracking-[-0.01em]">
+                    {item.title}
+                  </div>
+                  {item.summary ? (
+                    <p className="mt-1 line-clamp-2 text-[12.5px] leading-[1.45] text-muted">
+                      {item.summary}
+                    </p>
+                  ) : null}
+                  <div className="mt-1.5 flex items-center gap-2 text-[11.5px] font-bold text-faint">
+                    <span className="rounded-[6px] bg-[var(--overlay-wash)] px-1.5 py-[2px]">
+                      {item.source}
+                    </span>
+                    <span>{relativeTime(item.publishedAt)}</span>
+                  </div>
                 </div>
-                {item.summary ? (
-                  <p className="mt-1 line-clamp-2 text-[12.5px] leading-[1.45] text-muted">
-                    {item.summary}
-                  </p>
+
+                {/*
+                  Rendered only when the article actually has artwork. No
+                  placeholder: an empty grey box reads as a broken image, and the
+                  text-only card is a perfectly good card.
+                */}
+                {item.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={item.imageUrl}
+                    alt=""
+                    loading="lazy"
+                    className="h-[64px] w-[84px] shrink-0 rounded-[10px] bg-[var(--overlay-wash)] object-cover"
+                  />
                 ) : null}
-                <div className="mt-1.5 flex items-center gap-2 text-[11.5px] font-bold text-faint">
-                  <span className="rounded-[6px] bg-[var(--overlay-wash)] px-1.5 py-[2px]">
-                    {item.source}
-                  </span>
-                  <span>{relativeTime(item.publishedAt)}</span>
-                </div>
               </a>
             </li>
           ))}

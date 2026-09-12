@@ -1,6 +1,13 @@
-import type {ReactNode} from "react";
+"use client";
+
+import {useEffect, type ReactNode} from "react";
+import {useRouter} from "next/navigation";
+
+import {useUser} from "@/hooks/useUser";
+import {isPrivyOAuthReturn} from "@/lib/session";
 
 import {cn} from "@/lib/cn";
+import {PushPrompt} from "./PushPrompt";
 import {TabBar} from "./TabBar";
 
 /**
@@ -47,6 +54,34 @@ export function StickyPageHeader({
  * row of the feed ends up underneath the navigation.
  */
 export function AppShell({children}: {children: ReactNode}) {
+  const router = useRouter();
+  const {ready, authenticated} = useUser();
+
+  /**
+   * Send a signed-out visitor to the door.
+   *
+   * Three guards, each for a real failure:
+   *
+   *   - `ready` first, because Privy reports `authenticated: false` while it is
+   *     still restoring a session. Redirecting on that bounces a signed-in
+   *     person out on every cold load.
+   *   - An OAuth return is exempt: the provider hands control back before the
+   *     session exists, and redirecting at that exact moment is how a login
+   *     loop starts.
+   *   - A blank hold while resolving, rather than rendering the feed and
+   *     yanking it away — a flash of content you are not allowed to see reads
+   *     as a bug even when the redirect is correct.
+   */
+  useEffect(() => {
+    if (!ready || authenticated) return;
+    if (isPrivyOAuthReturn()) return;
+    router.replace("/");
+  }, [ready, authenticated, router]);
+
+  if (!ready || (!authenticated && !isPrivyOAuthReturn())) {
+    return <div className="h-full bg-surface-base" />;
+  }
+
   return (
     <div className="flex h-full flex-col bg-surface-base">
       <div className="scroll-quiet min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-[22px] pb-[calc(96px+env(safe-area-inset-bottom))]">
@@ -54,6 +89,7 @@ export function AppShell({children}: {children: ReactNode}) {
       </div>
 
       <TabBar />
+      <PushPrompt />
     </div>
   );
 }

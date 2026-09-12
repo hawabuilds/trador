@@ -21,7 +21,10 @@
     "backfill:prices": "node --import ./test/resolver.mjs --env-file=.env.local scripts/backfill-prices.ts",
     "create:dry-run": "CREATE_DRY_RUN=1 node --import ./test/resolver.mjs --env-file=.env.local scripts/create-dry-run.ts",
     "cron:railway": "node --import ./test/resolver.mjs scripts/railway-cron.ts",
-    "vapid": "node --import ./test/resolver.mjs scripts/vapid-keys.ts"
+    "vapid": "node --import ./test/resolver.mjs scripts/vapid-keys.ts",
+    "cron": "node --import ./test/resolver.mjs scripts/cron.ts",
+    "db:migrate": "node --import ./test/resolver.mjs --env-file=.env.local scripts/migrate.ts",
+    "index:once": "node --import ./test/resolver.mjs --env-file=.env.local scripts/index-once.ts"
   },
   "engines": {
     "node": ">=22.12.0"

@@ -1,0 +1,14 @@
+# The always-on indexer.
+#
+# One replica, deliberately. The sweep is idempotent, so a second replica would
+# not corrupt anything — it would just double the RPC bill and make the write
+# ordering between them undefined. ALWAYS restart, because a worker that has
+# exited is a feed that has stopped growing, and that should self-heal.
+
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "npm run worker"
+restartPolicyType = "ALWAYS"
+numReplicas = 1

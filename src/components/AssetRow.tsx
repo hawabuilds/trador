@@ -57,7 +57,9 @@ export function AssetRow({
         fresh && "trade-in",
       )}
     >
-      {stock ? null : <Avatar name={symbol} seed={asset.mint} size={40} />}
+      {stock ? null : (
+        <Avatar name={symbol} src={asset.imageUrl} seed={asset.mint} size={40} />
+      )}
 
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-1.5">

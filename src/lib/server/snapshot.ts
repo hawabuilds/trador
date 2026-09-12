@@ -41,6 +41,7 @@ interface RawStonk {
   liquidityUsd: number | null;
   isTradeable: boolean | null;
   listedAt: string | null;
+  icon?: string | null;
 }
 
 interface RawStock {
@@ -100,6 +101,7 @@ const STONKS: readonly Stonk[] = (SNAP.stonks ?? []).map((raw) => {
     changePct: raw.changePct,
     series: [],
     listedAt: raw.listedAt,
+    imageUrl: raw.icon ?? null,
     // Creator-supplied links are not indexed yet, and inventing them would be
     // worse than their absence.
     socials: null,

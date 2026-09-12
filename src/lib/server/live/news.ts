@@ -72,10 +72,71 @@ function parseRss(xml: string, source: string): NewsItem[] {
       source,
       publishedAt: Number.isFinite(at.getTime()) ? at.toISOString() : new Date().toISOString(),
       summary: pick("description") || null,
+      imageUrl: null,
     });
   }
 
   return items;
+}
+
+/**
+ * Article artwork, from the page's own OpenGraph tags.
+ *
+ * The RSS feed carries no images, so the only way to get real ones is to look
+ * at the article. That costs a fetch per story, so it is capped, cached for an
+ * hour, and only the first few bytes of the response are read — the tags are in
+ * `<head>`, and streaming a whole news page to find them would be absurd.
+ *
+ * A failure returns null and the card renders without an image. A placeholder
+ * would be worse: a grey box that looks like a broken photo rather than an
+ * article that simply has none.
+ */
+async function ogImage(url: string): Promise<string | null> {
+  try {
+    const {value} = await cached(`og:${url}`, 3_600_000, async () => {
+      const response = await fetch(url, {
+        headers: {"user-agent": "Mozilla/5.0 (compatible; Trador/0.1)"},
+        signal: AbortSignal.timeout(4_000),
+        cache: "no-store",
+      });
+      if (!response.ok || !response.body) return null;
+
+      // Read only the head. 40KB is generous for it and bounded either way.
+      const reader = response.body.getReader();
+      let html = "";
+      while (html.length < 40_000) {
+        const {done, value: chunk} = await reader.read();
+        if (done) break;
+        html += new TextDecoder().decode(chunk);
+        if (html.includes("</head>")) break;
+      }
+      void reader.cancel();
+
+      const match =
+        html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ??
+        html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i) ??
+        html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i);
+
+      const image = match?.[1] ?? null;
+      // Only absolute https — a relative path would need the article's base and
+      // an http one is blocked on an https page anyway.
+      return image && image.startsWith("https://") ? image : null;
+    });
+
+    return value;
+  } catch {
+    return null;
+  }
+}
+
+/** Attach artwork to the first few stories, which is all anyone scrolls past. */
+async function withImages(items: NewsItem[], cap = 12): Promise<NewsItem[]> {
+  const head = items.slice(0, cap);
+  const images = await Promise.all(head.map((item) => ogImage(item.url)));
+
+  return items.map((item, index) =>
+    index < cap ? {...item, imageUrl: images[index]} : item,
+  );
 }
 
 async function feedFor(ticker: string): Promise<NewsItem[]> {
@@ -109,7 +170,7 @@ export async function newsForStock(
   try {
     const {value} = await cached(`news:${ticker}`, 300_000, () => feedFor(ticker));
     return {
-      items: value,
+      items: await withImages(value),
       reason: value.length === 0 ? `No recent coverage for ${ticker}.` : null,
     };
   } catch (error) {
@@ -158,7 +219,7 @@ export async function newsWire(limit = 6): Promise<{items: NewsItem[]; tickers: 
       })
       .sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt));
 
-    return {items, tickers: stocks.map((stock) => stock.ticker)};
+    return {items: await withImages(items), tickers: stocks.map((stock) => stock.ticker)};
   });
 
   return value;

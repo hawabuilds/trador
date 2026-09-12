@@ -6,6 +6,12 @@ const nextConfig = {
   // longer exist. `npm run verify` builds into its own directory instead.
   distDir: process.env.BUILD_DIR || ".next",
   images: {
+    /*
+     * Only used where `next/image` is; coin art and article artwork render
+     * through a plain <img> because both come from arbitrary creator-supplied
+     * and publisher hosts, and an allowlist that has to cover "any news site"
+     * is an allowlist that will be wrong next week.
+     */
     remotePatterns: [{protocol: "https", hostname: "pbs.twimg.com"}],
   },
   experimental: {

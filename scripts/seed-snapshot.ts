@@ -35,13 +35,12 @@ import {STOCK_MINTS} from "@/lib/stocks/registry";
 import {isTradeableFromLiquidity} from "@/lib/threeState";
 import {quoteKindFor} from "@/lib/universe";
 import {jupiterPrices} from "./jupiter";
+import {jupTokens} from "@/lib/server/live/jupTokens";
 import {
   base64ToBytes,
-  mintAccounts,
   redactedRpcUrl,
   rpc,
   rpcCallCount,
-  tokenIdentities,
 } from "./rpc";
 
 const OUT = path.join(process.cwd(), "src", "lib", "server", "snapshot.generated.json");
@@ -136,33 +135,35 @@ async function main(): Promise<void> {
 
   const mints = ranked.map((entry) => entry.launch.pool.baseMint);
 
-  process.stdout.write("  names… ");
-  const identities = await tokenIdentities(mints);
-  console.log(`${identities.size} resolved`);
-
-  process.stdout.write("  supply, for measured market caps… ");
-  const supplies = await mintAccounts(mints);
-  console.log(`${supplies.size} read`);
+  /**
+   * One call for names, artwork, supply and token program.
+   *
+   * This replaced a name lookup plus a mint-account read. It also carries the
+   * `icon` already resolved from whichever gateway the creator used, which is
+   * what puts real coin art in the feed instead of a monogram.
+   */
+  process.stdout.write("  names, artwork, supply… ");
+  const tokens = await jupTokens(mints);
+  console.log(`${tokens.size} resolved, ${[...tokens.values()].filter((t) => t.icon).length} with art`);
 
   let attributionDisagreements = 0;
 
   const stonks = ranked
     .map(({pool, launch, jup}) => {
       const mint = launch.pool.baseMint;
-      const identity = identities.get(mint);
-      const supply = supplies.get(mint);
+      const token = tokens.get(mint);
 
       // Jupiter's own launchpad label, compared against what the pool's
       // platform config says. Ours wins; a mismatch is worth counting.
       if (jup?.launchpad && jup.launchpad !== "stonkfun") attributionDisagreements += 1;
 
-      const price = jup?.usdPrice ?? null;
-      const decimals = supply?.decimals ?? jup?.decimals ?? null;
+      const price = jup?.usdPrice ?? token?.usdPrice ?? null;
+      const decimals = token?.decimals ?? jup?.decimals ?? null;
 
-      // Measured, not guessed: price × real circulating supply. Without both,
-      // there is no market cap and the row shows a price instead.
-      const circulatingSupply =
-        supply && decimals !== null ? Number(supply.supply) / 10 ** decimals : null;
+      // Measured, not guessed: price × real circulating supply, as reported by
+      // the token API alongside the mint's own decimals. Without both there is
+      // no market cap, and the row shows a price instead of inventing one.
+      const circulatingSupply = token?.circSupply ?? null;
 
       const marketCapUsd =
         price !== null && circulatingSupply !== null ? price * circulatingSupply : null;
@@ -170,8 +171,9 @@ async function main(): Promise<void> {
       return {
         mint,
         pool,
-        symbol: identity?.symbol ?? "",
-        name: identity?.name ?? "",
+        symbol: token?.symbol ?? "",
+        name: token?.name ?? "",
+        icon: token?.icon ?? null,
         configKind: launch.configKind,
         paysHolders: launch.paysHolders,
         quoteMint: launch.pool.quoteMint,

@@ -10,8 +10,10 @@
 
 import {asPubkey, type Pubkey} from "@/lib/pubkey";
 import type {Asset, ChartPoint, Stock, Stonk, Timeframe, Trade} from "@/lib/types";
+import {hasDatabase} from "./db";
 import {snapshotStock, snapshotStonk, snapshotStonks} from "./snapshot";
 import {candlesFor, deepestPoolFor, tradesFor} from "./live/gecko";
+import {findStonk, listStonks, rowToStonk, searchStonks} from "./live/universeStore";
 
 export interface SourceResult<T> {
   data: T;
@@ -34,7 +36,16 @@ export async function fetchAsset(
   const mint = asPubkey(id);
   if (!mint) return {data: null, stale: false, error: "Not a valid mint."};
 
-  const stonk = snapshotStonk(mint);
+  /**
+   * The store first, the snapshot as the floor.
+   *
+   * The snapshot exists so a fresh clone renders something real, not as a
+   * replacement for the database. Once the indexer has run, the store is
+   * authoritative and the snapshot stops being consulted — which is why this
+   * only falls through on a miss rather than merging the two.
+   */
+  let stonk = await fromStore(mint);
+  if (!stonk) stonk = snapshotStonk(mint);
   if (!stonk) return {data: null, stale: false, error: "Not listed here."};
 
   // Decorate with live pool figures. If this fails the row is returned exactly
@@ -159,6 +170,81 @@ export async function fetchAssetBundle(kind: string, id: string, timeframe: Time
     fetchTrades(kind, id),
   ]);
   return {asset, chart, trades};
+}
+
+async function fromStore(mint: Pubkey): Promise<Stonk | null> {
+  if (!hasDatabase) return null;
+  try {
+    const found = await findStonk(mint);
+    return found ? rowToStonk(found.row, found.stat) : null;
+  } catch {
+    // A store that errors must not take the asset page down with it.
+    return null;
+  }
+}
+
+/**
+ * The feed.
+ *
+ * Reads the store when there is one and the snapshot when there is not, and
+ * says which — so the UI can label a snapshot rather than presenting captured
+ * numbers as live.
+ */
+export async function fetchFeed(
+  sort: "trending" | "new" | "marketCap" | "rewards",
+  options: {limit?: number; cursor?: string | null; quoteTicker?: string | null} = {},
+): Promise<{
+  items: readonly Stonk[];
+  cursor: string | null;
+  source: "live" | "snapshot";
+  capturedAt: string | null;
+}> {
+  if (hasDatabase) {
+    try {
+      const page = await listStonks({sort, ...options});
+      if (page.rows.length > 0) {
+        return {
+          items: page.rows.map((row) => rowToStonk(row, page.stats.get(row.mint) ?? null)),
+          cursor: page.cursor,
+          source: "live",
+          capturedAt: null,
+        };
+      }
+      // An empty store means the indexer has not run yet, not that the universe
+      // is empty. Fall through rather than showing a blank feed.
+    } catch {
+      // Same: a store error falls back rather than emptying the screen.
+    }
+  }
+
+  const snapshot = snapshotStonks();
+  return {
+    items: snapshot.items,
+    cursor: null,
+    source: "snapshot",
+    capturedAt: snapshot.capturedAt,
+  };
+}
+
+export async function searchUniverse(needle: string): Promise<readonly Stonk[]> {
+  if (hasDatabase) {
+    try {
+      const page = await searchStonks(needle);
+      if (page.rows.length > 0) {
+        return page.rows.map((row) => rowToStonk(row, page.stats.get(row.mint) ?? null));
+      }
+    } catch {
+      // Fall through to the snapshot.
+    }
+  }
+
+  const lowered = needle.toLowerCase(); // pubkey-lint-ok: a text query, not an address
+  return snapshotStonks().items.filter(
+    (stonk) =>
+      stonk.symbol.toLowerCase().includes(lowered) ||
+      stonk.name.toLowerCase().includes(lowered) ||
+      stonk.quoteTicker.toLowerCase().includes(lowered),
+  );
 }
 
 export function allStonks(): readonly Stonk[] {
