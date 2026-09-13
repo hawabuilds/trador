@@ -15,7 +15,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 const variants: Record<Variant, string> = {
   primary:
     "bg-brand-500 text-white shadow-brand hover:bg-brand-600 hover:-translate-y-0.5",
-  /** Screenshot comparison: AA-compliant white-on-#524BD4 */
+  /** A darker press state for primary. White on `--brand-600` clears AA. */
   primaryAlt:
     "bg-brand-600 text-white shadow-brand hover:bg-brand-700 hover:-translate-y-0.5",
   dark: "bg-brand-500 text-white shadow-brand hover:bg-brand-600 hover:-translate-y-0.5",

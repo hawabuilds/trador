@@ -2,13 +2,27 @@
 
 import {cn} from "@/lib/cn";
 
+/**
+ * Monogram backgrounds for rows with no artwork.
+ *
+ * **No green and no red in this set, deliberately.** The palette's rule is that
+ * those two mean price direction and nothing else, and this was the last place
+ * quietly breaking it: a coin whose seed happened to hash to the green gradient
+ * wore a green disc directly beside its own price, which reads as a signal
+ * about the coin. Two of these were literally the predecessor's `--price-up`
+ * and `--price-down` values, carried over with the component.
+ *
+ * The rest were that app's brand violet. These are Trador's own — Solana purple
+ * at the head, then five hues spaced far enough apart to tell apart at 32px,
+ * all of them outside the green and red bands.
+ */
 const GRADIENTS = [
-  "linear-gradient(135deg,#6860FF,#524BD4)",
-  "linear-gradient(135deg,#3DDBA8,#047857)",
-  "linear-gradient(135deg,#FF6B7A,#DC2626)",
-  "linear-gradient(135deg,#ABAEF5,#3F3999)",
-  "linear-gradient(135deg,#8A85FF,#2D2866)",
-  "linear-gradient(135deg,#F59E0B,#B8860B)",
+  "linear-gradient(135deg,#9945FF,#5D22A1)",
+  "linear-gradient(135deg,#5B8DEF,#1E40AF)",
+  "linear-gradient(135deg,#22D3EE,#0E7490)",
+  "linear-gradient(135deg,#E879F9,#A21CAF)",
+  "linear-gradient(135deg,#F5A524,#B4710C)",
+  "linear-gradient(135deg,#8B93A7,#4A5060)",
 ];
 
 /** Stable colour per seed, so avatars do not reshuffle between renders. */

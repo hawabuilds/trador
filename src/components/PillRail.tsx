@@ -50,10 +50,20 @@ export function PillRail<T extends string>({
             onClick={() => onChange(option)}
             className={cn(
               "shrink-0 rounded-full px-3.5 py-1.5 text-[12.5px] font-extrabold transition-colors duration-150",
+              /*
+                Wash and text come from the same pair of tokens.
+
+                These two backgrounds were hardcoded `rgb(61 219 168 / 12%)`
+                and `rgb(255 107 122 / 11%)` — the predecessor app's price
+                colours, carried over with the component — while the text beside
+                them already read Trador's tokens. So the active timeframe pill
+                sat teal-green text on a differently-teal wash, and no amount of
+                changing the palette would have fixed it.
+              */
               active
                 ? positive
-                  ? "bg-[rgb(61_219_168/12%)] text-price-up"
-                  : "bg-[rgb(255_107_122/11%)] text-price-down"
+                  ? "bg-[var(--price-up-wash)] text-price-up"
+                  : "bg-[var(--price-down-wash)] text-price-down"
                 : "text-faint hover:text-muted",
             )}
           >

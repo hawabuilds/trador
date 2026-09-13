@@ -66,6 +66,12 @@ export function LaunchpadMark({
         rotated group so the split stays exactly on the pill's short axis at
         any size; rotating each half separately drifts by a pixel and the seam
         shows.
+
+        The green is hardcoded and must stay that way. It happens to be very
+        close to `--price-up`, which makes it tempting to point at the token —
+        do not. This is someone else's trademark: it has to stay what their
+        green is, not track whatever ours becomes. The two have already drifted
+        apart three times while this app's palette was being settled.
       */}
       <g transform="rotate(45 16 16)">
         <path d="M6 11a10 10 0 0 1 20 0v5H6z" fill="#4ade80" />

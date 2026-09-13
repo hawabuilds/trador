@@ -67,32 +67,48 @@ html.dark {
   --text-disabled: #4a4a54;
 
   /*
-   * The terminal pair, tuned to what the Solana terminals actually run.
+   * The price pair, settled with numbers rather than taste.
    *
-   * Three passes to get here, and the failures are the argument. Solana's
-   * #14F195 is a neon made for a wordmark: at 13px on near-black it glares,
-   * and it sits close enough to cyan that a fast glance reads "highlight"
-   * before it reads "up". Pairing it with a #FF5C7A coral made the whole app
-   * read pink. Replacing that with #0ECB81/#FF3B47 fixed the pink but
-   * overcorrected — #0ECB81 is a dark, teal-leaning green that goes muddy on
-   * a buy button and disappears as a 2px chart stroke.
+   * Four passes to get here. Solana's #14F195 is a neon made for a wordmark:
+   * at 13px on near-black it glares, and it sits close enough to cyan that a
+   * fast glance reads "highlight" before "up". Pairing it with a #FF5C7A coral
+   * made the whole app read pink. #0ECB81/#FF3B47 fixed the pink but the green
+   * measures 157deg — teal-leaning, which is what reads as "off".
    *
-   * Axiom and Fomo Family both run brighter and cleaner than that, because a
-   * trading terminal is read at a glance on a black screen: the green has to
-   * be unmistakably green at 11px, and the red unmistakably red rather than
-   * pink. These are that pair — high chroma, matched perceptual weight so a
-   * falling number is not louder than a rising one, and legible at every size
-   * from a chart stroke to a full-width Buy button.
+   * This pair is deliberately **not** any single platform's, because no
+   * platform has our constraint. Here the green does two jobs and the red does
+   * one:
+   *
+   *   - Green is a **filled button surface** (the buy side, carrying dark text)
+   *     as well as small ink. That needs high lightness: TradingView's #089981
+   *     gives only 5.31:1 for text sitting on it.
+   *   - Red is **only ever ink** — the sell side is a wash with red text, never
+   *     a red fill — so it needs to clear 4.5:1 and nothing more.
+   *
+   * That asymmetry makes a perceptually balanced pair unreachable, and the
+   * reason is worth writing down: to get a red as light as a button-grade
+   * green you have to desaturate it toward pink, which is the exact thing that
+   * was wrong two passes ago. Every published terminal pair resolves this the
+   * same way — green lighter than red — and so does this one.
+   *
+   * Measured against #0a0a0c:
+   *
+   *   #4ADE80  11.35:1 as ink, 10.88:1 for the dark text on the buy button,
+   *            hue 142deg — the only genuinely green option rather than teal.
+   *   #EF454A   5.29:1 as ink, hue 358deg — unmistakably red, not pink. Taken
+   *            from Bybit, and chosen over the previous #FF4D4D because that
+   *            was brighter than any terminal's red (L* 59 against their
+   *            53-57), which made losses shout louder than gains landed.
    */
   --price-up: #4ade80;
   --price-up-light: #22c55e;
   --price-up-chart: #5ef193;
-  --price-down: #ff4d4d;
-  --price-down-light: #e5333c;
+  --price-down: #ef454a;
+  --price-down-light: #c9303a;
   --price-up-wash: rgb(74 222 128 / 14%);
   --price-up-wash-hover: rgb(74 222 128 / 22%);
-  --price-down-wash: rgb(255 77 77 / 14%);
-  --price-down-wash-hover: rgb(255 77 77 / 22%);
+  --price-down-wash: rgb(239 69 74 / 15%);
+  --price-down-wash-hover: rgb(239 69 74 / 24%);
 
   --success: var(--price-up);
   --error: var(--price-down);
@@ -133,7 +149,7 @@ html.dark {
   --shadow-brand: 0 16px 32px -14px rgb(153 69 255 / 45%);
   --shadow-tab-active: 0 6px 18px -10px rgb(153 69 255 / 45%);
   --shadow-price-up: 0 16px 32px -14px rgb(74 222 128 / 34%);
-  --shadow-price-down: 0 16px 32px -14px rgb(255 77 77 / 34%);
+  --shadow-price-down: 0 16px 32px -14px rgb(239 69 74 / 34%);
   --shadow-inset-soft: inset 0 2px 8px rgb(0 0 0 / 46%);
   --shadow-inset-focus: inset 0 2px 8px rgb(0 0 0 / 46%),
     0 0 0 2px rgb(153 69 255 / 18%);
