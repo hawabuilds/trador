@@ -8,6 +8,8 @@
  * or empty a list, because none of them is ever asked what exists.
  */
 
+import {cache} from "react";
+
 import {asPubkey, type Pubkey} from "@/lib/pubkey";
 import type {Asset, ChartPoint, Stock, Stonk, Timeframe, Trade} from "@/lib/types";
 import {hasDatabase} from "./db";
@@ -182,6 +184,31 @@ async function fromStore(mint: Pubkey): Promise<Stonk | null> {
     return null;
   }
 }
+
+/**
+ * Does this coin exist, and what is it called?
+ *
+ * The route handlers use `fetchAsset`, which also decorates with live pool
+ * figures — right for rendering, wasteful for a page that only needs to know
+ * whether to 404. This is the cheap existence check, and it reads the same two
+ * sources in the same order as everything else: **store first, snapshot as the
+ * floor.**
+ *
+ * That ordering is the whole point. The chart page used to test membership
+ * against `snapshotStonk` alone — the 140 coins baked into the bundle at build
+ * time — while the feed had been switched to read the live store's 336. The
+ * 196 coins that existed only in the store rendered rows people could tap and
+ * a hard 404 when they did, and the two numbers drifted further apart with
+ * every sweep the indexer ran.
+ *
+ * `cache` dedupes within a request, so `generateMetadata` and the page body
+ * cost one lookup between them rather than two.
+ */
+export const stonkFor = cache(async (id: string): Promise<Stonk | null> => {
+  const mint = asPubkey(id);
+  if (!mint) return null;
+  return (await fromStore(mint)) ?? snapshotStonk(mint);
+});
 
 /**
  * The feed.
