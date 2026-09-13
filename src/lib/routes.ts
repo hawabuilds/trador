@@ -30,10 +30,6 @@ export function profilePath(handle: string): string {
   return `/u/${handle.replace(/^@/, "")}`;
 }
 
-export function newsArticlePath(id: string): string {
-  return `/news/${encodeURIComponent(id)}`;
-}
-
 export function appOrigin(): string {
   return (
     process.env.NEXT_PUBLIC_APP_URL ??

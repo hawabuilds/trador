@@ -1,8 +1,6 @@
 "use client";
 
-import Link from "next/link";
 import {relativeTime} from "@/lib/format";
-import {newsArticlePath} from "@/lib/routes";
 import type {NewsItem} from "@/lib/types";
 import {PanelError, PanelNote} from "./TradesPanel";
 
@@ -50,12 +48,23 @@ export function NewsPanel({
           return (
             <li key={item.id}>
               {live ? (
-                <Link
-                  href={newsArticlePath(item.id)}
+                /*
+                 * Out to the publisher, not to a reader page in this app.
+                 *
+                 * This linked to `/news/<id>` — a route that has never
+                 * existed here — so every headline on a coin's News tab was a
+                 * hard 404. There is no article reader to send people to and
+                 * there should not be: the story belongs to whoever wrote it,
+                 * and the app has no rights to reproduce it.
+                 */
+                <a
+                  href={item.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="block py-3 transition-colors hover:text-accent-link"
                 >
                   {body}
-                </Link>
+                </a>
               ) : (
                 <div className="py-3">{body}</div>
               )}
