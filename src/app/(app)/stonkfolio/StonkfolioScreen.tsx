@@ -5,6 +5,7 @@ import Link from "next/link";
 import {useQuery} from "@tanstack/react-query";
 
 import {StickyPageHeader} from "@/components/AppShell";
+import {BalanceChart, type BalancePoint} from "@/components/BalanceChart";
 import {assetHref} from "@/components/AssetRow";
 import {FilterRail, type FilterOption} from "@/components/FilterRail";
 import {Avatar} from "@/components/ui/Avatar";
@@ -12,9 +13,11 @@ import {Button} from "@/components/ui/Button";
 import {PairTicker, VerifiedTick} from "@/components/ui/Badges";
 import {CopyIcon, SettingsIcon, WalletIcon} from "@/components/ui/Icons";
 import {SettingsMenu} from "@/components/SettingsMenu";
+import {PriceDelta} from "@/components/ui/PriceDelta";
+import {useBalanceHistory, type BalanceRange} from "@/hooks/useBalanceHistory";
 import {useUser} from "@/hooks/useUser";
 import {cn} from "@/lib/cn";
-import {compactMoney, units} from "@/lib/format";
+import {compactMoney, stamp, units} from "@/lib/format";
 import {formatPriceUsd} from "@/lib/priceState";
 import {shortPubkey} from "@/lib/pubkey";
 import type {Holding} from "@/lib/types";
@@ -50,6 +53,8 @@ export function StonkfolioScreen() {
   const [split, setSplit] = useState<Split>("all");
   const [copied, setCopied] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [range, setRange] = useState<BalanceRange>("1w");
+  const [scrubbed, setScrubbed] = useState<BalancePoint | null>(null);
 
   const query = useQuery({
     queryKey: ["stonkfolio", wallet],
@@ -62,6 +67,8 @@ export function StonkfolioScreen() {
     },
     refetchInterval: 30_000,
   });
+
+  const history = useBalanceHistory(wallet, range, query.data?.totalUsd ?? null);
 
   const holdings = useMemo(() => {
     const all = query.data?.holdings ?? [];
@@ -136,22 +143,50 @@ export function StonkfolioScreen() {
 
         <div className="mt-4">
           <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-faint">
-            Trador value
+            {scrubbed ? "Value at" : "Trador value"}
           </div>
           <div className="tabular-nums mt-0.5 text-[30px] font-extrabold leading-none tracking-[-0.035em]">
-            {query.isLoading ? "—" : compactMoney(query.data?.totalUsd ?? 0)}
+            {query.isLoading
+              ? "—"
+              : compactMoney(scrubbed?.value ?? query.data?.totalUsd ?? 0)}
           </div>
           <div className="tabular-nums mt-1.5 flex items-center gap-2 text-[12px] font-bold text-faint">
-            <span>{sol.toFixed(3)} SOL</span>
             {/*
-              Counted and named rather than folded into the total. The number
-              above is what Trador can price, not everything in the wallet.
+              While scrubbing, the line under the number is the time being
+              pointed at rather than the wallet's composition — the composition
+              shown is today's and would be wrong for a point last week.
             */}
-            {query.data && query.data.otherCount > 0 ? (
-              <span>· {query.data.otherCount} other tokens not in Trador</span>
-            ) : null}
+            {scrubbed ? (
+              <span>{stamp(new Date(scrubbed.t).toISOString())}</span>
+            ) : (
+              <>
+                {history.change ? (
+                  <PriceDelta
+                    value={history.change.pct}
+                    className="text-[12px] font-bold"
+                  />
+                ) : null}
+                <span>{sol.toFixed(3)} SOL</span>
+                {/*
+                  Counted and named rather than folded into the total. The
+                  number above is what Trador can price, not everything in the
+                  wallet.
+                */}
+                {query.data && query.data.otherCount > 0 ? (
+                  <span>· {query.data.otherCount} other tokens not in Trador</span>
+                ) : null}
+              </>
+            )}
           </div>
         </div>
+
+        <BalanceSection
+          points={history.points}
+          ready={history.ready}
+          range={range}
+          onRange={setRange}
+          onScrub={setScrubbed}
+        />
 
         <div className="py-3.5">
           <FilterRail label="Split holdings" options={SPLITS} value={split} onChange={setSplit} />
@@ -251,5 +286,69 @@ function HoldingRow({holding}: {holding: Holding}) {
         </div>
       </div>
     </Link>
+  );
+}
+
+const RANGES: FilterOption<BalanceRange>[] = [
+  {value: "1d", label: "1D"},
+  {value: "1w", label: "1W"},
+  {value: "1m", label: "1M"},
+  {value: "all", label: "All"},
+];
+
+/**
+ * The balance line, or an honest explanation of why there isn't one.
+ *
+ * Three states, and the distinction between the last two is the point:
+ *
+ *   - **Points** — draw them.
+ *   - **Not ready** — no store is configured, so there will never be history.
+ *     Saying "your history starts now" here would be a promise the deployment
+ *     cannot keep.
+ *   - **Ready but empty** — this wallet has simply not been seen for long
+ *     enough yet. That is a wait, and it ends.
+ *
+ * What it never does is draw a line back to zero from the first point. Nothing
+ * on chain records what a wallet was worth before the app first looked, and a
+ * fabricated history on a balance chart is the one lie a user cannot detect.
+ */
+function BalanceSection({
+  points,
+  ready,
+  range,
+  onRange,
+  onScrub,
+}: {
+  points: readonly BalancePoint[];
+  ready: boolean;
+  range: BalanceRange;
+  onRange: (next: BalanceRange) => void;
+  onScrub: (point: BalancePoint | null) => void;
+}) {
+  if (!ready) return null;
+
+  return (
+    <div className="mt-3">
+      {points.length >= 2 ? (
+        <BalanceChart points={points} onScrub={onScrub} className="-mx-[22px]" />
+      ) : (
+        <div className="grid h-[132px] place-items-center rounded-2xl bg-[var(--segment-track)] px-6 text-center shadow-inset-soft">
+          <p className="max-w-[34ch] text-[12px] leading-[1.5] text-faint">
+            Your balance chart starts from the first time Trador sees this
+            wallet. Check back shortly — there is no way to know what it was
+            worth before then.
+          </p>
+        </div>
+      )}
+
+      <div className="pt-3">
+        <FilterRail
+          label="Chart range"
+          options={RANGES}
+          value={range}
+          onChange={onRange}
+        />
+      </div>
+    </div>
   );
 }

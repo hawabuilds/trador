@@ -200,8 +200,37 @@ export interface NewsItem {
 export const NEWS_WINDOWS = ["latest", "24h", "7d", "30d", "all"] as const;
 export type NewsWindow = (typeof NEWS_WINDOWS)[number];
 
-export const NEWS_TOPICS = ["all", "stocks", "launches", "solana"] as const;
+export const NEWS_TOPICS = ["all", "stocks", "solana", "posts"] as const;
 export type NewsTopic = (typeof NEWS_TOPICS)[number];
+
+/**
+ * One entry in the news tab — a story, or something an account actually posted.
+ *
+ * A single type with a `kind` discriminant rather than two feeds, because the
+ * tab ranks both by time and a reader does not care which pipe a thing came
+ * down. The fields that only apply to one kind are nullable rather than split
+ * into a union: every consumer here renders both, and a union would make each
+ * one narrow before it could read `publishedAt`.
+ */
+export interface FeedItem {
+  id: string;
+  kind: "article" | "account";
+  /** Headline for a story; the post's own text for an account. */
+  body: string;
+  url: string;
+  /** Publication name, or the account's display name. */
+  source: string;
+  /** X handle, without the `@`. Null on a story. */
+  handle: string | null;
+  publishedAt: string;
+  /** Tokenized tickers this touches, e.g. `NVDAx`. Empty when none. */
+  tickers: string[];
+  topic: NewsTopic;
+  /** Real article artwork from OG tags. Never a generated placeholder. */
+  imageUrl: string | null;
+  avatarUrl: string | null;
+  summary: string | null;
+}
 
 // ---------------------------------------------------------------------------
 // Feed

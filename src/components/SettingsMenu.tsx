@@ -2,7 +2,6 @@
 
 import {useEffect, useState} from "react";
 
-import {useTheme} from "@/hooks/useTheme";
 import {useUser} from "@/hooks/useUser";
 import {cn} from "@/lib/cn";
 import {accountUrl} from "@/config/explorer";
@@ -17,8 +16,6 @@ import {
   CheckIcon,
   CopyIcon,
   LogoutIcon,
-  MoonIcon,
-  SunIcon,
   WalletIcon,
 } from "./ui/Icons";
 
@@ -35,7 +32,6 @@ import {
  * codebase, which is the one thing worth refusing outright.
  */
 export function SettingsMenu({open, onClose}: {open: boolean; onClose: () => void}) {
-  const {theme, setTheme} = useTheme();
   const {wallet, handle, displayName, isDemo, logout} = useUser();
 
   const [copied, setCopied] = useState(false);
@@ -65,33 +61,11 @@ export function SettingsMenu({open, onClose}: {open: boolean; onClose: () => voi
       header={<SheetTitle title="Settings" onClose={onClose} />}
     >
       <div className="pb-3">
-        <Group label="Appearance">
-          <div className="flex gap-2 px-1 py-2">
-            {(
-              [
-                {value: "dark", label: "Dark", icon: <MoonIcon className="h-4 w-4" />},
-                {value: "light", label: "Light", icon: <SunIcon className="h-4 w-4" />},
-              ] as const
-            ).map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                aria-pressed={theme === option.value}
-                onClick={() => setTheme(option.value)}
-                className={cn(
-                  "flex flex-1 items-center justify-center gap-2 rounded-[12px] py-2.5 text-[13.5px] font-extrabold transition-colors",
-                  theme === option.value
-                    ? "bg-[var(--bg-input)] text-ink shadow-tab-active"
-                    : "bg-[var(--overlay-wash)] text-faint hover:text-muted",
-                )}
-              >
-                {option.icon}
-                {option.label}
-              </button>
-            ))}
-          </div>
-        </Group>
-
+        {/*
+          No appearance section. The app is dark only — every screen here is a
+          chart, a tape or a price, and a light mode would be a second set of
+          contrast ratios to keep honest for a surface nobody trades on.
+        */}
         <Group label="Wallet">
           {wallet ? (
             <>

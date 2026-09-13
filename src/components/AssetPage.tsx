@@ -6,6 +6,7 @@ import {useRouter} from "next/navigation";
 
 import {APP_SCROLL_PAD_TOP} from "@/components/AppShell";
 import {accountUrl, tokenUrl} from "@/config/explorer";
+import {launchpadFace} from "@/config/launchpads";
 import {useAsset, useChart, useTrades} from "@/hooks/useAsset";
 import {useLivePrice} from "@/hooks/useLivePrice";
 import {hoveredCandleChangePct} from "@/lib/chartLwc";
@@ -17,7 +18,6 @@ import {clock, shortAddress} from "@/lib/format";
 import {publishPrice} from "@/lib/livePrice";
 import {readChartStyle, writeChartStyle} from "@/lib/localStore";
 import {formatLiquidityUsd, formatMarketCapAt, formatPriceUsd} from "@/lib/priceState";
-import {LAUNCHPADS} from "@/lib/programs";
 import {SECTOR_LABEL} from "@/lib/sectors";
 import {ISSUERS} from "@/lib/stocks/registry";
 import type {AssetKind, ChartPoint, ChartStyle, Timeframe} from "@/lib/types";
@@ -26,6 +26,7 @@ import {AssetSkeleton} from "./AssetPageSkeleton";
 import {LaunchpadMark} from "./LaunchpadMark";
 import {PanelTabs, type PanelTab} from "./PanelTabs";
 import {PillRail} from "./PillRail";
+import {SocialRow} from "./SocialRow";
 import {TradeBar} from "./TradeBar";
 import {WatchStar} from "./WatchStar";
 import {Avatar} from "./ui/Avatar";
@@ -215,6 +216,17 @@ export function AssetPage({
               {asset.name}
             </div>
           </div>
+
+          {/*
+            The project's own links, when it has any. Aligned to the avatar
+            rather than dropped below the chips, because these are about who
+            launched the coin — the same question the name and picture answer —
+            and a project with none renders nothing at all rather than a row of
+            dead icons.
+          */}
+          {asset.socials ? (
+            <SocialRow socials={asset.socials} className="-mr-1.5 -mt-1 shrink-0" />
+          ) : null}
         </div>
       )}
 
@@ -253,15 +265,21 @@ export function AssetPage({
                 Pays {asset.quoteTicker}
               </span>
             ) : null}
+            {/*
+              Links to this coin on its launchpad, not to the launchpad's home
+              page. Someone tapping this wants to see the coin where it was
+              launched — to check the curve, the replies, our attribution —
+              and a drop onto a front page makes them search for it again.
+            */}
             <a
-              href={LAUNCHPADS[asset.launchpad].url}
+              href={launchpadFace(asset.launchpad).coinUrl(asset.mint)}
               target="_blank"
               rel="noopener noreferrer"
-              title={`Launched on ${LAUNCHPADS[asset.launchpad].label}`}
+              title={`Open ${asset.symbol} on ${launchpadFace(asset.launchpad).label}`}
               className="flex items-center gap-1.5 rounded-[8px] bg-[var(--overlay-wash)] py-1 pl-1 pr-2 text-[11.5px] font-extrabold transition-colors hover:bg-[var(--overlay-wash-hover)]"
             >
               <LaunchpadMark launchpad={asset.launchpad} size={16} />
-              {LAUNCHPADS[asset.launchpad].label}
+              {launchpadFace(asset.launchpad).label}
             </a>
           </>
         )}

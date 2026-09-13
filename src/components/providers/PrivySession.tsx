@@ -8,7 +8,7 @@ import {encodeBase58} from "@/lib/pubkey";
 
 import {asPubkey} from "@/lib/pubkey";
 import {SessionContext, type Session} from "@/lib/session";
-import {useTheme} from "@/hooks/useTheme";
+import {THEME} from "@/lib/theme";
 
 const APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? "";
 
@@ -19,8 +19,6 @@ const APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? "";
  * account the user has to think about, on a chain this app cannot trade.
  */
 export function PrivySessionProvider({children}: {children: React.ReactNode}) {
-  const {theme} = useTheme();
-
   return (
     <PrivyProvider
       appId={APP_ID}
@@ -30,8 +28,12 @@ export function PrivySessionProvider({children}: {children: React.ReactNode}) {
           solana: {createOnLogin: "users-without-wallets"},
         },
         appearance: {
-          theme: theme === "light" ? "light" : "dark",
-          accentColor: "#6860FF",
+          // Dark, unconditionally — the app has one theme, and Privy's modal
+          // opens over it. The accent is Solana purple, matching `--accent`;
+          // it was still HODL's violet, which showed on the one screen every
+          // new user sees first.
+          theme: THEME,
+          accentColor: "#9945FF",
           walletChainType: "solana-only",
         },
       }}

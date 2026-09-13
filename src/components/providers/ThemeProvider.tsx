@@ -1,85 +1,25 @@
 "use client";
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from "react";
-import {
-  applyThemeToDocument,
-  readStoredThemePreference,
-  resolveTheme,
-  type Theme,
-  type ThemePreference,
-  writeStoredThemePreference,
-} from "@/lib/theme";
+import {useEffect, type ReactNode} from "react";
 
-interface ThemeContextValue {
-  /** Resolved appearance (light or dark). */
-  theme: Theme;
-  /** Stored choice including system follow. */
-  preference: ThemePreference;
-  setPreference: (preference: ThemePreference) => void;
-  setTheme: (theme: Theme) => void;
-  toggleTheme: () => void;
-}
+import {applyThemeToDocument} from "@/lib/theme";
 
-const ThemeContext = createContext<ThemeContextValue | null>(null);
-
+/**
+ * Pins the document to the dark theme.
+ *
+ * The app is dark only, so this is not a provider in the usual sense — there is
+ * no state, no context and nothing to switch. It exists to run
+ * `applyThemeToDocument` once on mount, which repairs the two cases the boot
+ * script in `app/layout.tsx` cannot: a user who still has `trador.theme:
+ * "light"` in localStorage from when there were two themes, and a
+ * back/forward-cache restore that brings back an older `<html>`.
+ *
+ * `useTheme` is the hook to call if you need the value; it returns a constant.
+ */
 export function ThemeProvider({children}: {children: ReactNode}) {
-  const [preference, setPreferenceState] = useState<ThemePreference>("system");
-  const [theme, setThemeState] = useState<Theme>("dark");
-
   useEffect(() => {
-    const stored = readStoredThemePreference();
-    const nextPreference = stored ?? "system";
-    const resolved = applyThemeToDocument(nextPreference);
-    setPreferenceState(nextPreference);
-    setThemeState(resolved);
-
-    const media = window.matchMedia("(prefers-color-scheme: light)");
-    const onSystemChange = () => {
-      const currentPref = readStoredThemePreference() ?? "system";
-      if (currentPref !== "system") return;
-      const resolvedTheme = applyThemeToDocument("system");
-      setThemeState(resolvedTheme);
-    };
-    media.addEventListener("change", onSystemChange);
-    return () => media.removeEventListener("change", onSystemChange);
+    applyThemeToDocument();
   }, []);
 
-  const setPreference = useCallback((next: ThemePreference) => {
-    setPreferenceState(next);
-    writeStoredThemePreference(next);
-    const resolved = applyThemeToDocument(next);
-    setThemeState(resolved);
-  }, []);
-
-  const setTheme = useCallback((next: Theme) => {
-    setPreference(next);
-  }, [setPreference]);
-
-  const toggleTheme = useCallback(() => {
-    const resolved = resolveTheme(preference);
-    setPreference(resolved === "light" ? "dark" : "light");
-  }, [preference, setPreference]);
-
-  return (
-    <ThemeContext.Provider
-      value={{theme, preference, setPreference, setTheme, toggleTheme}}
-    >
-      {children}
-    </ThemeContext.Provider>
-  );
-}
-
-export function useThemeContext(): ThemeContextValue {
-  const value = useContext(ThemeContext);
-  if (!value) {
-    throw new Error("useThemeContext must be used within ThemeProvider");
-  }
-  return value;
+  return <>{children}</>;
 }

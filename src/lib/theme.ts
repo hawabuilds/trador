@@ -1,148 +1,54 @@
-export type Theme = "light" | "dark";
+/**
+ * The theme, such as it is.
+ *
+ * Trador is **dark only**. There is no light palette, no `system` preference
+ * and no toggle: every screen is a chart, a tape or a price, and all three are
+ * read against a dark ground on every terminal people already use. A second
+ * palette would be a second set of contrast ratios to keep honest for a surface
+ * nobody trades on.
+ *
+ * This module is kept rather than deleted because a handful of callers still
+ * need to *ask* what the theme is — Privy's modal takes an appearance, the
+ * chart takes a background, the status bar takes a colour. They now get a
+ * constant, which is the point: one answer, no resolution step, nothing to
+ * disagree with the boot script in `app/layout.tsx`.
+ *
+ * When there were two themes, that disagreement was a real bug: the boot script
+ * painted dark and the provider repainted from `prefers-color-scheme` a moment
+ * later, so the feed was dark and every other tab was light.
+ */
 
-export type ThemePreference = Theme | "system";
+export type Theme = "dark";
 
-export type Palette = "terminal" | "legacy";
+/** The only theme. Exported as a value so callers do not hardcode the string. */
+export const THEME: Theme = "dark";
 
-export const THEME_STORAGE_KEY = "trador.theme";
-export const PALETTE_STORAGE_KEY = "trador.palette";
+/** Status bar / `theme-color` meta. Tracks `--bg-base`. */
+export const THEME_COLOR = "#0A0A0C";
 
-/** Status bar / theme-color meta — tracks page base. */
-export const THEME_COLORS: Record<Theme, string> = {
-  light: "#F5F5FF",
-  dark: "#0D0F18",
-};
-
-export const LEGACY_THEME_COLOR = "#161A40";
-
-export function systemTheme(): Theme {
-  if (typeof window === "undefined") return "dark";
-  return window.matchMedia("(prefers-color-scheme: light)").matches
-    ? "light"
-    : "dark";
+export function isTheme(value: string | null | undefined): value is Theme {
+  return value === "dark";
 }
 
 /**
- * What to use when nobody has chosen.
+ * Put the theme on the document.
  *
- * Dark, not `prefers-color-scheme`. The palette is designed dark-first, a
- * trading screen is read in a dark room more often than not, and a laptop set
- * to light mode is a statement about documents rather than about this app.
- *
- * This has to agree with the boot script in `app/layout.tsx`. When it did not,
- * the script painted dark and the provider repainted light a moment later —
- * so the feed was dark and every other tab was light.
+ * Idempotent, and safe to call after the boot script has already done it. The
+ * `light` class is removed rather than merely not added, so a browser that has
+ * restored an old DOM — or a user who still has `trador.theme: "light"` in
+ * localStorage from before this app was dark-only — lands somewhere coherent.
  */
-export const DEFAULT_THEME: Theme = "dark";
+export function applyThemeToDocument(): Theme {
+  if (typeof document === "undefined") return THEME;
 
-export function isTheme(value: string | null | undefined): value is Theme {
-  return value === "light" || value === "dark";
-}
-
-export function isThemePreference(
-  value: string | null | undefined,
-): value is ThemePreference {
-  return value === "light" || value === "dark" || value === "system";
-}
-
-export function isPalette(value: string | null | undefined): value is Palette {
-  return value === "terminal" || value === "legacy";
-}
-
-export function readStoredThemePreference(): ThemePreference | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
-    return isThemePreference(stored) ? stored : null;
-  } catch {
-    return null;
-  }
-}
-
-/** @deprecated Use readStoredThemePreference */
-export function readStoredTheme(): Theme | null {
-  const pref = readStoredThemePreference();
-  if (pref === null || pref === "system") return null;
-  return pref;
-}
-
-export function readStoredPalette(): Palette | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const stored = window.localStorage.getItem(PALETTE_STORAGE_KEY);
-    return isPalette(stored) ? stored : null;
-  } catch {
-    return null;
-  }
-}
-
-export function writeStoredThemePreference(preference: ThemePreference): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(THEME_STORAGE_KEY, preference);
-  } catch {
-    // Storage may be blocked in private browsing.
-  }
-}
-
-/** @deprecated Use writeStoredThemePreference */
-export function writeStoredTheme(theme: Theme): void {
-  writeStoredThemePreference(theme);
-}
-
-export function writeStoredPalette(palette: Palette): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(PALETTE_STORAGE_KEY, palette);
-  } catch {
-    // Storage may be blocked in private browsing.
-  }
-}
-
-export function resolveTheme(preference: ThemePreference): Theme {
-  if (preference === "system") return DEFAULT_THEME;
-  return preference;
-}
-
-export function applyPaletteToDocument(palette: Palette, theme: Theme): void {
-  if (typeof document === "undefined") return;
-
-  if (palette === "legacy" && theme === "dark") {
-    document.documentElement.setAttribute("data-palette", "legacy");
-  } else {
-    document.documentElement.removeAttribute("data-palette");
-  }
+  const root = document.documentElement;
+  root.classList.add("dark");
+  root.classList.remove("light");
+  root.style.colorScheme = "dark";
+  root.dataset.theme = "dark";
 
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) {
-    const legacy = palette === "legacy" && theme === "dark";
-    meta.setAttribute(
-      "content",
-      legacy ? LEGACY_THEME_COLOR : THEME_COLORS[theme],
-    );
-  }
-}
+  if (meta) meta.setAttribute("content", THEME_COLOR);
 
-export function applyThemeToDocument(
-  preference: ThemePreference,
-  paletteOverride?: Palette,
-): Theme {
-  if (typeof document === "undefined") return "dark";
-
-  const theme = resolveTheme(preference);
-
-  document.documentElement.classList.toggle("dark", theme === "dark");
-  document.documentElement.classList.toggle("light", theme === "light");
-  document.documentElement.style.colorScheme = theme;
-  document.documentElement.dataset.theme = theme;
-
-  const palette =
-    paletteOverride ??
-    readStoredPalette() ??
-    (document.documentElement.getAttribute("data-palette") === "legacy"
-      ? "legacy"
-      : "terminal");
-  applyPaletteToDocument(palette, theme);
-
-  return theme;
+  return THEME;
 }

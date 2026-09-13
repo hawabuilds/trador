@@ -14,7 +14,8 @@ import {SECTOR_LABEL} from "@/lib/sectors";
 import type {Asset} from "@/lib/types";
 import {Sparkline} from "./Sparkline";
 import {Avatar} from "./ui/Avatar";
-import {LaunchpadChip, NoLiquidityChip, PairTicker, VerifiedTick} from "./ui/Badges";
+import {LaunchpadMark} from "./LaunchpadMark";
+import {NoLiquidityChip, PairTicker, VerifiedTick} from "./ui/Badges";
 import {PriceDelta} from "./ui/PriceDelta";
 
 export function assetHref(asset: Asset): string {
@@ -88,6 +89,18 @@ export function AssetRow({
             </span>
           ) : (
             <>
+              {/*
+                The mark only, not the full chip — a dense row has no space for
+                a second word, and the logo alone tells the two launchpads
+                apart at a glance, which is all this line needs to do.
+
+                Deliberately not a link. The whole row is already an `<a>`, and
+                an anchor inside an anchor is invalid HTML that browsers
+                resolve by silently breaking the outer one. The clickable
+                version, which opens the coin on its launchpad, lives on the
+                coin's own page where it is not nested.
+              */}
+              <LaunchpadMark launchpad={asset.launchpad} size={14} />
               <span className="text-faint">
                 {asset.rewards24hUsd && asset.rewards24hUsd > 0
                   ? `${formatVolumeUsd(asset.rewards24hUsd)} Rewards`

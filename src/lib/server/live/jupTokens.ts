@@ -38,6 +38,16 @@ export interface JupToken {
   priceChange24h: number | null;
   holderCount: number | null;
   createdAt: string | null;
+  /**
+   * The project's own links, when the token's metadata carried them.
+   *
+   * Only `twitter` and `website` — Jupiter does not surface telegram or
+   * discord, and across a sample of the live universe those two cover roughly
+   * 60% and 30% of coins respectively. Absent is absent: a missing link renders
+   * as nothing rather than as a dead icon.
+   */
+  twitter: string | null;
+  website: string | null;
   /** Corroboration only — never the authority. See the note above. */
   launchpad: string | null;
   /** Jupiter's own risk read. Surfaced, not acted on. */
@@ -51,6 +61,25 @@ const num = (value: unknown): number | null => {
 
 const str = (value: unknown): string | null =>
   typeof value === "string" && value.length > 0 ? value : null;
+
+/**
+ * A link, or nothing.
+ *
+ * Creator-supplied metadata is the one field on a coin that an attacker fully
+ * controls, so anything that is not a plain http(s) URL is dropped rather than
+ * cleaned up — `javascript:` in an `href` is the whole reason this is not just
+ * `str()`.
+ */
+function httpUrl(value: unknown): string | null {
+  const raw = str(value);
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    return url.protocol === "https:" || url.protocol === "http:" ? raw : null;
+  } catch {
+    return null;
+  }
+}
 
 function parse(row: Record<string, unknown>): JupToken | null {
   const mint = str(row.id);
@@ -78,6 +107,8 @@ function parse(row: Record<string, unknown>): JupToken | null {
     priceChange24h: num(day.priceChange),
     holderCount: num(row.holderCount),
     createdAt: str(row.createdAt),
+    twitter: httpUrl(row.twitter),
+    website: httpUrl(row.website),
     launchpad: str(row.launchpad),
     organicScoreLabel: str(row.organicScoreLabel),
   };

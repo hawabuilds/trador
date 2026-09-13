@@ -359,6 +359,12 @@ export async function decorateStonks(
         // Artwork, already resolved from whichever gateway the creator used.
         image_url: token.icon,
         image_source: token.icon ? "jupiter" : null,
+        // The project's own links. `updateStonks` coalesces, so a later pass
+        // that comes back without them cannot blank what is already stored —
+        // which matters here because Jupiter's metadata for a given coin comes
+        // and goes depending on how recently it was indexed.
+        twitter: token.twitter,
+        website: token.website,
         listed_at: token.createdAt,
       });
 

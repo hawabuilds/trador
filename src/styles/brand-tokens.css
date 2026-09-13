@@ -1,9 +1,16 @@
 /**
  * Trador brand tokens — single source of truth.
  *
- * Near-black ground, Solana's palette on top: purple (#9945FF) is the app's own
- * voice — actions, focus, the active tab — and Solana green (#14F195) is price
- * up. Nothing else uses either.
+ * **Dark only.** There is no light theme and no toggle. Every screen in this
+ * app is a chart, a tape or a price, and all three are read against a dark
+ * ground on every terminal people already use. A light mode here would be a
+ * second palette to keep honest for a surface nobody trades on.
+ *
+ * The chrome is **neutral**, not tinted. An earlier pass ran every hover,
+ * border, scrollbar and wash through a lavender alpha, which is what made the
+ * app read pink no matter what the price colours were: the tint was in the
+ * furniture, not the numbers. Greys here are true greys, and the only colour
+ * in the interface is colour that means something.
  *
  * Three rules the file follows throughout:
  *
@@ -11,19 +18,14 @@
  *      else.** A green number on this screen means exactly one thing. The
  *      moment green also means "primary action", a rising price stops being
  *      readable at a glance.
- *   2. **Every colour is defined on the dark block first.** Light redefines
- *      only what changes. A token that exists in one theme and not the other is
- *      a token that vanishes for half the users.
- *   3. **Colour never carries meaning alone.** Direction always ships with a
+ *   2. **Colour never carries meaning alone.** Direction always ships with a
  *      ▲/▼ glyph — see `PriceDelta` — because roughly one in twelve men cannot
  *      separate red from green, and a screenshot through a filter defeats
  *      everyone.
- *
- * Solana has no red. Down needs one, so it is a coral (#FF5C7A) tuned to sit at
- * the same weight as the green rather than shouting over it.
+ *   3. **Price colours are the terminal pair, not the brand pair.** See below.
  */
 
-/* Brand scale — Solana purple, shared across themes. */
+/* Brand scale — Solana purple, the app's own voice. Actions and focus only. */
 :root {
   --brand-50: #f4ecff;
   --brand-100: #e7d8ff;
@@ -39,41 +41,55 @@
   --brand-focus-ring: #b688ff;
 }
 
-/* --- Dark (default) --- */
 :root,
 html.dark {
-  --bg-base: #0a0a0b;
+  /* Neutral near-black. No hue in the ground, so no hue in the whole app. */
+  --bg-base: #0a0a0c;
   --surface-base: var(--bg-base);
   /* Small cards only — never sheets, modals or full-width panels. */
-  --surface-card: #14141a;
-  --surface-elevated: #14141a;
-  --surface-hover: #1d1d26;
-  --surface-pressed: #101016;
-  --bg-overlay: #06060a;
-  --bg-input: #101016;
+  --surface-card: #131317;
+  --surface-elevated: #131317;
+  --surface-hover: #1c1c21;
+  --surface-pressed: #0f0f13;
+  --bg-overlay: #060608;
+  --bg-input: #0f0f13;
   /* Sheets, modals, dropdowns, floating chrome. */
-  --surface-popup: #0d0d12;
+  --surface-popup: #0d0d10;
 
-  --border-default: #26262f;
-  --border-subtle: #1b1b22;
-  --divider: #2b2b35;
+  --border-default: #26262c;
+  --border-subtle: #1a1a1f;
+  --divider: #2b2b32;
   --border-focus: #b688ff;
 
-  --text-primary: #f5f3ff;
-  --text-secondary: #a7a3bd;
-  --text-tertiary: #7d7a91;
-  --text-disabled: #4b4860;
+  --text-primary: #f4f4f6;
+  --text-secondary: #a1a1aa;
+  --text-tertiary: #7a7a85;
+  --text-disabled: #4a4a54;
 
-  /* Solana green. Price direction only. */
-  --price-up: #14f195;
-  --price-up-light: #0a9d61;
-  --price-up-chart: #19fb9b;
-  --price-down: #ff5c7a;
-  --price-down-light: #d32748;
-  --price-up-wash: rgb(20 241 149 / 13%);
-  --price-up-wash-hover: rgb(20 241 149 / 21%);
-  --price-down-wash: rgb(255 92 122 / 13%);
-  --price-down-wash-hover: rgb(255 92 122 / 21%);
+  /*
+   * The terminal pair.
+   *
+   * Not Solana's #14F195 and not a coral. Solana green is a neon tuned for a
+   * logo: at 13px on near-black it glares, and it is close enough to cyan that
+   * a fast glance reads "highlight" before it reads "up". The coral it was
+   * paired with was worse — the complaint that started this was that the app
+   * looked pink, and a #FF5C7A "down" is the loudest pink on the screen.
+   *
+   * These are the colours every trading terminal converges on, for the reason
+   * they converge on them: green and red at matched perceptual weight, so a
+   * falling number is not visually louder than a rising one, and neither is
+   * mistakable for anything but direction. #0ECB81 is still recognisably in
+   * Solana's green family, just tuned for text rather than for a wordmark.
+   */
+  --price-up: #0ecb81;
+  --price-up-light: #0a9d64;
+  --price-up-chart: #13e08f;
+  --price-down: #ff3b47;
+  --price-down-light: #d92230;
+  --price-up-wash: rgb(14 203 129 / 13%);
+  --price-up-wash-hover: rgb(14 203 129 / 21%);
+  --price-down-wash: rgb(255 59 71 / 13%);
+  --price-down-wash-hover: rgb(255 59 71 / 21%);
 
   --success: var(--price-up);
   --error: var(--price-down);
@@ -88,36 +104,41 @@ html.dark {
   --btn-primary-bg-alt: #7b2fd6;
   --btn-primary-fg: #ffffff;
 
-  --overlay-wash: rgb(183 150 255 / 8%);
-  --overlay-wash-hover: rgb(183 150 255 / 14%);
-  --border-hover: rgb(183 150 255 / 18%);
-  --border-hover-strong: rgb(183 150 255 / 24%);
-  --scrollbar: rgb(183 150 255 / 16%);
+  /*
+   * Neutral washes. These are the tokens that were lavender, and they are on
+   * every hover state, every hairline and every scrollbar in the app — which
+   * is why tinting them tinted everything.
+   */
+  --overlay-wash: rgb(255 255 255 / 6%);
+  --overlay-wash-hover: rgb(255 255 255 / 10%);
+  --border-hover: rgb(255 255 255 / 14%);
+  --border-hover-strong: rgb(255 255 255 / 20%);
+  --scrollbar: rgb(255 255 255 / 14%);
 
-  --backdrop-scrim: rgb(6 6 10 / 52%);
+  --backdrop-scrim: rgb(6 6 8 / 62%);
 
-  --shadow-color: rgb(0 0 0 / 62%);
+  --shadow-color: rgb(0 0 0 / 68%);
   --shadow-card: 0 14px 30px -26px var(--shadow-color);
   --shadow-lift: 0 22px 40px -26px var(--shadow-color);
   --shadow-panel: 0 20px 44px -32px var(--shadow-color);
   --shadow-modal: 0 40px 90px -24px var(--shadow-color),
-    0 0 0 1px rgb(183 150 255 / 8%);
+    0 0 0 1px rgb(255 255 255 / 7%);
   --shadow-frame: 0 44px 100px -34px var(--shadow-color),
-    0 0 0 1px rgb(183 150 255 / 8%);
+    0 0 0 1px rgb(255 255 255 / 7%);
   --shadow-menu: 0 24px 50px -18px var(--shadow-color);
   --shadow-dark: 0 16px 34px -14px var(--shadow-color);
   --shadow-brand: 0 16px 32px -14px rgb(153 69 255 / 45%);
   --shadow-tab-active: 0 6px 18px -10px rgb(153 69 255 / 45%);
-  --shadow-price-up: 0 16px 32px -14px rgb(20 241 149 / 32%);
-  --shadow-price-down: 0 16px 32px -14px rgb(255 92 122 / 32%);
-  --shadow-inset-soft: inset 0 2px 8px rgb(0 0 0 / 42%);
-  --shadow-inset-focus: inset 0 2px 8px rgb(0 0 0 / 42%),
-    0 0 0 2px rgb(153 69 255 / 16%);
+  --shadow-price-up: 0 16px 32px -14px rgb(14 203 129 / 32%);
+  --shadow-price-down: 0 16px 32px -14px rgb(255 59 71 / 32%);
+  --shadow-inset-soft: inset 0 2px 8px rgb(0 0 0 / 46%);
+  --shadow-inset-focus: inset 0 2px 8px rgb(0 0 0 / 46%),
+    0 0 0 2px rgb(153 69 255 / 18%);
 
   --segment-track: rgb(255 255 255 / 4%);
 
-  --frame-chrome: #06060a;
-  --frame-chrome-glow: #1a1030;
+  --frame-chrome: #060608;
+  --frame-chrome-glow: #17172b;
 
   /* Aliases the ported components still read. */
   --card: var(--surface-card);
@@ -138,124 +159,26 @@ html.dark {
 }
 
 /*
- * Trade and settings popups stay on the near-black chrome even when the page is
- * light. An order ticket is read against the chart behind it, and flipping it to
- * a white sheet mid-trade is disorienting at exactly the wrong moment.
+ * Popups sit one step darker than the page so an order ticket reads as a layer
+ * above the chart rather than a hole in it. Kept as its own block because
+ * `Modal` and `Sheet` set `data-surface="popup"` and expect these to shift.
  */
 [data-surface="popup"] {
-  --surface-base: #0d0d12;
-  --surface-popup: #0d0d12;
-  --surface-elevated: #14141a;
-  --surface-hover: #1d1d26;
-  --surface-pressed: #101016;
-  --bg-input: #101016;
+  --surface-base: #0d0d10;
+  --surface-popup: #0d0d10;
+  --surface-elevated: #131317;
+  --surface-hover: #1c1c21;
+  --surface-pressed: #0f0f13;
+  --bg-input: #0f0f13;
   --segment-track: rgb(255 255 255 / 4%);
-  --text-primary: #f5f3ff;
-  --text-secondary: #a7a3bd;
-  --text-tertiary: #7d7a91;
-  --text-disabled: #4b4860;
-  --overlay-wash: rgb(183 150 255 / 8%);
-  --overlay-wash-hover: rgb(183 150 255 / 14%);
+  --text-primary: #f4f4f6;
+  --text-secondary: #a1a1aa;
+  --text-tertiary: #7a7a85;
+  --text-disabled: #4a4a54;
+  --overlay-wash: rgb(255 255 255 / 6%);
+  --overlay-wash-hover: rgb(255 255 255 / 10%);
   --ink: var(--text-primary);
   --muted: var(--text-secondary);
   --faint: var(--text-tertiary);
-  --shadow-color: rgb(0 0 0 / 62%);
-}
-
-/* --- Light --- */
-html.light {
-  --bg-base: #faf9ff;
-  --surface-base: #faf9ff;
-  --surface-card: #ffffff;
-  --surface-elevated: #ffffff;
-  --surface-hover: #f3efff;
-  --surface-pressed: #e7d8ff;
-  --bg-overlay: rgb(16 16 22 / 42%);
-  --bg-input: #ffffff;
-  --surface-popup: #0d0d12;
-
-  --border-default: #e6e0f5;
-  --border-subtle: #f1ecfc;
-  --divider: #ddd5f0;
-  --border-focus: #9945ff;
-
-  --text-primary: #17141f;
-  --text-secondary: #565070;
-  --text-tertiary: #726c87;
-  --text-disabled: #a7a3bd;
-
-  /*
-   * Solana's green is a neon tuned for dark ground; at 3:1 on white it fails
-   * contrast. Light mode uses a deepened version of the same hue so the
-   * meaning carries without the colour becoming unreadable.
-   */
-  --price-up: #067a4c;
-  --price-up-light: #067a4c;
-  --price-up-chart: #0a9d61;
-  --price-down: #cf1f41;
-  --price-down-light: #cf1f41;
-  --price-up-wash: rgb(6 122 76 / 10%);
-  --price-up-wash-hover: rgb(6 122 76 / 16%);
-  --price-down-wash: rgb(207 31 65 / 10%);
-  --price-down-wash-hover: rgb(207 31 65 / 16%);
-
-  --success: var(--price-up);
-  --error: var(--price-down);
-  --warning: #b4710c;
-
-  --accent: #9945ff;
-  --accent-soft: #7b2fd6;
-  --accent-link: #7b2fd6;
-
-  --btn-primary-bg: #9945ff;
-  --btn-primary-bg-hover: #7b2fd6;
-  --btn-primary-bg-alt: #7b2fd6;
-  --btn-primary-fg: #ffffff;
-
-  --overlay-wash: rgb(153 69 255 / 6%);
-  --overlay-wash-hover: rgb(153 69 255 / 11%);
-  --border-hover: rgb(153 69 255 / 15%);
-  --border-hover-strong: rgb(153 69 255 / 22%);
-  --scrollbar: rgb(153 69 255 / 18%);
-
-  --backdrop-scrim: rgb(16 16 22 / 32%);
-
-  --shadow-color: rgb(23 20 31 / 10%);
-  --shadow-card: 0 14px 30px -26px var(--shadow-color);
-  --shadow-lift: 0 22px 40px -26px var(--shadow-color);
-  --shadow-panel: 0 20px 44px -32px var(--shadow-color);
-  --shadow-modal: 0 40px 90px -24px var(--shadow-color),
-    0 0 0 1px rgb(153 69 255 / 8%);
-  --shadow-frame: 0 44px 100px -34px var(--shadow-color),
-    0 0 0 1px rgb(153 69 255 / 10%);
-  --shadow-menu: 0 24px 50px -18px var(--shadow-color);
-  --shadow-dark: 0 16px 34px -14px var(--shadow-color);
-  --shadow-brand: 0 16px 32px -14px rgb(153 69 255 / 28%);
-  --shadow-tab-active: 0 6px 18px -10px rgb(153 69 255 / 22%);
-  --shadow-price-up: 0 16px 32px -14px rgb(6 122 76 / 22%);
-  --shadow-price-down: 0 16px 32px -14px rgb(207 31 65 / 22%);
-  --shadow-inset-soft: inset 0 2px 6px rgb(23 20 31 / 8%);
-  --shadow-inset-focus: inset 0 2px 6px rgb(23 20 31 / 8%),
-    0 0 0 2px rgb(153 69 255 / 12%);
-
-  --segment-track: rgb(23 20 31 / 5%);
-
-  --frame-chrome: #efeaff;
-  --frame-chrome-glow: #ffffff;
-
-  --card: var(--surface-card);
-  --ink: var(--text-primary);
-  --muted: var(--text-secondary);
-  --faint: var(--text-tertiary);
-  --wash: var(--surface-hover);
-  --hairline: var(--border-default);
-  --green: var(--price-up);
-  --green-deep: var(--price-up);
-  --red: var(--price-down);
-  --surface-elevated-legacy: var(--surface-elevated);
-  --premium-bg: var(--bg-base);
-  --scrollbar-thumb: var(--scrollbar);
-  --btn-dark-bg: var(--btn-primary-bg);
-  --btn-dark-fg: var(--btn-primary-fg);
-  --shadow-green: var(--shadow-price-up);
+  --shadow-color: rgb(0 0 0 / 68%);
 }

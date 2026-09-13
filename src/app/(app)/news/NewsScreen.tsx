@@ -1,165 +1,462 @@
 "use client";
 
-import {useMemo, useState} from "react";
-import {useQuery} from "@tanstack/react-query";
+import {useEffect, useMemo, useState} from "react";
+import Link from "next/link";
 
 import {StickyPageHeader} from "@/components/AppShell";
 import {FilterRail, type FilterOption} from "@/components/FilterRail";
-import {relativeTime} from "@/lib/format";
-import type {NewsItem} from "@/lib/types";
+import {Avatar} from "@/components/ui/Avatar";
+import {VerifiedTick} from "@/components/ui/Badges";
+import {ArrowUpRightIcon, NewsIcon} from "@/components/ui/Icons";
+import {useNewsFeed} from "@/hooks/useNewsFeed";
+import {cn} from "@/lib/cn";
+import {newsTime} from "@/lib/format";
+import {
+  NEWS_DEFAULT_TOPIC,
+  NEWS_DEFAULT_WINDOW,
+  selectTodayStories,
+} from "@/lib/newsWindow";
+import type {FeedItem, NewsTopic, NewsWindow} from "@/lib/types";
 
-type Window = "latest" | "24h" | "7d" | "all";
-
-const WINDOWS: FilterOption<Window>[] = [
+const WINDOWS: FilterOption<NewsWindow>[] = [
   {value: "latest", label: "Latest"},
-  {value: "24h", label: "24h"},
-  {value: "7d", label: "7d"},
-  {value: "all", label: "All"},
+  {value: "24h", label: "Today"},
+  {value: "7d", label: "This week"},
+  {value: "30d", label: "This month"},
+  {value: "all", label: "All time"},
 ];
 
-const WINDOW_MS: Record<Window, number | null> = {
-  latest: 6 * 3_600_000,
-  "24h": 24 * 3_600_000,
-  "7d": 7 * 86_400_000,
-  all: null,
-};
-
-interface WireResponse {
-  items: NewsItem[];
-  tickers: string[];
-}
+/**
+ * The four subheadings, matching the shape of the predecessor app's news tab
+ * with this app's subjects in the slots.
+ *
+ * "Tokenized stocks" rather than "Stocks", because the tab covers the companies
+ * behind them — Nvidia's quarter, not NVDAx's chart. The distinction is the
+ * whole reason this tab exists.
+ */
+const TOPICS: FilterOption<NewsTopic>[] = [
+  {value: "all", label: "Top stories"},
+  {value: "stocks", label: "Tokenized stocks"},
+  {value: "solana", label: "Solana"},
+  {value: "posts", label: "Solana socials"},
+];
 
 /**
  * The news tab.
  *
  * Coverage of the companies behind the stocks this app's coins are priced
- * against — not crypto news. A coin quoted in NVDAx moves partly because
- * Nvidia moved, and that is the headline worth reading next to the chart.
+ * against, plus Solana itself, plus what the accounts upstream of this universe
+ * actually posted. Not crypto news in general: a coin quoted in NVDAx moves
+ * partly because Nvidia moved, and that is the headline worth reading next to
+ * the chart.
  */
 export function NewsScreen() {
-  const [window, setWindow] = useState<Window>("latest");
-  const [ticker, setTicker] = useState<string>("all");
+  const [window, setWindow] = useState<NewsWindow>(NEWS_DEFAULT_WINDOW);
+  const [topic, setTopic] = useState<NewsTopic>(NEWS_DEFAULT_TOPIC);
 
-  const wire = useQuery({
-    queryKey: ["news-wire"],
-    queryFn: async (): Promise<WireResponse> => {
-      const response = await fetch("/api/news");
-      if (!response.ok) throw new Error("Could not load the wire.");
-      return (await response.json()) as WireResponse;
-    },
-    staleTime: 300_000,
-  });
-
-  const tickerOptions = useMemo<FilterOption<string>[]>(
-    () => [
-      {value: "all", label: "All"},
-      ...(wire.data?.tickers ?? []).map((value) => ({value, label: value})),
-    ],
-    [wire.data?.tickers],
-  );
+  const feed = useNewsFeed(window, topic);
 
   const items = useMemo(() => {
-    const all = wire.data?.items ?? [];
-    const span = WINDOW_MS[window];
-    const cutoff = span === null ? 0 : Date.now() - span;
+    const raw = feed.data?.items ?? [];
+    if (window !== "24h") return raw;
+    return selectTodayStories(raw);
+  }, [feed.data?.items, window]);
 
-    return all.filter((item) => {
-      if (ticker !== "all" && item.source !== underlying(ticker)) return false;
-      return span === null || Date.parse(item.publishedAt) >= cutoff;
-    });
-  }, [wire.data?.items, window, ticker]);
+  const accounts = items.filter((item) => item.kind === "account");
+  const articles = items.filter((item) => item.kind === "article");
+  const [lead, ...rest] = articles;
 
   return (
     <div>
       <StickyPageHeader>
-        <h1 className="text-[22px] font-extrabold tracking-[-0.035em]">News</h1>
-        <p className="mt-0.5 text-[12.5px] font-medium text-faint">
-          The companies behind the stocks people are trading against
-        </p>
-        <div className="flex flex-col gap-2.5 py-3.5">
-          <FilterRail label="Window" options={WINDOWS} value={window} onChange={setWindow} />
+        <Masthead />
+
+        <div className="mb-4 flex flex-col gap-2.5">
           <FilterRail
-            label="Filter by stock"
-            options={tickerOptions}
-            value={ticker}
-            onChange={setTicker}
+            label="Filter by topic"
+            options={TOPICS}
+            value={topic}
+            onChange={setTopic}
+          />
+          <FilterRail
+            label="Filter by time"
+            options={WINDOWS}
+            value={window}
+            onChange={setWindow}
           />
         </div>
       </StickyPageHeader>
 
-      {wire.isLoading ? (
-        <ul className="divide-y divide-[var(--border-subtle)]">
-          {Array.from({length: 6}).map((_unused, index) => (
-            <li key={index} className="py-3.5">
-              <div className="h-3.5 w-4/5 animate-pulse rounded bg-wash" />
-              <div className="mt-2 h-3 w-24 animate-pulse rounded bg-wash" />
-            </li>
-          ))}
-        </ul>
-      ) : wire.error ? (
+      {feed.isLoading ? (
+        <FeedSkeleton />
+      ) : feed.error ? (
         <p className="py-10 text-center text-[13.5px] text-muted">
-          Could not load the wire. It will retry.
+          Could not load the news feed. It will retry.
         </p>
       ) : items.length === 0 ? (
-        <p className="py-10 text-center text-[13.5px] text-muted">
-          Nothing published in this window.
-        </p>
+        <EmptyFeed topic={topic} />
       ) : (
-        <ul className="divide-y divide-[var(--border-subtle)]">
-          {items.map((item) => (
-            <li key={item.id}>
-              <a
-                href={item.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="-mx-[22px] flex gap-3 px-[22px] py-3.5 transition-colors hover:bg-[var(--overlay-wash)]"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="text-[13.5px] font-semibold leading-[1.4] tracking-[-0.01em]">
-                    {item.title}
-                  </div>
-                  {item.summary ? (
-                    <p className="mt-1 line-clamp-2 text-[12.5px] leading-[1.45] text-muted">
-                      {item.summary}
-                    </p>
-                  ) : null}
-                  <div className="mt-1.5 flex items-center gap-2 text-[11.5px] font-bold text-faint">
-                    <span className="rounded-[6px] bg-[var(--overlay-wash)] px-1.5 py-[2px]">
-                      {item.source}
-                    </span>
-                    <span>{relativeTime(item.publishedAt)}</span>
-                  </div>
-                </div>
+        <>
+          {lead ? <LeadStory item={lead} window={window} /> : null}
 
-                {/*
-                  Rendered only when the article actually has artwork. No
-                  placeholder: an empty grey box reads as a broken image, and the
-                  text-only card is a perfectly good card.
-                */}
-                {item.imageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={item.imageUrl}
-                    alt=""
-                    loading="lazy"
-                    className="h-[64px] w-[84px] shrink-0 rounded-[10px] bg-[var(--overlay-wash)] object-cover"
+          {accounts.length > 0 ? (
+            <section className="mt-6">
+              <SectionHead
+                title="Solana socials"
+                note="Straight from the source"
+              />
+              <div
+                className="rail -mx-[22px] flex gap-2.5 overflow-x-auto px-[22px] pb-1"
+                aria-label="Solana socials"
+              >
+                {accounts.map((item) => (
+                  <SourceCard key={item.id} item={item} />
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {rest.length > 0 ? (
+            <section className="mt-6">
+              <SectionHead
+                title={lead ? "More stories" : "Stories"}
+                note={`${articles.length} in view`}
+              />
+              <ul className="-mx-[22px] flex flex-col gap-px">
+                {rest.map((item, index) => (
+                  <StoryRow
+                    key={item.id}
+                    item={item}
+                    window={window}
+                    priority={index < 2}
                   />
-                ) : null}
-              </a>
-            </li>
-          ))}
-        </ul>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+        </>
       )}
     </div>
   );
 }
 
 /**
- * The wire tags each item with the underlying ticker it was fetched for, while
- * the chips show the tokenized ticker people recognise — so `NVDAx` has to map
- * back to `NVDA` to filter.
+ * The date line.
+ *
+ * Set after mount: a server render in one timezone and a client render in
+ * another disagree on what day it is, and hydration would flag it. The
+ * fixed-height placeholder keeps the masthead from jumping when it arrives.
  */
-function underlying(tokenized: string): string {
-  if (tokenized === "BRK.Bx") return "BRK-B";
-  return tokenized.endsWith("x") ? tokenized.slice(0, -1) : tokenized;
+function Masthead() {
+  const [today, setToday] = useState("");
+
+  useEffect(() => {
+    setToday(
+      new Date().toLocaleDateString("en-GB", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+      }),
+    );
+  }, []);
+
+  return (
+    <div className="mb-4">
+      <div className="h-[15px] text-[11px] font-bold uppercase tracking-[0.1em] text-faint">
+        {today}
+      </div>
+      <h1 className="mt-1 text-[30px] font-extrabold leading-none tracking-[-0.035em]">
+        News
+      </h1>
+    </div>
+  );
+}
+
+function SectionHead({title, note}: {title: string; note?: string}) {
+  return (
+    <div className="mb-3 flex items-baseline justify-between gap-3">
+      <h2 className="text-[16px] font-extrabold tracking-[-0.025em]">{title}</h2>
+      {note ? (
+        <span className="shrink-0 text-[11.5px] font-semibold text-faint">
+          {note}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function TopicChip({topic}: {topic: FeedItem["topic"]}) {
+  const label =
+    topic === "solana" ? "Solana" : topic === "posts" ? "Socials" : "Stocks";
+  return (
+    <span
+      className={cn(
+        "rounded-[5px] px-[6px] py-[3px] text-[9.5px] font-extrabold uppercase leading-none tracking-[0.07em]",
+        topic === "solana"
+          ? "bg-[var(--price-up-wash)] text-price-up"
+          : "bg-[var(--overlay-wash)] text-muted",
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
+/**
+ * A story's picture, or nothing.
+ *
+ * Publishers' image URLs rot, so a load failure falls back to no picture rather
+ * than a broken one — and deliberately not to generated artwork. Around a third
+ * of stories have no photograph, and filling those with a coloured gradient
+ * made the predecessor's feed look padded: the same abstract block over and
+ * over reads as a placeholder, because it is one. A headline on its own is what
+ * a news app does with a story that has no art.
+ */
+function StoryImage({
+  item,
+  className,
+  priority = false,
+}: {
+  item: FeedItem;
+  className?: string;
+  /** Skips lazy-loading for art that is on screen the moment the tab opens. */
+  priority?: boolean;
+}) {
+  const [failed, setFailed] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  if (!item.imageUrl || failed) return null;
+
+  return (
+    // A muted panel fills this box the instant the story renders, so a slow
+    // photo never leaves a flash of empty card behind the headline — it fades
+    // in over what was already there.
+    <div className={cn("overflow-hidden bg-[var(--overlay-wash)]", className)}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={item.imageUrl}
+        alt=""
+        loading={priority ? "eager" : "lazy"}
+        fetchPriority={priority ? "high" : "auto"}
+        onLoad={() => setLoaded(true)}
+        onError={() => setFailed(true)}
+        className={cn(
+          "h-full w-full object-cover transition-opacity duration-300",
+          loaded ? "opacity-100" : "opacity-0",
+        )}
+      />
+    </div>
+  );
+}
+
+/** The story at the top of the tab, given the room a lead deserves. */
+function LeadStory({item, window}: {item: FeedItem; window: NewsWindow}) {
+  return (
+    <a
+      href={item.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="block overflow-hidden rounded-2xl bg-input shadow-card transition-[background-color,box-shadow] hover:bg-[var(--overlay-wash)] hover:shadow-lift"
+    >
+      {item.imageUrl ? (
+        <div className="relative">
+          <StoryImage item={item} className="h-[176px] w-full" priority />
+          <div className="absolute left-3.5 top-3.5">
+            <TopicChip topic={item.topic} />
+          </div>
+        </div>
+      ) : null}
+
+      <div className="p-4">
+        {item.imageUrl ? null : (
+          <div className="mb-2.5">
+            <TopicChip topic={item.topic} />
+          </div>
+        )}
+        <h3 className="text-[19px] font-extrabold leading-[1.24] tracking-[-0.028em]">
+          {item.body}
+        </h3>
+        <ByLine item={item} window={window} className="mt-2.5" />
+        <TickerChips tickers={item.tickers} className="mt-3" />
+      </div>
+    </a>
+  );
+}
+
+function StoryRow({
+  item,
+  window,
+  priority = false,
+}: {
+  item: FeedItem;
+  window: NewsWindow;
+  priority?: boolean;
+}) {
+  return (
+    <li>
+      <a
+        href={item.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-start gap-3.5 px-[22px] py-[13px] transition-colors duration-150 hover:bg-[var(--overlay-wash)]"
+      >
+        <div className="min-w-0 flex-1">
+          <TopicChip topic={item.topic} />
+          <h3 className="mt-2 line-clamp-3 text-[15px] font-bold leading-[1.34] tracking-[-0.018em]">
+            {item.body}
+          </h3>
+          <ByLine item={item} window={window} className="mt-2" />
+        </div>
+
+        <StoryImage
+          item={item}
+          className="h-[78px] w-[78px] shrink-0 rounded-[14px]"
+          priority={priority}
+        />
+      </a>
+    </li>
+  );
+}
+
+function ByLine({
+  item,
+  window,
+  className,
+}: {
+  item: FeedItem;
+  window: NewsWindow;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-1.5 text-[11.5px] font-semibold text-faint",
+        className,
+      )}
+    >
+      <span
+        aria-hidden="true"
+        className="grid h-[15px] w-[15px] shrink-0 place-items-center rounded-full bg-[var(--overlay-wash)] text-[8px] font-extrabold text-muted"
+      >
+        {item.source.slice(0, 1).toUpperCase()}
+      </span>
+      <span className="truncate text-muted">{item.source}</span>
+      <span className="opacity-50">·</span>
+      <span className="shrink-0">{newsTime(item.publishedAt, window)}</span>
+    </div>
+  );
+}
+
+/**
+ * The tokenized stocks a story touches, linking to their pages here.
+ *
+ * The verified tick is the point: these chips lead back into the app's own
+ * universe, and the tick says the mint behind the ticker has a verified issuer
+ * — not that the story is endorsed by anyone.
+ */
+function TickerChips({
+  tickers,
+  className,
+}: {
+  tickers: string[];
+  className?: string;
+}) {
+  if (tickers.length === 0) return null;
+
+  return (
+    <div className={cn("flex flex-wrap gap-1.5", className)}>
+      {tickers.map((ticker) => (
+        <Link
+          key={ticker}
+          href={`/stock/${ticker}`}
+          // The card around this is a link out to the publisher; without this
+          // the tap would open the article instead of the stock.
+          onClick={(event) => event.stopPropagation()}
+          className="flex items-center gap-1 rounded-[7px] bg-[var(--overlay-wash)] px-2 py-1 text-[11.5px] font-extrabold text-ink transition-colors hover:bg-[var(--overlay-wash-hover)]"
+        >
+          {ticker}
+          <VerifiedTick size={12} />
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * A primary source rather than a story.
+ *
+ * Carries the account's most recent post, fetched from X, and links to that
+ * post rather than to the profile. Nothing here is written for them: these are
+ * real accounts belonging to real organisations, so the card shows what was
+ * actually said or it shows nothing at all.
+ */
+function SourceCard({item}: {item: FeedItem}) {
+  return (
+    <a
+      href={item.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={cn(
+        "group flex w-[210px] shrink-0 flex-col gap-2.5 rounded-[14px] p-3.5",
+        "bg-input shadow-card",
+        "transition-[background-color,box-shadow] duration-150",
+        "hover:bg-[var(--overlay-wash)] hover:shadow-lift",
+        "active:bg-[var(--overlay-wash-hover)]",
+      )}
+    >
+      <div className="flex items-center gap-2">
+        <Avatar name={item.source} src={item.avatarUrl} size={32} />
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-1">
+            <span className="truncate text-[13px] font-extrabold tracking-[-0.015em] text-ink">
+              {item.source}
+            </span>
+          </div>
+          <div className="truncate text-[11px] font-semibold text-faint">
+            @{item.handle}
+          </div>
+        </div>
+        <ArrowUpRightIcon className="h-3.5 w-3.5 shrink-0 text-faint transition-colors group-hover:text-accent-link" />
+      </div>
+      <p className="line-clamp-2 text-[12px] font-normal leading-[1.45] text-muted">
+        {item.body}
+      </p>
+    </a>
+  );
+}
+
+function EmptyFeed({topic}: {topic: NewsTopic}) {
+  return (
+    <div className="px-6 py-12 text-center">
+      <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-[var(--overlay-wash)] text-faint">
+        <NewsIcon className="h-6 w-6" />
+      </span>
+      <p className="mt-4 text-[14px] font-bold">Nothing in this window</p>
+      <p className="mx-auto mt-1.5 max-w-[32ch] text-[13px] leading-[1.5] text-muted">
+        {topic === "posts"
+          ? "Posts arrive once an X API key is configured. Widen the time filter, or switch topic."
+          : "Widen the time filter, or switch topic."}
+      </p>
+    </div>
+  );
+}
+
+function FeedSkeleton() {
+  return (
+    <div>
+      <div className="h-[300px] animate-pulse rounded-2xl bg-input shadow-inset-soft" />
+      <div className="mt-6 flex flex-col gap-px">
+        {Array.from({length: 4}).map((_unused, index) => (
+          <div key={index} className="flex gap-3.5 px-[22px] py-[13px]">
+            <div className="flex-1">
+              <div className="h-3 w-14 animate-pulse rounded bg-[var(--overlay-wash)]" />
+              <div className="mt-2.5 h-3.5 w-full animate-pulse rounded bg-[var(--overlay-wash)]" />
+              <div className="mt-2 h-3.5 w-2/3 animate-pulse rounded bg-[var(--overlay-wash)]" />
+            </div>
+            <div className="h-[78px] w-[78px] shrink-0 animate-pulse rounded-[14px] bg-[var(--overlay-wash)]" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }

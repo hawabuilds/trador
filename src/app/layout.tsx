@@ -5,6 +5,7 @@ import {Providers} from "@/components/providers/Providers";
 import {OVERLAY_ROOT_ID} from "@/components/ui/OverlayPortal";
 import {APP_NAME, APP_SUBTITLE, APP_TAGLINE} from "@/config/app";
 import {appOrigin} from "@/lib/routes";
+import {THEME_COLOR} from "@/lib/theme";
 
 import "./globals.css";
 
@@ -43,10 +44,9 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: [
-    {media: "(prefers-color-scheme: light)", color: "#F5F5FF"},
-    {media: "(prefers-color-scheme: dark)", color: "#0D0F18"},
-  ],
+  // One colour, because there is one theme. Matches `--bg-base`, so the phone's
+  // status bar and the page share an edge instead of showing a seam.
+  themeColor: THEME_COLOR,
 };
 
 export default function RootLayout({
@@ -55,28 +55,10 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${display.variable} ${mono.variable}`}
-      // The boot script below sets the theme class before paint, so the server
-      // markup and the first client render legitimately differ on this element.
-      suppressHydrationWarning
+      className={`dark ${display.variable} ${mono.variable}`}
+      style={{colorScheme: "dark"}}
+      data-theme="dark"
     >
-      <head>
-        {/*
-          Theme applied before first paint, inline and synchronous. Doing it in
-          an effect means a flash of the wrong theme on every cold load, which
-          is the most visible bug a dark-first app can ship.
-
-          Dark unless the person has explicitly chosen light — not
-          `prefers-color-scheme`. A trading screen is read in a dark room more
-          often than not, the palette is designed dark-first, and a laptop set
-          to light mode is a statement about documents rather than about this.
-        */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var r=document.documentElement;var p=null;try{p=localStorage.getItem("trador.theme");}catch(e){}var t=(p==="light"||p==="dark")?p:"dark";r.classList.toggle("dark",t==="dark");r.classList.toggle("light",t==="light");r.style.colorScheme=t;r.dataset.theme=t;var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",t==="light"?"#F5F5FF":"#0D0F18");}catch(e){document.documentElement.classList.add("dark");}})();`,
-          }}
-        />
-      </head>
       <body className="font-sans text-ink antialiased">
         <Providers>
           <div className="app-frame">

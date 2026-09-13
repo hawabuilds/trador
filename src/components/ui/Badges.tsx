@@ -1,7 +1,10 @@
 "use client";
 
+import {launchpadFace} from "@/config/launchpads";
 import {cn} from "@/lib/cn";
+import type {LaunchpadId} from "@/lib/programs";
 import type {StockKind} from "@/lib/stocks/registry";
+import {LaunchpadMark} from "../LaunchpadMark";
 import {VerifiedIcon} from "./Icons";
 
 const STOCK_KIND_LABEL: Record<StockKind, string> = {
@@ -112,24 +115,66 @@ export function NoLiquidityChip() {
   );
 }
 
-/** The launchpad a coin came from, proved from program state. */
+/**
+ * The launchpad a coin came from, proved from program state.
+ *
+ * Carries that launchpad's real mark, and — when the chip is given a mint —
+ * links to that launchpad's own page for the coin. The link is the point:
+ * "StonkFun" as bare text is a label, whereas a chip that opens the coin on
+ * StonkFun is the fastest way to check our attribution against theirs.
+ *
+ * Rendered as an `<a>` only when there is somewhere to go. A chip with no mint
+ * stays a `<span>` rather than becoming a link to a page that would 404.
+ */
 export function LaunchpadChip({
-  label,
+  launchpad,
+  mint,
   className,
 }: {
-  label: string;
+  launchpad: LaunchpadId;
+  /** Links to the coin's page on that launchpad. Omit for a plain label. */
+  mint?: string | null;
   className?: string;
 }) {
+  const face = launchpadFace(launchpad);
+
+  const body = (
+    <>
+      <LaunchpadMark launchpad={launchpad} size={13} className="rounded-[3px]" />
+      {face.label}
+    </>
+  );
+
+  const shared = cn(
+    "inline-flex shrink-0 items-center gap-1.5 rounded-[6px] bg-[var(--overlay-wash)] px-[7px] py-[3px]",
+    "text-[10.5px] font-extrabold leading-none tracking-[0.02em] text-faint",
+    className,
+  );
+
+  if (!mint) {
+    return (
+      <span title={`Launched on ${face.label}`} className={shared}>
+        {body}
+      </span>
+    );
+  }
+
   return (
-    <span
-      title={`Launched on ${label}`}
+    <a
+      href={face.coinUrl(mint)}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={`Open on ${face.label}`}
+      // `stopPropagation` because these chips sit inside rows that are
+      // themselves links. Without it, tapping the launchpad would navigate to
+      // the coin's page in this app — the one place the tap was not aiming for.
+      onClick={(event) => event.stopPropagation()}
       className={cn(
-        "inline-flex shrink-0 items-center rounded-[6px] bg-[var(--overlay-wash)] px-[7px] py-[3px]",
-        "text-[10.5px] font-extrabold leading-none tracking-[0.02em] text-faint",
-        className,
+        shared,
+        "transition-colors hover:bg-[var(--overlay-wash-hover)] hover:text-ink",
       )}
     >
-      {label}
-    </span>
+      {body}
+    </a>
   );
 }

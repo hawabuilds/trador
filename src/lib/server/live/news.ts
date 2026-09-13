@@ -16,7 +16,7 @@
  *     error — most often it is simply a quiet day.
  */
 
-import type {NewsItem} from "@/lib/types";
+import type {FeedItem, NewsItem, NewsTopic} from "@/lib/types";
 import {STOCK_MINTS, type StockMint} from "@/lib/stocks/registry";
 import {cached} from "./cache";
 
@@ -223,4 +223,110 @@ export async function newsWire(limit = 6): Promise<{items: NewsItem[]; tickers: 
   });
 
   return value;
+}
+
+// ---------------------------------------------------------------------------
+// The news tab's shape
+// ---------------------------------------------------------------------------
+
+/**
+ * A wire story as the news tab sees it.
+ *
+ * `NewsItem` is the per-asset shape — a headline attached to one stock, used by
+ * the coin page's News panel. `FeedItem` is the tab's shape, which also has to
+ * carry posts. Rather than widen `NewsItem` and make every consumer handle
+ * fields that never apply to it, this projects one into the other at the
+ * boundary.
+ */
+function toFeedItem(
+  item: NewsItem,
+  topic: NewsTopic,
+  tickers: string[],
+): FeedItem {
+  return {
+    id: item.id,
+    kind: "article",
+    body: item.title,
+    url: item.url,
+    source: item.source,
+    handle: null,
+    publishedAt: item.publishedAt,
+    tickers,
+    topic,
+    imageUrl: item.imageUrl,
+    avatarUrl: null,
+    summary: item.summary,
+  };
+}
+
+/**
+ * Coverage of the stocks people here are actually trading against.
+ *
+ * The `source` on a raw wire item is the underlying ticker it was fetched for
+ * — `NVDA` — but the tab shows the tokenized name people recognise, so the
+ * tokenized ticker is what lands in `tickers` and the publication name stays
+ * in `source`.
+ */
+export async function newsWireItems(): Promise<{
+  items: FeedItem[];
+  tickers: string[];
+}> {
+  const {items, tickers} = await newsWire();
+
+  return {
+    items: items.map((item) => {
+      // `newsWire` stamps each item's source with the underlying ticker it came
+      // from; map it back to the tokenized name for the chip.
+      const tokenized = tickers.find(
+        (ticker) => underlyingOf(ticker) === item.source,
+      );
+      return toFeedItem(
+        {...item, source: publisherOf(item.url) ?? item.source},
+        "stocks",
+        tokenized ? [tokenized] : [],
+      );
+    }),
+    tickers,
+  };
+}
+
+const underlyingOf = (tokenized: string): string => {
+  if (tokenized in OVERRIDES) return OVERRIDES[tokenized] ?? tokenized;
+  return tokenized.endsWith("x") ? tokenized.slice(0, -1) : tokenized;
+};
+
+/**
+ * The publication, read off the article's own host.
+ *
+ * Yahoo's RSS does not carry a source name, so without this every card would
+ * be bylined with a ticker. `www.` is dropped and nothing else is prettified —
+ * inventing "Reuters" from `reuters.com` is fine, but a lookup table would go
+ * stale and mislabel the ones it missed.
+ */
+function publisherOf(url: string): string | null {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Solana coverage.
+ *
+ * Same wire, pointed at SOL-USD. Coins here settle in SOL even when they are
+ * priced in a stock, so what SOL is doing belongs in this tab — and it is the
+ * one topic the per-stock feeds structurally cannot cover.
+ */
+export async function solanaWire(): Promise<FeedItem[]> {
+  try {
+    const {value} = await cached("news:solana", 300_000, () => feedFor("SOL-USD"));
+    const withArt = await withImages(value, 6);
+    return withArt.map((item) =>
+      toFeedItem({...item, source: publisherOf(item.url) ?? "Solana"}, "solana", []),
+    );
+  } catch {
+    // One dead wire must degrade the tab, never empty it.
+    return [];
+  }
 }
