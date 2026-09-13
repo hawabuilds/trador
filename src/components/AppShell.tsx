@@ -4,6 +4,7 @@ import {useEffect, type ReactNode} from "react";
 import {useRouter} from "next/navigation";
 
 import {useUser} from "@/hooks/useUser";
+import {useRegisterMe} from "@/hooks/useRegisterMe";
 import {isPrivyOAuthReturn} from "@/lib/session";
 
 import {cn} from "@/lib/cn";
@@ -56,6 +57,10 @@ export function StickyPageHeader({
 export function AppShell({children}: {children: ReactNode}) {
   const router = useRouter();
   const {ready, authenticated} = useUser();
+
+  // Writes the signed-in person's row, once, so they can be followed and their
+  // profile link resolves. Silent and fire-and-forget — see the hook.
+  useRegisterMe();
 
   /**
    * Send a signed-out visitor to the door.

@@ -1,6 +1,6 @@
 "use client";
 
-import {useMemo, useState} from "react";
+import {useMemo, useRef, useState} from "react";
 import Link from "next/link";
 import {useQuery} from "@tanstack/react-query";
 
@@ -12,12 +12,16 @@ import {Avatar} from "@/components/ui/Avatar";
 import {Button} from "@/components/ui/Button";
 import {PairTicker, VerifiedTick} from "@/components/ui/Badges";
 import {CopyIcon, SettingsIcon, WalletIcon} from "@/components/ui/Icons";
+import {ConnectionsSheet} from "@/components/ConnectionsSheet";
+import {EditProfileSheet} from "@/components/EditProfileSheet";
 import {SettingsMenu} from "@/components/SettingsMenu";
+import {SocialRow} from "@/components/SocialRow";
 import {PriceDelta} from "@/components/ui/PriceDelta";
 import {useBalanceHistory, type BalanceRange} from "@/hooks/useBalanceHistory";
+import {useMe} from "@/hooks/useMe";
 import {useUser} from "@/hooks/useUser";
 import {cn} from "@/lib/cn";
-import {compactMoney, stamp, units} from "@/lib/format";
+import {compact, compactMoney, stamp, units} from "@/lib/format";
 import {formatPriceUsd} from "@/lib/priceState";
 import {shortPubkey} from "@/lib/pubkey";
 import type {Holding} from "@/lib/types";
@@ -55,6 +59,13 @@ export function StonkfolioScreen() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [range, setRange] = useState<BalanceRange>("1w");
   const [scrubbed, setScrubbed] = useState<BalancePoint | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [connections, setConnections] = useState<"followers" | "following" | null>(null);
+
+  const followersRef = useRef<HTMLButtonElement>(null);
+  const followingRef = useRef<HTMLButtonElement>(null);
+
+  const me = useMe();
 
   const query = useQuery({
     queryKey: ["stonkfolio", wallet],
@@ -88,7 +99,7 @@ export function StonkfolioScreen() {
           <p className="mx-auto mt-1.5 max-w-[32ch] text-[13px] leading-[1.5] text-muted">
             Your holdings are read from the chain, so nothing is stored here.
           </p>
-          <Button variant="green" className="mt-4" onClick={login}>
+          <Button variant="primary" className="mt-4" onClick={login}>
             Sign in
           </Button>
         </div>
@@ -140,6 +151,55 @@ export function StonkfolioScreen() {
             <SettingsIcon className="h-[19px] w-[19px]" />
           </button>
         </div>
+
+        {/*
+          Follows and the edit entry point.
+
+          The counts are buttons because they open the lists — a follower count
+          that cannot be tapped is the commonest dead end on a profile. Each
+          list anchors to the stat that opened it, so it reads as belonging to
+          that number rather than as a new screen.
+        */}
+        <div className="mt-3 flex items-center gap-4">
+          <button
+            ref={followersRef}
+            type="button"
+            onClick={() => setConnections(connections === "followers" ? null : "followers")}
+            className="tabular-nums text-[12.5px] font-semibold text-faint transition-colors hover:text-ink"
+          >
+            <span className="font-extrabold text-ink">
+              {compact(me.followerCount)}
+            </span>{" "}
+            followers
+          </button>
+          <button
+            ref={followingRef}
+            type="button"
+            onClick={() => setConnections(connections === "following" ? null : "following")}
+            className="tabular-nums text-[12.5px] font-semibold text-faint transition-colors hover:text-ink"
+          >
+            <span className="font-extrabold text-ink">
+              {compact(me.followingCount)}
+            </span>{" "}
+            following
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setEditOpen(true)}
+            className="ml-auto rounded-full bg-[var(--overlay-wash)] px-3 py-1.5 text-[12px] font-extrabold text-ink transition-colors hover:bg-[var(--overlay-wash-hover)]"
+          >
+            Edit profile
+          </button>
+        </div>
+
+        {me.bio ? (
+          <p className="mt-2 text-[13px] leading-[1.5] text-muted">{me.bio}</p>
+        ) : null}
+
+        {me.socials.x || me.socials.telegram || me.socials.website ? (
+          <SocialRow socials={me.socials} className="-ml-1.5 mt-1" />
+        ) : null}
 
         <div className="mt-4">
           <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-faint">
@@ -240,6 +300,26 @@ export function StonkfolioScreen() {
       )}
 
       <SettingsMenu open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <EditProfileSheet open={editOpen} onClose={() => setEditOpen(false)} />
+
+      <ConnectionsSheet
+        open={connections === "followers"}
+        anchorRef={followersRef}
+        title="Followers"
+        people={me.followers}
+        loading={me.isLoading}
+        emptyLabel="Nobody follows you yet. Comment on a coin and people will find you."
+        onClose={() => setConnections(null)}
+      />
+      <ConnectionsSheet
+        open={connections === "following"}
+        anchorRef={followingRef}
+        title="Following"
+        people={me.following}
+        loading={me.isLoading}
+        emptyLabel="You are not following anyone yet. Tap a name in the comments to start."
+        onClose={() => setConnections(null)}
+      />
     </div>
   );
 }

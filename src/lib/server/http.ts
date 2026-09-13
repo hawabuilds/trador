@@ -27,6 +27,17 @@ export function badRequest(message: string) {
   return json({error: message}, {status: 400});
 }
 
+/**
+ * 401, for a caller whose identity could not be established.
+ *
+ * Distinct from 403: this says "we do not know who you are", which the client
+ * answers by signing in. A 403 would say "we know, and no", which would send
+ * an expired session to a dead end.
+ */
+export function unauthorized(message = "Sign in to do that.") {
+  return json({error: message}, {status: 401});
+}
+
 export function notFound(message = "Not found") {
   return json({error: message}, {status: 404});
 }

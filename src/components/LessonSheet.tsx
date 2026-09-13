@@ -66,7 +66,7 @@ export function LessonSheet({
       footer={
         <SheetFooter columns={1}>
           {passed ? (
-            <Button variant="green" onClick={onNext ?? onClose}>
+            <Button variant="primary" onClick={onNext ?? onClose}>
               {onNext ? "Next lesson" : "Done"}
             </Button>
           ) : (

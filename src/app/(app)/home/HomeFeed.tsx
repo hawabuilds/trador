@@ -7,6 +7,8 @@ import {StickyPageHeader} from "@/components/AppShell";
 import {AssetList} from "@/components/AssetRow";
 import {FilterRail, type FilterOption} from "@/components/FilterRail";
 import {HomeTabs, type HomeTab} from "@/components/HomeTabs";
+import {useArrivals} from "@/hooks/useArrivals";
+import {useFeed} from "@/hooks/useFeed";
 import {useWatchlistAssets} from "@/hooks/useWatchlist";
 import {RocketIcon, StarIcon} from "@/components/ui/Icons";
 import {APP_NAME} from "@/config/app";
@@ -61,8 +63,8 @@ const WATCH_FILTERS: FilterOption<WatchFilter>[] = [
 ];
 
 export function HomeFeed({
-  stonks,
-  stocks,
+  stonks: initialStonks,
+  stocks: initialStocks,
   now,
 }: {
   stonks: FeedPage<Stonk>;
@@ -76,6 +78,24 @@ export function HomeFeed({
   const [sector, setSector] = useState<SectorId | "all">("all");
   const [quote, setQuote] = useState<string>("all");
   const [watchFilter, setWatchFilter] = useState<WatchFilter>("all");
+
+  /*
+   * The feed keeps moving after first paint.
+   *
+   * The server render seeds this, so the list is on screen immediately and
+   * React Query adopts it rather than refetching what it was just handed. From
+   * there it polls, which is what makes a coin launched a minute ago appear
+   * without a reload — the worker writes every ninety seconds and, before
+   * this, nothing ever read those writes.
+   */
+  const feed = useFeed({
+    sort: stonkSort,
+    quoteTicker: quote === "all" ? null : quote,
+    initial: {stonks: initialStonks, stocks: initialStocks},
+  });
+
+  const stonks = feed.stonks;
+  const stocks = feed.stocks;
 
   /**
    * The quote-asset rail, built from what is actually in the feed rather than
@@ -178,6 +198,16 @@ export function HomeFeed({
   const showing: readonly Asset[] =
     tab === "stonks" ? shownStonks : tab === "stocks" ? shownStocks : watched;
 
+  /*
+   * Which rows are new since the last poll, so those rows animate in.
+   *
+   * Without this a coin that arrives between two frames simply exists, and the
+   * eye misses it entirely — the feed looks static even while it is updating.
+   * Ids present on first load are recorded but not marked, so opening the tab
+   * does not animate the whole list.
+   */
+  const arrivals = useArrivals(showing.map((asset) => `${asset.kind}:${asset.id}`));
+
   return (
     <div>
       <StickyPageHeader>
@@ -244,7 +274,7 @@ export function HomeFeed({
       </StickyPageHeader>
 
       {showing.length > 0 ? (
-        <AssetList assets={showing} now={now} />
+        <AssetList assets={showing} arrivals={arrivals} now={now} />
       ) : tab === "watchlist" && watchlist.isLoading ? (
         <p className="py-10 text-center text-[13.5px] text-muted">Loading your watchlist…</p>
       ) : (

@@ -1,0 +1,56 @@
+import {publicJson} from "@/lib/server/http";
+import {fetchFeed} from "@/lib/server/sources";
+import {snapshotStocks} from "@/lib/server/snapshot";
+import type {StonkSort} from "@/lib/types";
+
+export const dynamic = "force-dynamic";
+
+const SORTS: StonkSort[] = ["trending", "new", "marketCap", "rewards"];
+
+/**
+ * The feed, live.
+ *
+ * The home page renders its first paint on the server, which is what makes the
+ * list appear before any provider is reachable. This is what keeps it moving
+ * afterwards: the client polls here, so a coin launched thirty seconds ago
+ * arrives without a reload.
+ *
+ * That gap was the whole bug. The page was server-rendering from the *static*
+ * snapshot baked in at build time and never refetching, so the feed a visitor
+ * saw was frozen at whenever the last deploy happened — while the worker
+ * dutifully wrote new coins into a store nothing read.
+ *
+ * Cached for ten seconds at the edge. The worker sweeps every ninety, so
+ * anything shorter is spend with nothing new to show, and anything longer is
+ * visible lag on a feed whose whole point is being current.
+ */
+export async function GET(request: Request) {
+  const params = new URL(request.url).searchParams;
+
+  const requested = params.get("sort");
+  const sort: StonkSort = SORTS.includes(requested as StonkSort)
+    ? (requested as StonkSort)
+    : "trending";
+
+  const quoteTicker = params.get("quote");
+  const limit = Number(params.get("limit"));
+
+  const stonks = await fetchFeed(sort, {
+    limit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, 200) : undefined,
+    cursor: params.get("cursor"),
+    // "all" is the UI's word for no filter; the store wants null.
+    quoteTicker: quoteTicker && quoteTicker !== "all" ? quoteTicker : null,
+  });
+
+  /*
+   * Stocks come from the registry rather than the store.
+   *
+   * The set of verified tokenized equities changes when an issuer mints a new
+   * one — a handful of times a year — and every entry carries a verified mint
+   * authority that was checked by hand. Polling a database for it would add a
+   * query per request to answer a question whose answer is in the bundle.
+   */
+  const stocks = snapshotStocks();
+
+  return publicJson({stonks, stocks}, 10);
+}

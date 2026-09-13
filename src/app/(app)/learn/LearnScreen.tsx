@@ -143,7 +143,7 @@ export function LearnScreen() {
 
       {!learn.hydrated ? null : learn.done === 0 ? (
         <Button
-          variant="green"
+          variant="primary"
           fullWidth
           className="mt-4"
           onClick={() => {

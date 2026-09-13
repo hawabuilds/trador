@@ -196,7 +196,7 @@ export function CreateScreen() {
 
       <div className="mt-6">
         {!authenticated ? (
-          <Button variant="green" fullWidth onClick={login}>
+          <Button variant="primary" fullWidth onClick={login}>
             Sign in to continue
           </Button>
         ) : (

@@ -169,8 +169,8 @@ export function resetBook(): void {
 export interface TradeSettings {
   /** Maximum price move tolerated between quote and fill, in percent. */
   slippagePct: number;
-  /** Which currency the amount field is denominated in. */
-  currency: "USD" | "ETH";
+  /** Which currency a buy is denominated in. */
+  currency: "USD" | "SOL";
 }
 
 export const SLIPPAGE_PRESETS = [0.5, 1, 3] as const;
@@ -187,13 +187,35 @@ export function readTradeSettings(): TradeSettings {
       Number.isFinite(slippage) && slippage > 0 && slippage <= MAX_SLIPPAGE_PCT
         ? slippage
         : DEFAULT_TRADE_SETTINGS.slippagePct,
-    currency: stored.currency === "ETH" ? "ETH" : "USD",
+    currency: stored.currency === "SOL" ? "SOL" : "USD",
   };
 }
 
 export function writeTradeSettings(settings: TradeSettings): void {
   write("trade", settings);
   announce();
+}
+
+/**
+ * Slippage in basis points, which is the unit the router actually takes.
+ *
+ * Stored as a percentage because that is what the ticket shows, and converted
+ * here rather than at the call site so the rounding happens in exactly one
+ * place. A stored 0.5% must come back as 50 bps every time — a `Math.round`
+ * that lived at two call sites would eventually disagree with itself.
+ */
+export function readSlippageBps(fallbackBps = 100): number {
+  const stored = read<Partial<TradeSettings>>("trade", {});
+  const pct = Number(stored.slippagePct);
+  if (!Number.isFinite(pct) || pct <= 0 || pct > MAX_SLIPPAGE_PCT) {
+    return fallbackBps;
+  }
+  return Math.round(pct * 100);
+}
+
+export function writeSlippageBps(bps: number): void {
+  const settings = readTradeSettings();
+  writeTradeSettings({...settings, slippagePct: bps / 100});
 }
 
 // ---------------------------------------------------------------------------

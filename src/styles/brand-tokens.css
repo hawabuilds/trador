@@ -67,29 +67,32 @@ html.dark {
   --text-disabled: #4a4a54;
 
   /*
-   * The terminal pair.
+   * The terminal pair, tuned to what the Solana terminals actually run.
    *
-   * Not Solana's #14F195 and not a coral. Solana green is a neon tuned for a
-   * logo: at 13px on near-black it glares, and it is close enough to cyan that
-   * a fast glance reads "highlight" before it reads "up". The coral it was
-   * paired with was worse — the complaint that started this was that the app
-   * looked pink, and a #FF5C7A "down" is the loudest pink on the screen.
+   * Three passes to get here, and the failures are the argument. Solana's
+   * #14F195 is a neon made for a wordmark: at 13px on near-black it glares,
+   * and it sits close enough to cyan that a fast glance reads "highlight"
+   * before it reads "up". Pairing it with a #FF5C7A coral made the whole app
+   * read pink. Replacing that with #0ECB81/#FF3B47 fixed the pink but
+   * overcorrected — #0ECB81 is a dark, teal-leaning green that goes muddy on
+   * a buy button and disappears as a 2px chart stroke.
    *
-   * These are the colours every trading terminal converges on, for the reason
-   * they converge on them: green and red at matched perceptual weight, so a
-   * falling number is not visually louder than a rising one, and neither is
-   * mistakable for anything but direction. #0ECB81 is still recognisably in
-   * Solana's green family, just tuned for text rather than for a wordmark.
+   * Axiom and Fomo Family both run brighter and cleaner than that, because a
+   * trading terminal is read at a glance on a black screen: the green has to
+   * be unmistakably green at 11px, and the red unmistakably red rather than
+   * pink. These are that pair — high chroma, matched perceptual weight so a
+   * falling number is not louder than a rising one, and legible at every size
+   * from a chart stroke to a full-width Buy button.
    */
-  --price-up: #0ecb81;
-  --price-up-light: #0a9d64;
-  --price-up-chart: #13e08f;
-  --price-down: #ff3b47;
-  --price-down-light: #d92230;
-  --price-up-wash: rgb(14 203 129 / 13%);
-  --price-up-wash-hover: rgb(14 203 129 / 21%);
-  --price-down-wash: rgb(255 59 71 / 13%);
-  --price-down-wash-hover: rgb(255 59 71 / 21%);
+  --price-up: #4ade80;
+  --price-up-light: #22c55e;
+  --price-up-chart: #5ef193;
+  --price-down: #ff4d4d;
+  --price-down-light: #e5333c;
+  --price-up-wash: rgb(74 222 128 / 14%);
+  --price-up-wash-hover: rgb(74 222 128 / 22%);
+  --price-down-wash: rgb(255 77 77 / 14%);
+  --price-down-wash-hover: rgb(255 77 77 / 22%);
 
   --success: var(--price-up);
   --error: var(--price-down);
@@ -129,8 +132,8 @@ html.dark {
   --shadow-dark: 0 16px 34px -14px var(--shadow-color);
   --shadow-brand: 0 16px 32px -14px rgb(153 69 255 / 45%);
   --shadow-tab-active: 0 6px 18px -10px rgb(153 69 255 / 45%);
-  --shadow-price-up: 0 16px 32px -14px rgb(14 203 129 / 32%);
-  --shadow-price-down: 0 16px 32px -14px rgb(255 59 71 / 32%);
+  --shadow-price-up: 0 16px 32px -14px rgb(74 222 128 / 34%);
+  --shadow-price-down: 0 16px 32px -14px rgb(255 77 77 / 34%);
   --shadow-inset-soft: inset 0 2px 8px rgb(0 0 0 / 46%);
   --shadow-inset-focus: inset 0 2px 8px rgb(0 0 0 / 46%),
     0 0 0 2px rgb(153 69 255 / 18%);

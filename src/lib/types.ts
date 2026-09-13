@@ -183,6 +183,30 @@ export interface CommentThread {
 }
 
 // ---------------------------------------------------------------------------
+// People
+// ---------------------------------------------------------------------------
+
+/**
+ * Someone with an account.
+ *
+ * `isFollowing` is three-state on purpose: `true` and `false` are the caller's
+ * relationship to this person, and `null` means nobody is signed in. Collapsing
+ * null to false would put a Follow button in front of a visitor with no
+ * account, which fails at the moment they tap it.
+ */
+export interface Profile {
+  id: string;
+  handle: string;
+  displayName: string;
+  pfpUrl: string | null;
+  bio: string | null;
+  wallet: string | null;
+  followers: number;
+  following: number;
+  isFollowing: boolean | null;
+}
+
+// ---------------------------------------------------------------------------
 // News
 // ---------------------------------------------------------------------------
 

@@ -19,8 +19,18 @@ const variants: Record<Variant, string> = {
   primaryAlt:
     "bg-brand-600 text-white shadow-brand hover:bg-brand-700 hover:-translate-y-0.5",
   dark: "bg-brand-500 text-white shadow-brand hover:bg-brand-600 hover:-translate-y-0.5",
+  /*
+   * Price green, for the one button that means "this is the buy side".
+   *
+   * Nothing else may use it. The palette's rule is that green means price
+   * direction and nothing else, and every action button in the app was
+   * quietly breaking it — Start, Sign in, Next, Done were all price-green,
+   * which is what made the Learn screen's Start read as a market signal
+   * rather than a button. Those are `primary` now, in the brand purple that
+   * every other action uses.
+   */
   green:
-    "bg-price-up text-[var(--surface-pressed)] shadow-price-up hover:-translate-y-0.5",
+    "bg-price-up text-[#07130c] shadow-price-up hover:-translate-y-0.5 hover:bg-[var(--price-up-chart)]",
   ghost: "bg-transparent text-muted hover:bg-[var(--overlay-wash)]",
   outline:
     "bg-[var(--overlay-wash)] text-ink hover:-translate-y-px hover:bg-[var(--overlay-wash-hover)]",
