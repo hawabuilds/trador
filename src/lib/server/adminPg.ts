@@ -38,10 +38,24 @@ async function getPool(): Promise<Pool> {
       // Supabase terminates unencrypted connections, and the direct host
       // presents a certificate this client has no local root for.
       ssl: {rejectUnauthorized: false},
-      // A worker and a script are the only callers. More connections than this
-      // just holds slots open against a database nobody else is using.
+      /*
+       * Small on purpose, because the same code runs in two very different
+       * places and the pool size has to be safe in the worse one.
+       *
+       * The worker is one long-lived process and could hold more. A Vercel
+       * function is one process *per concurrent request*, so a pool of 20 there
+       * is 20 × concurrency connections against a database that caps out in the
+       * low hundreds. Four is plenty for both.
+       *
+       * What makes the serverless side safe is the URL rather than the number:
+       * Vercel points at Supabase's **transaction** pooler (port 6543), which
+       * hands a connection back after every statement instead of holding it for
+       * the life of the client. Railway's worker points at the **session**
+       * pooler (5432), which keeps one — right for a process that runs for
+       * weeks, wrong for a function that runs for 200ms. See RAILWAY.md.
+       */
       max: 4,
-      idleTimeoutMillis: 30_000,
+      idleTimeoutMillis: 10_000,
     });
   }
 
