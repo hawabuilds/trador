@@ -11,3 +11,8 @@ scripts/.cursor-*.json
 probe-output/
 
 .vercel
+
+# Scratch output from scripts/sync-stocks and ad-hoc census runs.
+*-candidates.json
+other-quotes.json
+unknown-quotes.json
