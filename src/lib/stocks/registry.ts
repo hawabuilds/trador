@@ -60,25 +60,55 @@ export interface StockMint {
   /** How many StonkFun launches were priced against this mint at sync time. */
   readonly launchesQuotedAgainst: number;
   readonly verified: {
+    /** As read off the mint. Per-mint for some issuers, so not proof alone. */
     readonly mintAuthority: Pubkey | null;
+    /** The key that proved the family, and which field carried it. */
+    readonly issuerKey: Pubkey | null;
+    readonly via: "mint-authority" | "control-authority";
     readonly at: string;
     readonly source: string;
   };
 }
 
-export const ISSUERS: Record<StockIssuer, {label: string; verification: "issuer-key" | "per-mint"}> =
-  {
-    backed: {label: "xStocks", verification: "issuer-key"},
-    prestocks: {label: "PreStocks", verification: "issuer-key"},
-    // Backpack mints each carry their own authority, so there is no single key
-    // that proves the family — membership is a maintained allowlist, which is a
-    // weaker guarantee. Disabled unless `sync:stocks` was run with
-    // INCLUDE_BACKPACK=1.
-    backpack: {label: "Backpack Securities", verification: "per-mint"},
-  };
+/**
+ * How each issuer's range is proved.
+ *
+ * `mint-authority` — one key mints every stock the issuer offers.
+ * `control-authority` — the mint authority is per-mint and proves nothing, but
+ *   one key holds the freeze authority, the Token-2022 metadata update
+ *   authority and the permanent delegate on every mint in the range. All three
+ *   must agree: any one alone could be set to a key the setter does not hold.
+ *
+ * Backpack was previously carried as a hand-written allowlist of three mints,
+ * on the reading that per-mint authorities meant the family was unprovable.
+ * The authorities are per-mint; the family is provable anyway, through the
+ * control key. That is a stronger test than the mint-authority one, because
+ * faking it would mean handing Backpack the power to freeze and claw back your
+ * own supply.
+ */
+export const ISSUERS: Record<
+  StockIssuer,
+  {label: string; verification: "mint-authority" | "control-authority"}
+> = {
+  backed: {label: "xStocks", verification: "mint-authority"},
+  prestocks: {label: "PreStocks", verification: "mint-authority"},
+  backpack: {label: "Backpack Securities", verification: "control-authority"},
+};
 
 const KNOWN_ISSUERS = new Set(Object.keys(ISSUERS));
 const KNOWN_KINDS = new Set<StockKind>(["equity", "etf", "pre-ipo", "commodity"]);
+
+/**
+ * The verification method, checked rather than cast.
+ *
+ * A registry entry whose `via` is unrecognised has been written by something
+ * that does not agree with this file about what counts as proof, and the safe
+ * reading of that is "stop", not "assume mint-authority".
+ */
+function assertVia(value: unknown, where: string): StockMint["verified"]["via"] {
+  if (value === "mint-authority" || value === "control-authority") return value;
+  throw new Error(`${where} is ${JSON.stringify(value)}, not a known verification method.`);
+}
 
 /**
  * Validate at module load.
@@ -107,10 +137,27 @@ function load(): readonly StockMint[] {
     if (!KNOWN_ISSUERS.has(issuer)) throw new Error(`${where}: unknown issuer "${issuer}"`);
     if (!KNOWN_KINDS.has(kind)) throw new Error(`${where}: unknown kind "${kind}"`);
 
-    const verified = entry.verified as {mintAuthority?: unknown; at?: unknown; source?: unknown} | undefined;
-    if (!verified?.mintAuthority) {
+    const verified = entry.verified as
+      | {
+          mintAuthority?: unknown;
+          issuerKey?: unknown;
+          via?: unknown;
+          at?: unknown;
+          source?: unknown;
+        }
+      | undefined;
+
+    /*
+     * `issuerKey`, not `mintAuthority`, is the evidence.
+     *
+     * A control-authority issuer's mint authority differs on every mint and
+     * proves nothing on its own, so requiring only that would let an entry
+     * ship with no provenance at all as long as some key was present. The
+     * issuer key is the one that has to be there.
+     */
+    if (!verified?.issuerKey) {
       throw new Error(
-        `${where} (${ticker}): no verified mint authority. Entries without one ` +
+        `${where} (${ticker}): no verified issuer key. Entries without one ` +
           `must not ship — rerun npm run sync:stocks.`,
       );
     }
@@ -139,6 +186,14 @@ function load(): readonly StockMint[] {
       launchesQuotedAgainst: Number(entry.launchesQuotedAgainst ?? 0),
       verified: {
         mintAuthority: assertPubkey(verified.mintAuthority, `${where}.verified.mintAuthority`),
+        /*
+         * The key that proved the family. Validated as strictly as the mint
+         * itself, because this is the evidence — an entry whose `issuerKey` is
+         * missing or malformed is an entry claiming verification it cannot
+         * show, which is exactly what this loader exists to stop at boot.
+         */
+        issuerKey: assertPubkey(verified.issuerKey, `${where}.verified.issuerKey`),
+        via: assertVia(verified.via, `${where}.verified.via`),
         at: String(verified.at ?? ""),
         source: String(verified.source ?? ""),
       },

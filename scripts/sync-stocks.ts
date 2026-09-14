@@ -26,13 +26,14 @@
  *   npm run sync:stocks -- --write update mints.generated.json
  */
 
-import {writeFileSync} from "node:fs";
+import {readFileSync, writeFileSync} from "node:fs";
 import path from "node:path";
 
 import {type Pubkey} from "@/lib/pubkey";
 import {
   allStonkfunPools,
   mintAccounts,
+  type MintAccount,
   rankQuoteAssets,
   redactedRpcUrl,
   rpcCallCount,
@@ -75,24 +76,31 @@ const ISSUER_AUTHORITIES: Record<string, {issuer: string; label: string}> = {
 };
 
 /**
- * Backpack Securities — a real third family, deliberately not enabled.
+ * Backpack Securities — proved by a control key, not by an allowlist.
  *
- * Their tokenized equities (NKE, DKNG, GRND, DJT, RDDT, TTWO, SPHR…) carry
- * roughly three thousand launches between them, so this is not a rounding
- * error. But unlike Backed and PreStocks, each Backpack mint has its **own**
- * mint authority, so there is no single key that proves the family. Admitting
- * them means maintaining a per-mint allowlist, which is a weaker guarantee and
- * a standing obligation.
+ * This family used to be gated behind `INCLUDE_BACKPACK=1` and a hand-written
+ * list of three mints, on the reasoning that every Backpack mint carries its
+ * own mint authority so nothing could prove the family. The first half of that
+ * is true; the conclusion was not. All of their mints share **one** key across
+ * three independent fields at once — the freeze authority, the Token-2022
+ * metadata update authority, and the permanent delegate.
  *
- * Turning this on is a product decision rather than a technical one, so it is
- * one line and a review of the emitted diff — not a silent default.
+ * That is a stronger claim than the mint-authority test used for Backed and
+ * PreStocks, not a weaker one: an impostor would have to control the freeze
+ * authority, the metadata and the permanent delegate of its fake mint *and*
+ * set all three to Backpack's key, which would hand Backpack the power to
+ * freeze and claw back the impostor's own supply.
+ *
+ * Requiring all three to agree is what makes it safe to drop the allowlist.
+ * Any single one of them could be set to a key the setter does not control.
  */
-const INCLUDE_BACKPACK = process.env.INCLUDE_BACKPACK === "1";
-
-const BACKPACK_MINTS: Record<string, string> = {
-  NKEda5nHhNGgjrE9nDdMvaEmkmJ96qqxzBVZEcKmjSg: "5tPguepcKacsBPHrbWXr8Zo8A3osVKzLG65y697SvKTh",
-  GRNDYDpqwpCm6jVxpbh4xT5AM4r3p391qYsKTHqgaET2: "EfB3iMswBzLBrVamjRHqPMKzvu7fyYsuLY1zu9fiPGFY",
-  DKNGQFNGQmoBdXSRGKJ8tTu7uPDasw5JDcfMmWniNfow: "mHRjfhQqbuPZcHk1YSoNSQmZWFqj2Yc3om1UTQgQJef",
+const CONTROL_AUTHORITIES: Record<string, {issuer: string; label: string}> = {
+  // 37 mints and counting, all Token-2022, all 6 decimals: NKE, DKNG, GRND,
+  // TTWO, RDDT, DJT, HTZ, SPHR, RBLX, WEN…
+  "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a": {
+    issuer: "backpack",
+    label: "Backpack Securities",
+  },
 };
 
 /**
@@ -121,17 +129,54 @@ interface GeneratedStock {
   priceAuthority: "pyth" | "none";
   launchesQuotedAgainst: number;
   verified: {
+    /** As read off the mint. Per-mint for some issuers, so not proof alone. */
     mintAuthority: Pubkey | null;
+    /** The key that proved the family, and which field carried it. */
+    issuerKey: Pubkey | null;
+    via: "mint-authority" | "control-authority";
     at: string;
     source: string;
   };
 }
 
 const WRITE = process.argv.includes("--write");
+/** Allows a write that would shrink the registry. See the refusal below. */
+const FORCE = process.argv.includes("--force");
 const OUT = path.join(process.cwd(), "src", "lib", "stocks", "mints.generated.json");
+
+/** How many stocks the registry holds today, or null if it has never been written. */
+function readExistingCount(): number | null {
+  try {
+    const parsed = JSON.parse(readFileSync(OUT, "utf8")) as unknown[];
+    return Array.isArray(parsed) ? parsed.length : null;
+  } catch {
+    return null;
+  }
+}
 
 function heading(text: string): void {
   console.log(`\n${"─".repeat(76)}\n${text}\n${"─".repeat(76)}`);
+}
+
+/**
+ * The issuer a mint's *control* key proves, if any.
+ *
+ * All three fields must name the same recognised key. Any one of them alone
+ * could be set to a key the setter does not hold; requiring the freeze
+ * authority, the metadata update authority and the permanent delegate to agree
+ * means faking it would hand that issuer the power to freeze and claw back the
+ * impostor's own supply.
+ */
+function controlIssuerFor(
+  account: MintAccount | undefined,
+): {issuer: string; label: string} | undefined {
+  if (!account) return undefined;
+  const key = account.freezeAuthority;
+  if (key === null) return undefined;
+  if (account.updateAuthority !== key || account.permanentDelegate !== key) {
+    return undefined;
+  }
+  return CONTROL_AUTHORITIES[key];
 }
 
 async function main(): Promise<void> {
@@ -187,10 +232,28 @@ async function main(): Promise<void> {
     const known = ISSUER_AUTHORITIES[family.authority];
     const total = family.members.reduce((sum, member) => sum + member.launches, 0);
 
+    /*
+     * A control-authority issuer mints each stock from its own key, so its
+     * range is scattered across dozens of one-member "families" in this
+     * listing. Calling those `unrecognised` while the emit step accepts them
+     * makes the listing actively misleading — and this listing is the human
+     * review the whole script leans on.
+     */
+    const control = controlIssuerFor(accounts.get(family.members[0].mint));
+    const viaControl =
+      control !== undefined &&
+      family.members.every(
+        (member) => controlIssuerFor(accounts.get(member.mint))?.issuer === control.issuer,
+      );
+
     console.log(
       `\n  authority ${family.authority}` +
         `\n  ${family.members.length} mint(s), ${total} launches` +
-        (known ? `  ✔ ${known.label}` : "  ⚠ unrecognised issuer"),
+        (known
+          ? `  ✔ ${known.label}`
+          : viaControl
+            ? `  ✔ ${control.label} (by control key)`
+            : "  ⚠ unrecognised issuer"),
     );
 
     for (const member of family.members.slice(0, 14)) {
@@ -209,29 +272,42 @@ async function main(): Promise<void> {
   // ---------------------------------------------------------------------
 
   const stocks: GeneratedStock[] = [];
+  const unresolved: Pubkey[] = [];
   const now = new Date().toISOString();
 
   for (const family of sorted) {
     for (const member of family.members) {
       const account = accounts.get(member.mint)!;
 
-      // An issuer-wide authority is the strong case: one key mints the whole
-      // range, so membership is proved by a single comparison.
+      // One key mints the whole range. Membership is a single comparison.
       const byAuthority = ISSUER_AUTHORITIES[family.authority];
 
-      // Backpack is the weak case: the authority is per-mint, so the mint has
-      // to be named *and* its authority has to still match what was recorded.
-      // If they ever rotate a key, this drops the entry rather than trusting a
-      // stale allowlist.
-      const backpackAuthority = BACKPACK_MINTS[member.mint];
-      const byAllowlist =
-        INCLUDE_BACKPACK &&
-        backpackAuthority !== undefined &&
-        account.mintAuthority === backpackAuthority;
+      /*
+       * Or: one key *controls* the whole range, which some issuers use instead.
+       * All three fields must agree and must name the same recognised key —
+       * see CONTROL_AUTHORITIES. Any one of them alone could be set to a key
+       * the setter does not control.
+       */
+      const byControl = controlIssuerFor(account);
 
-      if (!byAuthority && !byAllowlist) continue;
+      if (!byAuthority && !byControl) continue;
 
-      const issuer = byAuthority?.issuer ?? "backpack";
+      /*
+       * A verified mint with no resolved label is not a registry entry.
+       *
+       * The registry is keyed and routed by ticker, so `"?"` is not a cosmetic
+       * gap — it is an entry nothing can look up and a URL nobody can reach.
+       * An earlier run wrote all 57 entries with `ticker: "?"` because the
+       * label provider had rate-limited every request, and reported "57
+       * verified stock mint(s)" without a word about it. Collected here and
+       * refused below, rather than written and discovered later.
+       */
+      if (member.symbol === "?" || member.name === "?") {
+        unresolved.push(member.mint);
+        continue;
+      }
+
+      const issuer = (byAuthority ?? byControl)!.issuer;
       const kind = kindFor(issuer, member.symbol, member.name);
 
       stocks.push({
@@ -249,10 +325,19 @@ async function main(): Promise<void> {
         launchesQuotedAgainst: member.launches,
         verified: {
           mintAuthority: account.mintAuthority,
+          /*
+           * The key that actually proved the family, and how. Recorded
+           * separately because for a control-authority issuer the mint
+           * authority above is per-mint and proves nothing on its own —
+           * writing it into a field called "verified" without this would read
+           * as evidence it is not.
+           */
+          issuerKey: byAuthority ? family.authority : account.freezeAuthority,
+          via: byAuthority ? "mint-authority" : "control-authority",
           at: now,
           source: byAuthority
             ? "issuer mint authority + stonkfun pool census"
-            : "per-mint allowlist + mint authority match",
+            : "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census",
         },
       });
     }
@@ -275,7 +360,37 @@ async function main(): Promise<void> {
     console.log(`  ${stocks.length} verified stock mint(s) across ` +
       `${new Set(stocks.map((s) => s.issuer)).size} issuer(s)`);
 
-    if (WRITE) {
+    if (unresolved.length > 0) {
+      console.log(
+        `\n  ${unresolved.length} verified mint(s) had no resolvable ticker and ` +
+          `were left out:\n    ${unresolved.slice(0, 8).join("\n    ")}` +
+          (unresolved.length > 8 ? `\n    … ${unresolved.length - 8} more` : ""),
+      );
+    }
+
+    /*
+     * Refuse to shrink the registry on a bad run.
+     *
+     * The label provider rate-limits, and when it does every mint comes back
+     * unresolved — which is indistinguishable, at the point of writing, from
+     * an issuer genuinely delisting its whole range. One is a transient
+     * network condition and the other has never happened. Writing a smaller
+     * file on a throttled run silently deletes stocks from the app, and the
+     * only symptom is coins quietly leaving the feed.
+     *
+     * `--force` exists for the real case, where a shrink is intended.
+     */
+    const existing = readExistingCount();
+    const shrank = existing !== null && stocks.length < existing;
+
+    if (WRITE && shrank && !FORCE) {
+      console.log(
+        `\n  REFUSED to write: this run produced ${stocks.length} stock(s) but the ` +
+          `registry\n  already holds ${existing}. That is usually the label provider ` +
+          `rate-limiting,\n  not an issuer delisting its range — check the warnings above.\n\n` +
+          `  Rerun when it is healthy, or pass --force if the shrink is intended.`,
+      );
+    } else if (WRITE) {
       writeFileSync(OUT, `${JSON.stringify(stocks, null, 2)}\n`, "utf8");
       console.log(`  written → ${path.relative(process.cwd(), OUT)}`);
       console.log("  Review the diff before committing. This file is a trust boundary.");

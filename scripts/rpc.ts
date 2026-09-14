@@ -143,6 +143,19 @@ export interface MintAccount {
   tokenProgram: Pubkey;
   mintAuthority: Pubkey | null;
   freezeAuthority: Pubkey | null;
+  /**
+   * Token-2022 metadata update authority, and the permanent delegate.
+   *
+   * Read because the mint authority is not always where an issuer's identity
+   * lives. Backed and PreStocks mint their whole range from one key, so
+   * grouping by `mintAuthority` finds those families exactly. Backpack
+   * Securities does not: every one of its mints has its own mint authority, and
+   * for a long time that was taken to mean the family could not be proved at
+   * all. It can — all three of these fields carry the same issuer key on every
+   * Backpack mint, which is a stronger signal than any one of them alone.
+   */
+  updateAuthority: Pubkey | null;
+  permanentDelegate: Pubkey | null;
 }
 
 export async function mintAccounts(mints: Pubkey[]): Promise<Map<string, MintAccount>> {
@@ -157,6 +170,13 @@ export async function mintAccounts(mints: Pubkey[]): Promise<Map<string, MintAcc
     result.value.forEach((account, index) => {
       if (!account) return;
       const info = account.data?.parsed?.info ?? {};
+      const extensions = (info.extensions ?? []) as {
+        extension?: string;
+        state?: Record<string, unknown>;
+      }[];
+      const extension = (name: string): Record<string, unknown> | undefined =>
+        extensions.find((entry) => entry.extension === name)?.state;
+
       out.set(batch[index], {
         mint: batch[index],
         decimals: Number(info.decimals ?? 0),
@@ -164,6 +184,10 @@ export async function mintAccounts(mints: Pubkey[]): Promise<Map<string, MintAcc
         tokenProgram: account.owner as Pubkey,
         mintAuthority: (info.mintAuthority as string | null) as Pubkey | null,
         freezeAuthority: (info.freezeAuthority as string | null) as Pubkey | null,
+        updateAuthority:
+          (extension("tokenMetadata")?.updateAuthority as Pubkey | undefined) ?? null,
+        permanentDelegate:
+          (extension("permanentDelegate")?.delegate as Pubkey | undefined) ?? null,
       });
     });
   }
@@ -194,30 +218,58 @@ export async function tokenIdentities(
 ): Promise<Map<string, TokenIdentity>> {
   const out = new Map<string, TokenIdentity>();
 
-  for (const mint of mints) {
+  /*
+   * Batched, because one request per mint does not survive contact with the
+   * rate limit.
+   *
+   * This used to loop mint-by-mint with a 120ms pause. At ~120 quote assets
+   * that is two minutes of requests, and Jupiter's lite tier throttles long
+   * before the end — every throttled response hit `if (!response.ok) continue`
+   * and was dropped silently. The visible result was a registry where all 57
+   * entries had "?" for ticker and name, written without a single warning.
+   *
+   * The search endpoint takes a comma list, so twenty at a time is six
+   * requests instead of a hundred and twenty.
+   */
+  const BATCH = 20;
+
+  for (let i = 0; i < mints.length; i += BATCH) {
+    const batch = mints.slice(i, i + BATCH);
+
     try {
       const response = await fetch(
-        `https://lite-api.jup.ag/tokens/v2/search?query=${mint}`,
+        `https://lite-api.jup.ag/tokens/v2/search?query=${batch.join(",")}`,
       );
-      if (!response.ok) continue;
+      if (!response.ok) {
+        // Surfaced, not swallowed. The caller decides whether a missing label
+        // is fatal; it cannot decide that if it never hears about it.
+        console.warn(`  token identities: batch ${i / BATCH + 1} -> ${response.status}`);
+        continue;
+      }
+
       const body = (await response.json()) as unknown;
       const rows = Array.isArray(body)
         ? body
         : ((body as {tokens?: unknown[]}).tokens ?? []);
-      const match = (rows as {id?: string; symbol?: string; name?: string; decimals?: number}[]).find(
-        (row) => row.id === mint,
-      );
-      if (match?.symbol) {
-        out.set(mint, {
-          symbol: match.symbol,
-          name: match.name ?? match.symbol,
-          decimals: Number(match.decimals ?? 0),
+
+      for (const row of rows as {
+        id?: string;
+        symbol?: string;
+        name?: string;
+        decimals?: number;
+      }[]) {
+        if (!row.id || !row.symbol) continue;
+        out.set(row.id, {
+          symbol: row.symbol,
+          name: row.name ?? row.symbol,
+          decimals: Number(row.decimals ?? 0),
         });
       }
-    } catch {
-      // A label we cannot resolve is not fatal; the mint authority is.
+    } catch (error) {
+      console.warn(`  token identities: batch ${i / BATCH + 1} failed — ${(error as Error).message}`);
     }
-    await new Promise((resolve) => setTimeout(resolve, 120));
+
+    await new Promise((resolve) => setTimeout(resolve, 150));
   }
 
   return out;
