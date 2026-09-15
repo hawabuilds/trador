@@ -53,7 +53,7 @@ interface StonkfolioResponse {
  * silently dropped — otherwise the total would quietly disagree with reality.
  */
 export function StonkfolioScreen() {
-  const {authenticated, wallet, displayName, handle, isDemo, login} = useUser();
+  const {authenticated, wallet, displayName, handle, pfpUrl, isDemo, login} = useUser();
   const [split, setSplit] = useState<Split>("all");
   const [copied, setCopied] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -111,11 +111,35 @@ export function StonkfolioScreen() {
     <div>
       <StickyPageHeader>
         <div className="flex items-center gap-3">
-          <Avatar name={displayName ?? handle ?? "?"} seed={wallet ?? "demo"} size={42} />
+          {/*
+            Your X picture, when signing in gave us one. `seed` stays as the
+            fallback so a wallet with no X identity still gets a stable
+            monogram colour rather than a grey disc — but the picture was
+            never passed at all before this, so everyone saw the monogram.
+          */}
+          <Avatar
+            name={displayName ?? handle ?? "?"}
+            src={pfpUrl}
+            seed={wallet ?? "demo"}
+            size={42}
+          />
           <div className="min-w-0 flex-1">
+            {/*
+              Your name, not the screen's name.
+
+              The tab bar already says Stonkfolio, so spending the one large
+              line on it again told you nothing — and the X display name you
+              signed in with is what makes this read as *your* page rather than
+              a generic wallet view. The handle sits beside the address below.
+            */}
             <h1 className="truncate text-[18px] font-extrabold tracking-[-0.03em]">
-              Stonkfolio
+              {displayName ?? handle ?? "Stonkfolio"}
             </h1>
+            {handle ? (
+              <span className="mr-2 text-[12px] font-semibold text-faint">
+                @{handle}
+              </span>
+            ) : null}
             {wallet ? (
               <button
                 type="button"

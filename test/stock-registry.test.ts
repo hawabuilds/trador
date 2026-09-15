@@ -200,12 +200,6 @@ test("known lookalikes are not in the registry", () => {
         "would admit it. It is a leveraged SOL derivative, not an equity.",
     ],
     [
-      "oPAiAikWTaFj9RYoRFD35ccfwhnMcB3ThgBZRHSkjTZ",
-      "tOpenAI (T-OpenAI)",
-      "256 launches. Offers OpenAI exposure under a different mint authority " +
-        "than PreStocks' OPENAI. A name or symbol check cannot separate the two.",
-    ],
-    [
       "6GmAFSYs4gk3FDao5FzzySQpPZaWsa4rUJHacpMpUNgx",
       "STONK",
       "1,580 launches — the launchpad's own token. A popular quote asset is not " +
@@ -248,6 +242,87 @@ test("known lookalikes are not in the registry", () => {
  * This asserts the admission is deliberate and still resting on that key, so
  * nobody later reads the empty space above as an oversight and puts it back.
  */
+/**
+ * Tessera is admitted, and retired paper is not.
+ *
+ * `tOpenAI` used to be the headline example in the fixture above — the token
+ * that proves a name check cannot work, because it offers OpenAI exposure from
+ * a different authority than PreStocks' OPENAI. It still proves that. What it
+ * does not prove is that the issuer is fake, and leaving it listed as a
+ * "lookalike" let a conservative default harden into a verdict.
+ *
+ * It verifies cleanly: one key mints tOpenAI, tSpaceX and tKalshi, updates all
+ * three metadata, and a second key freezes all three.
+ *
+ * The second half of this test is the part that earns its keep. Enumerating an
+ * issuer's full range surfaces everything its key ever minted, including paper
+ * the issuer itself has marked `[REFUNDED]` or `[OUTDATED]` — 23 such mints,
+ * including an `[OUTDATED] OpenAI PreStocks` sitting beside the live one. A
+ * coin paired to a refunded instrument is paired to nothing.
+ */
+test("Tessera is admitted, and retired issues are not", () => {
+  const tOpenAI = stockForMint("oPAiAikWTaFj9RYoRFD35ccfwhnMcB3ThgBZRHSkjTZ");
+
+  assert.ok(tOpenAI, "tOpenAI should be a registry stock — Tessera is verified.");
+  assert.equal(tOpenAI.issuer, "tessera");
+  assert.equal(tOpenAI.kind, "pre-ipo");
+  // No public listing, so no oracle can be authoritative about the price.
+  assert.equal(tOpenAI.priceAuthority, "none");
+
+  // Its whole range, not just the mint StonkFun happens to quote.
+  for (const ticker of ["tOpenAI", "tSpaceX", "tKalshi"]) {
+    assert.ok(stockForTicker(ticker), `${ticker} is missing from the registry.`);
+  }
+
+  for (const stock of STOCK_MINTS) {
+    assert.ok(
+      !/(refunded|outdated|deprecated|retired)/i.test(`${stock.ticker} ${stock.name}`),
+      `${stock.ticker} is retired paper and must not be tradeable: ${stock.name}`,
+    );
+    assert.notEqual(
+      stock.ticker.toLowerCase(),
+      "test",
+      "a mint literally called TEST is in the registry",
+    );
+  }
+});
+
+/**
+ * Transfer fees are read, not assumed.
+ *
+ * Measuring these corrected a belief this codebase held silently: every
+ * PreStocks mint charges 50bps and Tessera charges 20, while Backed and
+ * Backpack charge nothing. The app had been quoting PreStocks as free for as
+ * long as they had been listed, so a ticket showing Trador's 50bps was
+ * understating the real cost by half.
+ */
+test("transfer fees are recorded per mint, and the known ones are right", () => {
+  const known: [string, number | null][] = [
+    ["OPENAI", 50],
+    ["tOpenAI", 20],
+    ["NVDAx", null],
+  ];
+
+  for (const [ticker, bps] of known) {
+    const stock = stockForTicker(ticker);
+    assert.ok(stock, `${ticker} is missing from the registry.`);
+    assert.equal(
+      stock.transferFeeBps,
+      bps,
+      `${ticker} should charge ${bps === null ? "no" : `${bps}bps`} transfer fee.`,
+    );
+  }
+
+  // Per mint, not per issuer — the spread within PreStocks is the reason.
+  for (const stock of STOCK_MINTS) {
+    assert.ok(
+      stock.transferFeeBps === null ||
+        (Number.isInteger(stock.transferFeeBps) && stock.transferFeeBps >= 0),
+      `${stock.ticker} has a nonsense transfer fee: ${String(stock.transferFeeBps)}`,
+    );
+  }
+});
+
 test("Backpack Securities is admitted, on a control key", () => {
   const nke = stockForMint("NKEda5nHhNGgjrE9nDdMvaEmkmJ96qqxzBVZEcKmjSg");
 

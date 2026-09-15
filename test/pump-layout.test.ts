@@ -145,10 +145,17 @@ test("stock-pairing is three-state, so an unverified issuer does not hide a coin
   assert.equal(isCustomPair(custom, knownNonStocks), true);
   assert.equal(isCustomPair(sol, knownNonStocks), false);
 
-  // A quote mint that is neither a verified stock nor a known non-stock is
-  // unevaluated, not "no". It may be a real stock from an issuer the registry
-  // has yet to verify, and null keeps the coin visible.
-  const unknown = {...custom, quoteMint: "oPAiAikWTaFj9RYoRFD35ccfwhnMcB3ThgBZRHSkjTZ" as typeof custom.quoteMint};
+  /*
+   * A quote mint that is neither a verified stock nor a known non-stock is
+   * unevaluated, not "no". It may be a real stock from an issuer the registry
+   * has yet to verify, and null keeps the coin visible.
+   *
+   * That is not hypothetical: this fixture used `tOpenAI` until its issuer,
+   * Tessera, was verified and it became a stock. Every coin quoted against it
+   * had been sitting in exactly this null state, visible, waiting — which is
+   * what the three-state rule is for.
+   */
+  const unknown = {...custom, quoteMint: "4sWNB8zGWHkh6UnmwiEtzNxL4XrN7uK9tosbESbJFfVs" as typeof custom.quoteMint};
   assert.equal(isCustomPair(unknown, knownNonStocks), null);
 });
 

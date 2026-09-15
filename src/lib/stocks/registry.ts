@@ -29,7 +29,7 @@ import {type Pubkey, assertPubkey, samePubkey} from "@/lib/pubkey";
 
 import GENERATED from "./mints.generated.json" with {type: "json"};
 
-export type StockIssuer = "backed" | "prestocks" | "backpack";
+export type StockIssuer = "backed" | "prestocks" | "backpack" | "tessera";
 export type StockKind = "equity" | "etf" | "pre-ipo" | "commodity";
 
 /**
@@ -57,6 +57,21 @@ export interface StockMint {
   readonly issuer: StockIssuer;
   readonly kind: StockKind;
   readonly priceAuthority: PriceAuthority;
+  /**
+   * On-chain transfer fee in basis points, or null when the mint charges none.
+   *
+   * Real money, taken by the token itself on every transfer including each leg
+   * of a swap, so a ticket that shows only Trador's 50bps understates the cost
+   * by a figure the user has no way to check.
+   *
+   * Reading this off chain immediately corrected an assumption: **every
+   * PreStocks mint charges 50bps** — OPENAI, ANTHROPIC, POLYMARKET, NEURALINK,
+   * KALSHI — and the app had been quoting them as if they were free since the
+   * day they were added. Tessera charges 20bps. Backed's xStocks and Backpack's
+   * equities charge nothing. Per mint rather than per issuer, because that
+   * spread is exactly what an issuer-level assumption would have flattened.
+   */
+  readonly transferFeeBps: number | null;
   /** How many StonkFun launches were priced against this mint at sync time. */
   readonly launchesQuotedAgainst: number;
   readonly verified: {
@@ -93,6 +108,7 @@ export const ISSUERS: Record<
   backed: {label: "xStocks", verification: "mint-authority"},
   prestocks: {label: "PreStocks", verification: "mint-authority"},
   backpack: {label: "Backpack Securities", verification: "control-authority"},
+  tessera: {label: "Tessera", verification: "mint-authority"},
 };
 
 const KNOWN_ISSUERS = new Set(Object.keys(ISSUERS));
@@ -105,6 +121,22 @@ const KNOWN_KINDS = new Set<StockKind>(["equity", "etf", "pre-ipo", "commodity"]
  * that does not agree with this file about what counts as proof, and the safe
  * reading of that is "stop", not "assume mint-authority".
  */
+/**
+ * A transfer fee, or null.
+ *
+ * Bounded because the field is arithmetic the UI will do on a user's money. A
+ * nonsense value here would render as a nonsense cost rather than failing, and
+ * `null` ("no fee") is not a safe default for a garbled number — it understates.
+ */
+function readFeeBps(value: unknown, where: string): number | null {
+  if (value === null || value === undefined) return null;
+  const bps = Number(value);
+  if (!Number.isInteger(bps) || bps < 0 || bps > 10_000) {
+    throw new Error(`${where}: implausible transferFeeBps ${JSON.stringify(value)}`);
+  }
+  return bps;
+}
+
 function assertVia(value: unknown, where: string): StockMint["verified"]["via"] {
   if (value === "mint-authority" || value === "control-authority") return value;
   throw new Error(`${where} is ${JSON.stringify(value)}, not a known verification method.`);
@@ -183,6 +215,7 @@ function load(): readonly StockMint[] {
       // A pre-IPO name has no public market, so nothing can be authoritative
       // about its price regardless of what the generated file claims.
       priceAuthority: kind === "pre-ipo" ? "none" : ((entry.priceAuthority as PriceAuthority) ?? "pyth"),
+      transferFeeBps: readFeeBps(entry.transferFeeBps, `${where} (${ticker})`),
       launchesQuotedAgainst: Number(entry.launchesQuotedAgainst ?? 0),
       verified: {
         mintAuthority: assertPubkey(verified.mintAuthority, `${where}.verified.mintAuthority`),

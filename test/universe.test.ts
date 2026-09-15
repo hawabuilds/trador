@@ -49,10 +49,17 @@ test("quote mints are classified from the verified registry, not their names", (
   // stock. Popularity is not provenance.
   assert.equal(quoteKindFor(STONK), "other");
 
-  // A stock-shaped mint whose issuer is unverified is `other`, so the coin
-  // fails arm 1 and goes missing — the safe direction. `tOpenAI` is real, is
-  // quoted against by 256 launches, and is not PreStocks' OPENAI.
-  assert.equal(quoteKindFor("oPAiAikWTaFj9RYoRFD35ccfwhnMcB3ThgBZRHSkjTZ"), "other");
+  /*
+   * A stock-shaped mint whose issuer is unverified is `other`, so the coin
+   * fails arm 1 and goes missing — the safe direction.
+   *
+   * This used to use `tOpenAI`, which has since been verified as Tessera's and
+   * is now a stock. That is the fixture working as intended rather than
+   * breaking: "unverified" is a state assets leave, not a verdict, so an
+   * example of it has a shelf life. `xSOL` replaces it — a leveraged SOL
+   * derivative with 916 launches that any x-prefix rule would admit.
+   */
+  assert.equal(quoteKindFor("4sWNB8zGWHkh6UnmwiEtzNxL4XrN7uK9tosbESbJFfVs"), "other");
 });
 
 test("arm 1: a recognised launch priced against a verified stock qualifies", () => {

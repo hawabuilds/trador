@@ -206,10 +206,19 @@ interface RawProfile {
   is_following: boolean;
 }
 
+/**
+ * A list of people, with follower counts and the caller's follow state.
+ *
+ * `$1` is the subject (whose followers/following are being listed) and `$2` is
+ * the caller. `extra` appends further bindings starting at `$3`, which is how
+ * the search below passes a pattern without a subject — the clause it supplies
+ * simply never mentions `$1`.
+ */
 async function people(
   clause: string,
   userId: string,
   callerId: string | null,
+  extra: unknown[] = [],
 ): Promise<Profile[]> {
   if (!socialReady) return [];
 
@@ -225,7 +234,7 @@ async function people(
        ${clause}
       order by u.handle
       limit 200`,
-    [userId, callerId ?? ""],
+    [userId, callerId ?? "", ...extra],
   );
 
   return rows.map((row) => toProfile(row, callerId));
@@ -273,4 +282,39 @@ function normalizeHandle(handle: string | null | undefined): string | null {
   // pubkey-lint-ok: a social handle, never an address.
   const cleaned = handle.replace(/^@/, "").trim().toLowerCase();
   return cleaned.length > 0 ? cleaned : null;
+}
+
+/**
+ * People, by handle or display name.
+ *
+ * Wildcards in the needle are escaped rather than passed through. `%` in a
+ * LIKE pattern means "anything", so a search for `%` would otherwise return
+ * every account in the database — which is not a crash, just a privacy leak
+ * shaped like a feature.
+ */
+export async function searchPeople(
+  needle: string,
+  callerId: string | null,
+  limit = 15,
+): Promise<Profile[]> {
+  if (!socialReady) return [];
+
+  const trimmed = needle.trim().replace(/^@/, "");
+  if (trimmed.length === 0) return [];
+
+  const pattern = `%${trimmed.replace(/[\%_]/g, (match) => `\${match}`)}%`;
+
+  try {
+    const found = await people(
+      // No subject, so `$1` goes unused and the pattern rides in as `$3`.
+      `where u.handle ilike $3 or u.display_name ilike $3`,
+      "",
+      callerId,
+      [pattern],
+    );
+    return found.slice(0, limit);
+  } catch (error) {
+    console.error("people search failed", error);
+    return [];
+  }
 }

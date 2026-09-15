@@ -32,6 +32,7 @@ import path from "node:path";
 import {type Pubkey} from "@/lib/pubkey";
 import {
   allStonkfunPools,
+  assetsByAuthority,
   mintAccounts,
   type MintAccount,
   rankQuoteAssets,
@@ -73,6 +74,25 @@ const ISSUER_AUTHORITIES: Record<string, {issuer: string; label: string}> = {
     issuer: "prestocks",
     label: "PreStocks (pre-IPO)",
   },
+  /*
+   * Tessera — 3 mints, all 9 decimals, all T-prefixed pre-IPO names: tOpenAI,
+   * tSpaceX, tKalshi.
+   *
+   * `tOpenAI` used to be in this repo's known-lookalikes fixture, as the
+   * example of why a name check cannot be trusted: it offers OpenAI exposure
+   * from a different authority than PreStocks' OPENAI. That was the right
+   * default and the wrong conclusion to leave standing. Absence from the
+   * registry means "not yet verified", never "not real" — and this family
+   * verifies cleanly. One key mints all three, updates all three metadata, and
+   * a second key freezes all three, which is a tighter range than PreStocks'.
+   *
+   * They carry a 20bps transfer fee, unlike every other issuer here. That is
+   * recorded per mint rather than per issuer, so nothing assumes it.
+   */
+  EXvTtxurWBUNNCtLojaN8ZBJFNJPZFSH3szoih9hh7YW: {
+    issuer: "tessera",
+    label: "Tessera (pre-IPO)",
+  },
 };
 
 /**
@@ -104,6 +124,33 @@ const CONTROL_AUTHORITIES: Record<string, {issuer: string; label: string}> = {
 };
 
 /**
+ * Issues the issuer has taken out of service, and test mints.
+ *
+ * Reading an issuer's own lifecycle marker on a mint whose *identity* is
+ * already proved by its authority. That is a different act from trusting a name
+ * to establish identity, which this file refuses to do — the authority has
+ * already answered "whose is this", and the label only answers "is it still
+ * live", which nobody but the issuer can answer.
+ *
+ * Enumerating a range by authority surfaces everything the key ever minted,
+ * including retired paper. PreStocks alone has 22 such mints — `[REFUNDED]
+ * Databricks`, `[OUTDATED] SpaceX`, `[OUTDATED] OpenAI` beside the live OPENAI
+ * — plus a mint literally called TEST carrying a 300bps fee. A coin paired to a
+ * refunded instrument is paired to nothing, and the app would have shown it as
+ * a verified stock pairing.
+ */
+function isRetired(symbol: string, name: string): boolean {
+  const text = `${symbol} ${name}`.toLowerCase(); // pubkey-lint-ok: label text, not an address
+
+  // Word-bounded. Without \b this also matched "Latest", "Protest", "Contest".
+  if (/\b(refunded|outdated|deprecated|retired|migrated)\b/.test(text)) return true;
+
+  // The symbol being exactly "TEST", not merely containing it — "ATEST" or a
+  // company whose ticker ends in those letters is a real listing.
+  return /^test$/i.test(symbol.trim());
+}
+
+/**
  * What kind of asset a verified mint represents.
  *
  * Derived from the issuer plus the resolved name, because the distinction is
@@ -111,7 +158,8 @@ const CONTROL_AUTHORITIES: Record<string, {issuer: string; label: string}> = {
  * differently, and a pre-IPO name has no public market at all.
  */
 function kindFor(issuer: string, symbol: string, name: string): StockKind {
-  if (issuer === "prestocks") return "pre-ipo";
+  // Both pre-IPO issuers: the underlying has no public listing at all.
+  if (issuer === "prestocks" || issuer === "tessera") return "pre-ipo";
   const text = `${symbol} ${name}`.toLowerCase(); // pubkey-lint-ok: label text, not an address
   if (/\b(gold|silver|platinum|oil|copper)\b/.test(text)) return "commodity";
   if (/\b(sp500|s&p|nasdaq|etf|index|russell|dow)\b/.test(text)) return "etf";
@@ -127,6 +175,8 @@ interface GeneratedStock {
   issuer: string;
   kind: StockKind;
   priceAuthority: "pyth" | "none";
+  /** On-chain transfer fee in bps, or null when the mint charges none. */
+  transferFeeBps: number | null;
   launchesQuotedAgainst: number;
   verified: {
     /** As read off the mint. Per-mint for some issuers, so not proof alone. */
@@ -196,8 +246,40 @@ async function main(): Promise<void> {
   const ranked = rankQuoteAssets(pools, 3).slice(0, 120);
   console.log(`\n  ${pools.length} pools → ${ranked.length} quote assets used by 3+ launches`);
 
-  const accounts = await mintAccounts(ranked.map((row) => row.mint));
-  const identities = await tokenIdentities(ranked.map((row) => row.mint));
+  /*
+   * Then the rest of each recognised issuer's range.
+   *
+   * The census only sees mints StonkFun already quotes, which makes the
+   * registry a function of that launchpad's popularity rather than of what an
+   * issuer offers. Tessera made the gap concrete: `tOpenAI` has 412 launches
+   * and sailed in, while `tSpaceX` and `tKalshi` — same authority, same range,
+   * same everything — were invisible, so a coin paired to either would have
+   * failed the universe test for no reason but obscurity.
+   *
+   * Only for authorities already in the tables above. This widens a family that
+   * has been verified; it never admits a new one.
+   */
+  const censused = new Set<string>(ranked.map((row) => row.mint));
+  const extra: Pubkey[] = [];
+
+  for (const [authority, issuer] of [
+    ...Object.entries(ISSUER_AUTHORITIES),
+    ...Object.entries(CONTROL_AUTHORITIES),
+  ]) {
+    const range = await assetsByAuthority(authority);
+    const missing = range.filter((mint) => !censused.has(mint));
+    if (missing.length > 0) {
+      console.log(`  ${issuer.label}: +${missing.length} mint(s) not quoted on StonkFun`);
+      for (const mint of missing) {
+        censused.add(mint);
+        extra.push(mint);
+      }
+    }
+  }
+
+  const candidates = [...ranked.map((row) => row.mint), ...extra];
+  const accounts = await mintAccounts(candidates);
+  const identities = await tokenIdentities(candidates);
 
   // ---------------------------------------------------------------------
   // Group by mint authority — the issuer families
@@ -208,7 +290,14 @@ async function main(): Promise<void> {
     {authority: string; members: {mint: Pubkey; symbol: string; name: string; decimals: number; launches: number}[]}
   >();
 
-  for (const row of ranked) {
+  const rows = [
+    ...ranked,
+    // Range members the census never saw. Zero launches is the truth: nothing
+    // on StonkFun quotes them yet, and inventing a count would rank them.
+    ...extra.map((mint) => ({mint, asQuote: 0})),
+  ];
+
+  for (const row of rows) {
     const account = accounts.get(row.mint);
     if (!account) continue;
     const key = account.mintAuthority ?? "(none)";
@@ -273,6 +362,7 @@ async function main(): Promise<void> {
 
   const stocks: GeneratedStock[] = [];
   const unresolved: Pubkey[] = [];
+  const retired: string[] = [];
   const now = new Date().toISOString();
 
   for (const family of sorted) {
@@ -307,6 +397,12 @@ async function main(): Promise<void> {
         continue;
       }
 
+      // Retired paper and test mints. See `isRetired`.
+      if (isRetired(member.symbol, member.name)) {
+        retired.push(`${member.symbol} — ${member.name}`);
+        continue;
+      }
+
       const issuer = (byAuthority ?? byControl)!.issuer;
       const kind = kindFor(issuer, member.symbol, member.name);
 
@@ -322,6 +418,7 @@ async function main(): Promise<void> {
         // authoritative about it. Saying so is the honest option; inventing a
         // price from a thin pool is not.
         priceAuthority: kind === "pre-ipo" ? "none" : "pyth",
+        transferFeeBps: account.transferFeeBps,
         launchesQuotedAgainst: member.launches,
         verified: {
           mintAuthority: account.mintAuthority,
@@ -359,6 +456,14 @@ async function main(): Promise<void> {
   } else {
     console.log(`  ${stocks.length} verified stock mint(s) across ` +
       `${new Set(stocks.map((s) => s.issuer)).size} issuer(s)`);
+
+    if (retired.length > 0) {
+      console.log(
+        `\n  ${retired.length} mint(s) the issuer retired or marked test, left out:` +
+          `\n    ${retired.slice(0, 6).join("\n    ")}` +
+          (retired.length > 6 ? `\n    … ${retired.length - 6} more` : ""),
+      );
+    }
 
     if (unresolved.length > 0) {
       console.log(

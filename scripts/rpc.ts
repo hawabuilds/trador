@@ -156,6 +156,32 @@ export interface MintAccount {
    */
   updateAuthority: Pubkey | null;
   permanentDelegate: Pubkey | null;
+  /**
+   * Token-2022 transfer fee, in basis points, or null when the mint has none.
+   *
+   * Read because it is a real cost the app would otherwise hide: it is taken
+   * on every transfer, including each leg of a swap. Measured rather than
+   * assumed, and the measurement was a surprise — all five PreStocks mints
+   * charge 50bps and Tessera charges 20, while Backed and Backpack charge
+   * nothing. The app had been quoting PreStocks as free for as long as they
+   * had been listed.
+   */
+  transferFeeBps: number | null;
+}
+
+/**
+ * The fee currently in force, preferring the newer schedule.
+ *
+ * Token-2022 keeps two: `older` applies up to an epoch and `newer` after it.
+ * Reading the older one reports a rate that may already have been replaced.
+ */
+function readTransferFeeBps(config: Record<string, unknown> | undefined): number | null {
+  if (!config) return null;
+  const schedule = (config.newerTransferFee ?? config.olderTransferFee) as
+    | {transferFeeBasisPoints?: number}
+    | undefined;
+  const bps = schedule?.transferFeeBasisPoints;
+  return typeof bps === "number" ? bps : null;
 }
 
 export async function mintAccounts(mints: Pubkey[]): Promise<Map<string, MintAccount>> {
@@ -188,6 +214,7 @@ export async function mintAccounts(mints: Pubkey[]): Promise<Map<string, MintAcc
           (extension("tokenMetadata")?.updateAuthority as Pubkey | undefined) ?? null,
         permanentDelegate:
           (extension("permanentDelegate")?.delegate as Pubkey | undefined) ?? null,
+        transferFeeBps: readTransferFeeBps(extension("transferFeeConfig")),
       });
     });
   }
@@ -273,4 +300,55 @@ export async function tokenIdentities(
   }
 
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// Issuer ranges
+// ---------------------------------------------------------------------------
+
+/**
+ * Every mint an authority controls, via Helius DAS.
+ *
+ * The pool census can only find stocks that StonkFun launches already quote
+ * against, which makes the registry a function of what the launchpad happens to
+ * be popular with rather than of what an issuer actually offers. Tessera showed
+ * the gap concretely: `tOpenAI` has 412 launches and sailed in, while `tSpaceX`
+ * and `tKalshi` — same authority, same range, same everything — were invisible,
+ * so a coin paired against either would have failed the universe test for no
+ * reason but obscurity.
+ *
+ * This closes it. Once an authority is recognised, its whole range is admitted
+ * rather than the subset one launchpad happens to trade. That also means a
+ * stock quoted only on pump.fun, or not yet quoted anywhere, is still listed
+ * and still searchable.
+ *
+ * Returns an empty list when the provider has no DAS endpoint, which degrades
+ * to exactly the old census-only behaviour rather than failing the sync.
+ */
+export async function assetsByAuthority(authority: string): Promise<Pubkey[]> {
+  const mints: Pubkey[] = [];
+
+  for (let page = 1; page <= 10; page += 1) {
+    let batch: {items?: {id?: string}[]; total?: number};
+
+    try {
+      batch = await rpc<{items?: {id?: string}[]; total?: number}>(
+        "getAssetsByAuthority",
+        {authorityAddress: authority, page, limit: 1000},
+      );
+    } catch (error) {
+      console.warn(`  issuer range ${authority.slice(0, 8)}… -> ${(error as Error).message}`);
+      return mints;
+    }
+
+    const items = batch.items ?? [];
+    for (const item of items) {
+      if (item.id) mints.push(item.id as Pubkey);
+    }
+
+    // A short page is the last page.
+    if (items.length < 1000) break;
+  }
+
+  return mints;
 }

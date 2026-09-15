@@ -86,7 +86,13 @@ function PrivyBridge({children}: {children: React.ReactNode}) {
               id: user.id,
               handle: twitter?.username ?? user.id.slice(-8),
               displayName: twitter?.name ?? twitter?.username ?? "Trader",
-              pfpUrl: twitter?.profilePictureUrl ?? null,
+              /*
+               * X serves a 48px "_normal" crop by default, which is visibly
+               * soft on a 42px retina avatar and worse on a profile header.
+               * The original is the same URL without that suffix — the same
+               * upgrade `live/x.ts` already does for news cards.
+               */
+              pfpUrl: twitter?.profilePictureUrl?.replace("_normal", "_400x400") ?? null,
               wallet: address,
             }
           : null,
