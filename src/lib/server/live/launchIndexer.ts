@@ -506,6 +506,17 @@ export async function indexPumpCustomPairs(): Promise<IndexPass> {
  */
 export async function decorateStonks(
   mints: Pubkey[],
+  /**
+   * Which of these are still on a bonding curve.
+   *
+   * Needed because the provider does not distinguish them and this app must.
+   * Jupiter prices a curve coin perfectly well — the curve is a formula, so the
+   * price is exact — but it also reports a `liquidity` figure for one, and that
+   * figure is the curve's seeded *virtual* reserves. It is not money anyone can
+   * trade against, and storing it is how a feed ends up showing fourteen coins
+   * with identical five-figure depth.
+   */
+  onCurve: ReadonlySet<string> = new Set(),
 ): Promise<{priced: number; named: number; error: string | null}> {
   if (mints.length === 0) return {priced: 0, named: 0, error: null};
 
@@ -548,6 +559,7 @@ export async function decorateStonks(
 
       const usd = token.usdPrice;
       const supply = token.circSupply;
+      const curve = onCurve.has(mint);
 
       statWrites.push({
         mint,
@@ -557,11 +569,18 @@ export async function decorateStonks(
         // one written on the row, so the two figures cannot diverge.
         last_mcap:
           usd !== null && supply !== null ? usd * supply : token.marketCapUsd,
-        liquidity_usd: token.liquidity,
+        // Null on a curve, always. See the note on `onCurve` above.
+        liquidity_usd: curve ? null : token.liquidity,
         vol_24h: token.volume24hUsd,
         price_change_24h: token.priceChange24h,
         price_status: usd !== null ? "priced" : "no_pool",
-        price_source: usd !== null ? "pool" : null,
+        /*
+         * `curve` is a real price with a different provenance, not a worse
+         * one: a bonding curve is a formula, so its price is exact, while a
+         * pool mark is whatever the last trade left behind. Labelling them
+         * apart is what lets the UI say which it is showing.
+         */
+        price_source: usd === null ? null : curve ? "curve" : "pool",
         priced_at: new Date().toISOString(),
       });
     }
@@ -632,9 +651,13 @@ export async function indexAll(): Promise<{
    * The first pass that stored them skipped decoration entirely and produced
    * fifty-six unnamed entries — a tab of blank rows with percentages.
    */
-  const rows = hasAdminPg
-    ? [...(await pgListStonks(DECORATE_CAP)), ...(await pgListGraduating(DECORATE_CAP))]
+  const listed = hasAdminPg
+    ? await pgListStonks(DECORATE_CAP)
     : (await listStonks({sort: "new", limit: 100})).rows;
+  const pending = hasAdminPg ? await pgListGraduating(DECORATE_CAP) : [];
+
+  const onCurve = new Set(pending.map((row) => row.mint));
+  const rows = [...listed, ...pending];
 
   let named = 0;
   let priced = 0;
@@ -642,7 +665,7 @@ export async function indexAll(): Promise<{
 
   for (let i = 0; i < rows.length; i += DECORATE_BATCH) {
     const batch = rows.slice(i, i + DECORATE_BATCH).map((row) => row.mint as Pubkey);
-    const result = await decorateStonks(batch);
+    const result = await decorateStonks(batch, onCurve);
     named += result.named;
     priced += result.priced;
     // Keep the first error but carry on: one bad batch should not stop the rest

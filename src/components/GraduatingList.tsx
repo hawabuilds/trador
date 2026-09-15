@@ -6,6 +6,7 @@ import {CurveProgress} from "@/components/CurveProgress";
 import {LaunchpadMark} from "@/components/LaunchpadMark";
 import {Avatar} from "@/components/ui/Avatar";
 import {PairTicker} from "@/components/ui/Badges";
+import {formatMarketCapUsd, isPriced} from "@/lib/priceFormat";
 import type {Stonk} from "@/lib/types";
 
 /**
@@ -18,8 +19,14 @@ import type {Stonk} from "@/lib/types";
  * "liquidity" are not liquidity. Reusing that row would mean four columns of
  * dashes and one number that looks like the others but is not.
  *
- * So the right column is the progress bar and nothing else — the one figure
- * here that is read straight off chain.
+ * The right column is the progress bar and the market cap, and nothing else.
+ *
+ * The market cap is real. A bonding curve is a formula, so a coin on one has an
+ * exact price — arguably a firmer number than a thin pool's last trade — and it
+ * is stored with `price_source: "curve"` to say which it is. What is *not* real
+ * is the liquidity a provider will happily report alongside it: that figure is
+ * the curve's seeded virtual reserves, money nobody can trade against, and it
+ * is discarded at the indexer rather than shown here.
  */
 export function GraduatingList({coins}: {coins: readonly Stonk[]}) {
   return (
@@ -51,10 +58,21 @@ export function GraduatingList({coins}: {coins: readonly Stonk[]}) {
               </div>
             </div>
 
-            <CurveProgress
-              progress={coin.curveProgress}
-              className="w-[108px] shrink-0"
-            />
+            <div className="flex w-[104px] shrink-0 flex-col items-end gap-[5px]">
+              <span className="tabular-nums text-[14px] font-extrabold tracking-[-0.02em]">
+                {isPriced(coin.marketCapUsd) ? (
+                  <>
+                    {formatMarketCapUsd(coin.marketCapUsd)}
+                    <span className="ml-1 text-[10.5px] font-bold text-faint">MC</span>
+                  </>
+                ) : (
+                  // A dash, never $0. An unpriced curve is one the decorate
+                  // pass has not reached, not one worth nothing.
+                  <span className="text-faint">—</span>
+                )}
+              </span>
+              <CurveProgress progress={coin.curveProgress} className="w-full" />
+            </div>
           </Link>
         </li>
       ))}

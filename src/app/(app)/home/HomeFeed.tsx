@@ -39,6 +39,11 @@ const STONK_SORTS: FilterOption<StonkSort>[] = [
     label: "New",
     title: "Newest graduations — coins that have bonded into a real pool",
   },
+  {
+    value: "graduating",
+    label: "Graduating",
+    title: "Still on the bonding curve — closest to graduating first",
+  },
   {value: "marketCap", label: "Market cap"},
   {
     value: "rewards",
@@ -212,15 +217,16 @@ export function HomeFeed({
    * about the tradeable universe.
    */
   const graduating = feed.graduating;
+  const showingGraduating = tab === "stonks" && stonkSort === "graduating";
 
   const showing: readonly Asset[] =
     tab === "stonks"
-      ? shownStonks
+      ? showingGraduating
+        ? []
+        : shownStonks
       : tab === "stocks"
         ? shownStocks
-        : tab === "graduating"
-          ? []
-          : watched;
+        : watched;
 
   /*
    * Which rows are new since the last poll, so those rows animate in.
@@ -264,12 +270,24 @@ export function HomeFeed({
                 value={stonkSort}
                 onChange={setStonkSort}
               />
-              <FilterRail
-                label="Filter by the stock a coin is priced in"
-                options={quoteOptions}
-                value={quote}
-                onChange={setQuote}
-              />
+              {/*
+                Hidden on Graduating. That sort swaps the set rather than
+                reordering it, and the counts on these chips are computed from
+                the graduated feed — so every one of them would be wrong.
+              */}
+              {stonkSort === "graduating" ? (
+                <p className="text-[12px] leading-[1.5] text-faint">
+                  Still on the bonding curve, closest first. Not tradeable here
+                  until they migrate into a pool.
+                </p>
+              ) : (
+                <FilterRail
+                  label="Filter by the stock a coin is priced in"
+                  options={quoteOptions}
+                  value={quote}
+                  onChange={setQuote}
+                />
+              )}
             </div>
           ) : tab === "stocks" ? (
             <div className="flex flex-col gap-2.5">
@@ -286,16 +304,6 @@ export function HomeFeed({
                 onChange={setStockSort}
               />
             </div>
-          ) : tab === "graduating" ? (
-            /*
-             * No rail. There is exactly one useful ordering here — closest
-             * first — and a sort control offering alternatives to the tab's
-             * own premise is a control nobody touches twice.
-             */
-            <p className="text-[12px] leading-[1.5] text-faint">
-              Still on the bonding curve, closest to graduating first. Not
-              tradeable here until they migrate to a pool.
-            </p>
           ) : (
             <FilterRail
               label="Filter watchlist"
@@ -307,7 +315,7 @@ export function HomeFeed({
         </div>
       </StickyPageHeader>
 
-      {tab === "graduating" ? (
+      {showingGraduating ? (
         graduating.length > 0 ? (
           <GraduatingList coins={graduating} />
         ) : (

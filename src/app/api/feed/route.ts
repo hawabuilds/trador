@@ -1,11 +1,19 @@
 import {publicJson} from "@/lib/server/http";
 import {fetchFeed, fetchGraduating} from "@/lib/server/sources";
 import {snapshotStocks} from "@/lib/server/snapshot";
-import type {StonkSort} from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-const SORTS: StonkSort[] = ["trending", "new", "marketCap", "rewards"];
+/*
+ * The sorts `fetchFeed` can order by.
+ *
+ * `graduating` is deliberately absent: it does not reorder the graduated feed,
+ * it swaps in a different set entirely, and that set ships on every response as
+ * `graduating`. Passing it through here would ask the store to sort listed
+ * coins by a column only pending ones have.
+ */
+const SORTS = ["trending", "new", "marketCap", "rewards"] as const;
+type FeedSort = (typeof SORTS)[number];
 
 /**
  * The feed, live.
@@ -28,8 +36,8 @@ export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
 
   const requested = params.get("sort");
-  const sort: StonkSort = SORTS.includes(requested as StonkSort)
-    ? (requested as StonkSort)
+  const sort: FeedSort = SORTS.includes(requested as FeedSort)
+    ? (requested as FeedSort)
     : "trending";
 
   const quoteTicker = params.get("quote");

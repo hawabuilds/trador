@@ -269,7 +269,15 @@ export interface FeedItem {
 // ---------------------------------------------------------------------------
 
 /** Sorts on the Stonks tab. */
-export type StonkSort = "trending" | "new" | "marketCap" | "rewards";
+/**
+ * Sorts on the Stonks tab.
+ *
+ * `graduating` is the odd one: it does not reorder the same coins, it swaps the
+ * set for launches still on their bonding curve. It sits here rather than as
+ * its own tab because it answers the same question as `new` — what is arriving
+ * — one step earlier in a coin's life, and the two are read together.
+ */
+export type StonkSort = "trending" | "new" | "graduating" | "marketCap" | "rewards";
 /** Sorts on the Stocks tab. */
 export type StockSort = "launches" | "marketCap" | "movers";
 /** The watchlist's own split. */
