@@ -248,6 +248,18 @@ export async function indexStonkfun(): Promise<IndexPass> {
  */
 const GRADUATING_FLOOR = 0.1;
 
+/**
+ * How often the graduating sweep runs, in passes of `indexAll`.
+ *
+ * At the worker's 90-second cadence this is about fifteen minutes — finer than
+ * the thing being measured, since a launch takes hours to move a percentage
+ * point. The first pass after a restart always runs, so a cold worker fills the
+ * tab immediately rather than leaving it empty for a quarter of an hour.
+ */
+const GRADUATING_EVERY = 10;
+
+let passCount = 0;
+
 /** Guards a single pass against an unexpectedly crowded quote asset. */
 const GRADUATING_CAP = 400;
 
@@ -583,7 +595,23 @@ export async function indexAll(): Promise<{
 }> {
   const stonkfun = await indexStonkfun();
   const pumpfun = await indexPumpCustomPairs();
-  const graduating = await indexGraduating();
+
+  /*
+   * The graduating sweep runs on its own, slower clock.
+   *
+   * It costs 82 RPC calls and ~7MB against the 3 calls the graduated sweep
+   * needs, because it reads twenty-four thousand curve pools rather than
+   * thirteen hundred. At the worker's 90-second cadence that would be ~79,000
+   * calls a day to answer a question whose answer barely moves: a launch takes
+   * hours to cross a percentage point, and the tab is a watchlist rather than a
+   * tape.
+   *
+   * Every tenth pass is roughly fifteen minutes, which is finer than the thing
+   * being measured. `null` on the passes in between, so the caller reports what
+   * actually ran instead of a zeroed pass that reads like a failure.
+   */
+  const graduating = passCount % GRADUATING_EVERY === 0 ? await indexGraduating() : null;
+  passCount += 1;
 
   /**
    * Decorate everything the reconciler found, not just the first page.
@@ -626,5 +654,8 @@ export async function indexAll(): Promise<{
 
   await writeIndexerState("live-tip", {heartbeat_at: new Date().toISOString()});
 
-  return {passes: [stonkfun, pumpfun, graduating], decorated};
+  return {
+    passes: graduating ? [stonkfun, pumpfun, graduating] : [stonkfun, pumpfun],
+    decorated,
+  };
 }
