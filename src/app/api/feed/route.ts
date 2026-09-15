@@ -1,5 +1,5 @@
 import {publicJson} from "@/lib/server/http";
-import {fetchFeed} from "@/lib/server/sources";
+import {fetchFeed, fetchGraduating} from "@/lib/server/sources";
 import {snapshotStocks} from "@/lib/server/snapshot";
 import type {StonkSort} from "@/lib/types";
 
@@ -52,5 +52,15 @@ export async function GET(request: Request) {
    */
   const stocks = snapshotStocks();
 
-  return publicJson({stonks, stocks}, 10);
+  /*
+   * Launches still on the curve, nearest to graduating first.
+   *
+   * Sent with every feed response rather than behind its own endpoint, because
+   * the tab strip switches between them instantly and a second round trip on
+   * tap would make Graduating feel slower than the tabs either side of it.
+   * It is 60 rows at most — the whole point of the 10% floor.
+   */
+  const graduating = await fetchGraduating();
+
+  return publicJson({stonks, stocks, graduating}, 10);
 }

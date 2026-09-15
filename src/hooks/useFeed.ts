@@ -7,6 +7,8 @@ import type {FeedPage, Stock, Stonk, StonkSort} from "@/lib/types";
 interface FeedResponse {
   stonks: FeedPage<Stonk>;
   stocks: FeedPage<Stock>;
+  /** Launches still on the curve, nearest to graduating first. */
+  graduating: Stonk[];
 }
 
 /**
@@ -36,7 +38,7 @@ export function useFeed({
 }: {
   sort: StonkSort;
   quoteTicker: string | null;
-  initial: FeedResponse;
+  initial: Omit<FeedResponse, "graduating"> & {graduating?: Stonk[]};
 }) {
   const query = useQuery({
     queryKey: ["feed", sort, quoteTicker ?? "all"],
@@ -68,6 +70,7 @@ export function useFeed({
      */
     stonks: query.data?.stonks ?? initial.stonks,
     stocks: query.data?.stocks ?? initial.stocks,
+    graduating: query.data?.graduating ?? initial.graduating ?? [],
     isFetching: query.isFetching,
     error: query.error ? (query.error as Error).message : null,
   };

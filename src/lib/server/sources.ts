@@ -253,6 +253,28 @@ export async function fetchFeed(
   };
 }
 
+/**
+ * Launches still on the curve, nearest to graduating first.
+ *
+ * Store only, with no snapshot fallback — and that is deliberate. The bundled
+ * snapshot holds graduated coins exclusively, so falling through to it would
+ * fill a "Graduating" tab with coins that already graduated. An empty list is
+ * the honest answer when the store cannot be reached.
+ */
+export async function fetchGraduating(limit = 60): Promise<readonly Stonk[]> {
+  const {hasAdminPg, pgListGraduating} = await import("./adminPg");
+  if (!hasAdminPg) return [];
+
+  try {
+    const rows = await pgListGraduating(limit);
+    const {statsFor} = await import("./live/universeStore");
+    const stats = await statsFor(rows.map((row) => row.mint));
+    return rows.map((row) => rowToStonk(row, stats.get(row.mint) ?? null));
+  } catch {
+    return [];
+  }
+}
+
 export async function searchUniverse(needle: string): Promise<readonly Stonk[]> {
   if (hasDatabase) {
     try {

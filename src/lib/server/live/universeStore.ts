@@ -41,6 +41,14 @@ export interface StonkRow {
   reward_stock: string | null;
   circulating_supply: number | null;
   status: "pending" | "listed";
+  /**
+   * How far along its bonding curve, as a fraction in [0, 1].
+   *
+   * Only meaningful while `status` is `pending`. Null on a graduated coin —
+   * it is done, so there is no progress left to report — and null on any coin
+   * the graduating sweep has not reached, which is not the same as 0%.
+   */
+  curve_progress: number | null;
   eligible: boolean | null;
   is_tradeable: boolean | null;
   is_custom_pair: boolean | null;
@@ -70,6 +78,40 @@ export interface StatRow {
 }
 
 export type StonkWrite = Partial<StonkRow> & {mint: string};
+
+/**
+ * A Postgres `numeric`, as a JavaScript number.
+ *
+ * The two drivers disagree about this and the disagreement is silent. PostgREST
+ * returns JSON numbers; node-postgres returns **strings**, because `numeric` is
+ * arbitrary precision and a float would not always round-trip. So the same
+ * column is `0.627881` on one path and `"0.627881"` on the other, and the
+ * string passes every truthiness check on the way to the screen before failing
+ * the one that matters.
+ *
+ * That is not hypothetical twice over. It made the Stonkfolio chart render
+ * flat, and then — after that was fixed and commented — it shipped the
+ * Graduating tab with every progress bar invisible, because
+ * `Number.isFinite("0.627881")` is false. Converting here, at the one boundary
+ * both drivers pass through, is the only version of this fix that stays fixed.
+ */
+function num(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+
+  if (typeof value === "string") {
+    /*
+     * An empty string is absence, not zero. `Number("")` is `0` and passes
+     * `isFinite`, so without this an unset column renders as a coin at 0% of
+     * its curve — a claim about the coin rather than about our data, and one
+     * a user has no way to check.
+     */
+    if (value.trim() === "") return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
 
 /** What a row becomes on screen. One conversion, so surfaces cannot disagree. */
 export function rowToStonk(row: StonkRow, stat?: StatRow | null): Stonk {
@@ -114,10 +156,11 @@ export function rowToStonk(row: StonkRow, stat?: StatRow | null): Stonk {
       isTradeableFromLiquidity(stat?.liquidity_usd ?? null, MIN_LIQUIDITY_USD),
     changePct: stat?.price_change_24h ?? null,
     series: [],
+    curveProgress: num(row.curve_progress),
     listedAt: row.listed_at,
     imageUrl: row.image_url,
     decimals: row.decimals,
-    circulatingSupply: row.circulating_supply,
+    circulatingSupply: num(row.circulating_supply),
     socials:
       row.twitter || row.telegram || row.website
         ? {

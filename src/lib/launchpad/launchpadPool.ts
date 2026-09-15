@@ -38,6 +38,10 @@ export interface LaunchpadPoolState {
   readonly graduated: boolean;
   /** The launched coin. */
   readonly baseMint: Pubkey;
+  /** Quote raised so far, in the quote asset's base units. */
+  readonly realQuote: bigint;
+  /** Raise that triggers migration, in the same units. */
+  readonly fundRaisingTarget: bigint;
   /** What the coin is priced in. */
   readonly quoteMint: Pubkey;
   readonly configId: Pubkey;
@@ -111,6 +115,8 @@ export function decodeLaunchpadPool(data: Uint8Array): LaunchpadPoolState | null
     creator,
     virtualBase: readU64LE(data, LAUNCHPAD_POOL.VIRTUAL_A),
     virtualQuote: readU64LE(data, LAUNCHPAD_POOL.VIRTUAL_B),
+    realQuote: readU64LE(data, LAUNCHPAD_POOL.REAL_QUOTE),
+    fundRaisingTarget: readU64LE(data, LAUNCHPAD_POOL.FUND_RAISING_TARGET),
   };
 }
 
@@ -170,4 +176,79 @@ export function isOnCurve(pool: LaunchpadPoolState): boolean {
  */
 export function liquidityUsdFromPool(_pool: LaunchpadPoolState): null {
   return null;
+}
+
+
+/**
+ * How far along its bonding curve a launch is, as a fraction in [0, 1].
+ *
+ * `null` rather than 0 when the target is missing or zero. A launch whose
+ * target cannot be read is unmeasured, and rendering that as an empty progress
+ * bar would say "nobody has bought this" — a claim about the coin rather than
+ * about our data, and the kind of thing a user has no way to check.
+ *
+ * The division goes through bigint before touching a float. These are u64s:
+ * a SOL-quoted target is 85_000_000_000 and some stock-quoted targets run past
+ * 5e13, which `Number()` still holds exactly, but the products formed while
+ * scaling do not. Multiplying first in bigint keeps the ratio exact and only
+ * the final, bounded result becomes a float.
+ *
+ * Clamped at 1. Graduated pools read a hair over their target — the raise
+ * overshoots by a few base units on the filling trade — and a progress bar that
+ * renders 100.0000018% is a bar that overflows its track.
+ */
+export function curveProgress(pool: {
+  realQuote: bigint;
+  fundRaisingTarget: bigint;
+}): number | null {
+  const {realQuote, fundRaisingTarget} = pool;
+  if (fundRaisingTarget <= 0n || realQuote < 0n) return null;
+
+  const SCALE = 1_000_000n;
+  const scaled = (realQuote * SCALE) / fundRaisingTarget;
+  return Math.min(1, Number(scaled) / Number(SCALE));
+}
+
+/**
+ * A curve pool decoded from a `dataSlice`, not a whole account.
+ *
+ * The graduating sweep asks the RPC for bytes 61..236 only — the raise, the
+ * target, the platform config and the base mint — because fetching whole
+ * accounts for fifty thousand curve pools is twenty-two megabytes a pass.
+ * Everything outside that window is absent, so `decodeLaunchpadPool` cannot be
+ * used: it reads the quote mint at 237 and the creator at 333, and would reject
+ * every one of these as an all-zero pubkey.
+ *
+ * Rather than relax that decoder's checks — which exist because an all-zero
+ * 429-byte buffer once decoded "successfully" — this reads only what the slice
+ * actually contains, and applies the same rejection to those fields.
+ */
+export interface GraduatingPool {
+  readonly baseMint: Pubkey;
+  readonly platformId: Pubkey;
+  readonly realQuote: bigint;
+  readonly fundRaisingTarget: bigint;
+}
+
+export function decodeGraduatingPool(data: Uint8Array): GraduatingPool | null {
+  if (data.length < LAUNCHPAD_POOL.SPAN) return null;
+
+  const baseMint = readPubkeyAt(data, LAUNCHPAD_POOL.MINT_A);
+  const platformId = readPubkeyAt(data, LAUNCHPAD_POOL.PLATFORM_ID);
+
+  // The zeroed remainder of the reassembled buffer decodes to the default
+  // pubkey; a real one never does.
+  if (!baseMint || !platformId) return null;
+  if (isDefaultPubkey(baseMint) || isDefaultPubkey(platformId)) return null;
+
+  const fundRaisingTarget = readU64LE(data, LAUNCHPAD_POOL.FUND_RAISING_TARGET);
+  // A target of zero is not a launch at 0% — it is a field we did not read.
+  if (fundRaisingTarget <= 0n) return null;
+
+  return {
+    baseMint,
+    platformId,
+    realQuote: readU64LE(data, LAUNCHPAD_POOL.REAL_QUOTE),
+    fundRaisingTarget,
+  };
 }

@@ -27,7 +27,12 @@ import {
   RAYDIUM_LAUNCHPAD,
   STONKFUN_PLATFORMS,
 } from "@/lib/programs";
-import {POOL_STATUS, decodeStonkfunLaunch} from "@/lib/launchpad/launchpadPool";
+import {
+  POOL_STATUS,
+  curveProgress,
+  decodeGraduatingPool,
+  decodeStonkfunLaunch,
+} from "@/lib/launchpad/launchpadPool";
 import {decodeCustomPair} from "@/lib/launchpad/pumpPool";
 import {encodeBase58, type Pubkey} from "@/lib/pubkey";
 import {STOCK_MINTS, stockForMint} from "@/lib/stocks/registry";
@@ -126,10 +131,15 @@ export interface IndexPass {
 /**
  * Every graduated StonkFun launch priced against a verified stock.
  *
- * Graduated only: a coin on a bonding curve has no pool, no real liquidity and
- * no honest price, so it is stored `pending` and hidden. Filtering `status` in
- * the RPC call rather than in code means the sweep transfers a few hundred
- * accounts instead of thirty-six thousand.
+ * Graduated only, and the `status` filter is in the RPC call rather than in
+ * code because the difference is a few hundred accounts against fifty
+ * thousand.
+ *
+ * This comment used to claim a curve coin "is stored `pending` and hidden".
+ * It was not — the filter removed those pools before any code could store
+ * anything, so `pending` was a status the database had never once held.
+ * `indexGraduating` below is what actually stores them, and it is deliberately
+ * narrow: the ones close enough to graduating to be worth watching.
  */
 export async function indexStonkfun(): Promise<IndexPass> {
   const before = rpcCalls;
@@ -196,6 +206,162 @@ export async function indexStonkfun(): Promise<IndexPass> {
     const written = await upsertStonks(writes);
     const slot = await rpc<number>("getSlot", [{commitment: "finalized"}]);
     await writeIndexerState("stonkfun:reconcile", {last_slot: slot, slots_behind: 0});
+
+    return {
+      launchpad: "stonkfun",
+      scanned,
+      stockPaired,
+      written,
+      rpcCalls: rpcCalls - before,
+      slot,
+      error: null,
+    };
+  } catch (error) {
+    return {
+      launchpad: "stonkfun",
+      scanned,
+      stockPaired,
+      written: 0,
+      rpcCalls: rpcCalls - before,
+      slot: 0,
+      error: (error as Error).message,
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// StonkFun, still on the curve
+// ---------------------------------------------------------------------------
+
+/**
+ * How far along a launch must be before it is worth storing.
+ *
+ * There are ~51,000 StonkFun pools on the curve against ~1,300 graduated, and
+ * the overwhelming majority are abandoned within hours of launch. Storing all
+ * of them would be a table of dead links; storing none of them was the state
+ * this app was in, and it hid every launch during the only window where buying
+ * one is interesting.
+ *
+ * 10% is where a launch has demonstrably found buyers — roughly $800 of the
+ * ~$8,200 raise — without being so late that the tab only ever shows coins
+ * about to leave it.
+ */
+const GRADUATING_FLOOR = 0.1;
+
+/** Guards a single pass against an unexpectedly crowded quote asset. */
+const GRADUATING_CAP = 400;
+
+/**
+ * Launches on the curve, close enough to graduating to be worth showing.
+ *
+ * Queried per stock rather than per platform, which is what makes this
+ * affordable. A sweep over both platform configs returns every curve pool on
+ * StonkFun — fifty thousand accounts, about 22MB — and then throws away the
+ * ~56% quoted in SOL, memecoins and wrapped BTC. Filtering on the quote mint
+ * instead asks a narrower question 82 times, and `dataSlice` trims each
+ * account to the 176 bytes that carry the progress figures, the platform
+ * config and the base mint.
+ *
+ * These rows are written `pending`, which the main feed excludes. They are not
+ * tradeable here and carry no price: a curve has no pool, and its seeded
+ * virtual reserves are not liquidity. Progress is the only number this surface
+ * claims, and it is read straight off the pool.
+ */
+export async function indexGraduating(): Promise<IndexPass> {
+  const before = rpcCalls;
+  let scanned = 0;
+  let stockPaired = 0;
+  const writes: StonkWrite[] = [];
+
+  /*
+   * `dataSlice` from the raise through the base mint: offsets 61..236 carry
+   * realQuote (61), the target (69), the platform config (173) and mintA
+   * (205). The decoder wants a full 429-byte account, so each slice is placed
+   * back into a zeroed buffer at its original offset — cheaper than
+   * re-implementing the decode against a second layout that could drift.
+   */
+  const SLICE_FROM = LAUNCHPAD_POOL.REAL_QUOTE;
+  const SLICE_TO = LAUNCHPAD_POOL.MINT_B;
+
+  try {
+    const platforms = new Set<string>(STONKFUN_PLATFORMS.map((p) => p.platformId));
+
+    for (const stock of STOCK_MINTS) {
+      const accounts = await rpcWithRetry<
+        {pubkey: string; account: {data: [string, string]}}[]
+      >("getProgramAccounts",
+        [
+          RAYDIUM_LAUNCHPAD,
+          {
+            encoding: "base64",
+            commitment: "finalized",
+            dataSlice: {offset: SLICE_FROM, length: SLICE_TO - SLICE_FROM},
+            filters: [
+              {dataSize: LAUNCHPAD_POOL.SPAN},
+              {memcmp: {offset: LAUNCHPAD_POOL.STATUS, bytes: byteFilter(POOL_STATUS.FUND)}},
+              {memcmp: {offset: LAUNCHPAD_POOL.MINT_B, bytes: stock.mint}},
+            ],
+          },
+        ],
+      );
+
+      scanned += accounts.length;
+
+      for (const entry of accounts) {
+        const slice = bytes(entry.account.data[0]);
+        const full = new Uint8Array(LAUNCHPAD_POOL.SPAN);
+        full.set(slice, SLICE_FROM);
+
+        const pool = decodeGraduatingPool(full);
+        if (!pool) continue;
+
+        // The quote came from the filter, but the platform did not — a pool on
+        // some other LaunchLab platform is not a StonkFun launch.
+        const platform = STONKFUN_PLATFORMS.find((p) => p.platformId === pool.platformId);
+        if (!platform || !platforms.has(pool.platformId)) continue;
+
+        const progress = curveProgress(pool);
+        if (progress === null || progress < GRADUATING_FLOOR) continue;
+
+        stockPaired += 1;
+
+        writes.push({
+          mint: pool.baseMint,
+          launchpad: "stonkfun",
+          pool: entry.pubkey,
+          platform_config: platform.platformId,
+          config_kind: platform.kind,
+          quote_mint: stock.mint,
+          quote_ticker: stock.ticker,
+          quote_kind: "stock",
+          curve_progress: progress,
+          /*
+           * Pending, so the main feed does not show it. A curve coin has no
+           * pool and therefore no price this app is willing to print beside a
+           * graduated one.
+           */
+          status: "pending",
+          eligible: true,
+        });
+      }
+
+      /*
+       * No early break on the cap.
+       *
+       * Stopping once enough rows are collected would bias the tab toward
+       * whichever stocks the registry happens to list first — the coins
+       * closest to graduating would be silently dropped because they are
+       * quoted in a stock further down the loop. Every stock is scanned and
+       * the top rows are taken after sorting, below.
+       */
+      if (PUMP_SWEEP_GAP_MS > 0) await sleep(PUMP_SWEEP_GAP_MS);
+    }
+
+    writes.sort((a, b) => (b.curve_progress ?? 0) - (a.curve_progress ?? 0));
+    const top = writes.slice(0, GRADUATING_CAP);
+
+    const written = await upsertStonks(top);
+    const slot = await rpc<number>("getSlot", [{commitment: "finalized"}]);
 
     return {
       launchpad: "stonkfun",
@@ -417,6 +583,7 @@ export async function indexAll(): Promise<{
 }> {
   const stonkfun = await indexStonkfun();
   const pumpfun = await indexPumpCustomPairs();
+  const graduating = await indexGraduating();
 
   /**
    * Decorate everything the reconciler found, not just the first page.
@@ -426,11 +593,19 @@ export async function indexAll(): Promise<{
    * thirds of the universe unnamed and unpriced — rows that exist, render, and
    * show a dash where a price should be.
    */
-  const {pgListStonks} = await import("../adminPg");
+  const {pgListGraduating, pgListStonks} = await import("../adminPg");
   const {listStonks} = await import("./universeStore");
 
+  /*
+   * Graduating rows are decorated alongside listed ones.
+   *
+   * They need it more, not less: a curve coin has no price to show, so its
+   * name and picture are the only things on the row besides a progress bar.
+   * The first pass that stored them skipped decoration entirely and produced
+   * fifty-six unnamed entries — a tab of blank rows with percentages.
+   */
   const rows = hasAdminPg
-    ? await pgListStonks(DECORATE_CAP)
+    ? [...(await pgListStonks(DECORATE_CAP)), ...(await pgListGraduating(DECORATE_CAP))]
     : (await listStonks({sort: "new", limit: 100})).rows;
 
   let named = 0;
@@ -451,5 +626,5 @@ export async function indexAll(): Promise<{
 
   await writeIndexerState("live-tip", {heartbeat_at: new Date().toISOString()});
 
-  return {passes: [stonkfun, pumpfun], decorated};
+  return {passes: [stonkfun, pumpfun, graduating], decorated};
 }

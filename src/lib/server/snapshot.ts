@@ -100,6 +100,8 @@ const STONKS: readonly Stonk[] = (SNAP.stonks ?? []).map((raw) => {
     isTradeable: raw.isTradeable,
     changePct: raw.changePct,
     series: [],
+    // The bundled snapshot holds graduated coins only, so never a curve.
+    curveProgress: null,
     listedAt: raw.listedAt,
     imageUrl: raw.icon ?? null,
     // Creator-supplied links are not indexed yet, and inventing them would be

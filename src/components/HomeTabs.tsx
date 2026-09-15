@@ -3,11 +3,18 @@
 import {cn} from "@/lib/cn";
 import {StarIcon} from "./ui/Icons";
 
-export type HomeTab = "watchlist" | "stonks" | "stocks";
+export type HomeTab = "watchlist" | "stonks" | "graduating" | "stocks";
 
 const TABS: {value: HomeTab; label: string}[] = [
   {value: "watchlist", label: "Watchlist"},
   {value: "stonks", label: "Stonks"},
+  /*
+   * Between the two market views on purpose. A graduating launch is a coin
+   * that is not tradeable here yet, so it belongs beside Stonks rather than
+   * before Watchlist — and putting it last would bury the one tab with a
+   * reason to be checked repeatedly.
+   */
+  {value: "graduating", label: "Graduating"},
   {value: "stocks", label: "Stocks"},
 ];
 
@@ -37,8 +44,8 @@ export function HomeTabs({
             aria-selected={active}
             onClick={() => onChange(tab.value)}
             className={cn(
-              "relative flex flex-1 items-center justify-center gap-1.5 pb-3 pt-1.5",
-              "text-[15px] transition-colors duration-150",
+              "relative flex flex-1 items-center justify-center gap-1 pb-3 pt-1.5",
+              "text-[14px] transition-colors duration-150",
               active ? "font-extrabold text-ink" : "font-bold text-faint hover:text-muted",
             )}
           >

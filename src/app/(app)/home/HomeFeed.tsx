@@ -8,6 +8,7 @@ import {AssetList} from "@/components/AssetRow";
 import {FilterRail, type FilterOption} from "@/components/FilterRail";
 import {HomeTabs, type HomeTab} from "@/components/HomeTabs";
 import {useArrivals} from "@/hooks/useArrivals";
+import {GraduatingList} from "@/components/GraduatingList";
 import {useFeed} from "@/hooks/useFeed";
 import {useWatchlistAssets} from "@/hooks/useWatchlist";
 import {RocketIcon, StarIcon} from "@/components/ui/Icons";
@@ -65,10 +66,13 @@ const WATCH_FILTERS: FilterOption<WatchFilter>[] = [
 export function HomeFeed({
   stonks: initialStonks,
   stocks: initialStocks,
+  graduating: initialGraduating,
   now,
 }: {
   stonks: FeedPage<Stonk>;
   stocks: FeedPage<Stock>;
+  /** Curve launches, server-rendered so the tab is populated on first tap. */
+  graduating: readonly Stonk[];
   /** Server render time, so age strings match after hydration. */
   now: number;
 }) {
@@ -91,7 +95,11 @@ export function HomeFeed({
   const feed = useFeed({
     sort: stonkSort,
     quoteTicker: quote === "all" ? null : quote,
-    initial: {stonks: initialStonks, stocks: initialStocks},
+    initial: {
+      stonks: initialStonks,
+      stocks: initialStocks,
+      graduating: [...initialGraduating],
+    },
   });
 
   const stonks = feed.stonks;
@@ -195,8 +203,24 @@ export function HomeFeed({
     [watchlist.assets, watchFilter],
   );
 
+  /*
+   * Graduating is not an `Asset[]` surface.
+   *
+   * These coins have no price and no market cap, so they render through their
+   * own list rather than being squeezed into a row built around those columns.
+   * Kept out of `showing` entirely so the empty states and counts below stay
+   * about the tradeable universe.
+   */
+  const graduating = feed.graduating;
+
   const showing: readonly Asset[] =
-    tab === "stonks" ? shownStonks : tab === "stocks" ? shownStocks : watched;
+    tab === "stonks"
+      ? shownStonks
+      : tab === "stocks"
+        ? shownStocks
+        : tab === "graduating"
+          ? []
+          : watched;
 
   /*
    * Which rows are new since the last poll, so those rows animate in.
@@ -262,6 +286,16 @@ export function HomeFeed({
                 onChange={setStockSort}
               />
             </div>
+          ) : tab === "graduating" ? (
+            /*
+             * No rail. There is exactly one useful ordering here — closest
+             * first — and a sort control offering alternatives to the tab's
+             * own premise is a control nobody touches twice.
+             */
+            <p className="text-[12px] leading-[1.5] text-faint">
+              Still on the bonding curve, closest to graduating first. Not
+              tradeable here until they migrate to a pool.
+            </p>
           ) : (
             <FilterRail
               label="Filter watchlist"
@@ -273,7 +307,19 @@ export function HomeFeed({
         </div>
       </StickyPageHeader>
 
-      {showing.length > 0 ? (
+      {tab === "graduating" ? (
+        graduating.length > 0 ? (
+          <GraduatingList coins={graduating} />
+        ) : (
+          <div className="px-6 py-12 text-center">
+            <p className="text-[14px] font-bold">Nothing close yet</p>
+            <p className="mx-auto mt-1.5 max-w-[34ch] text-[13px] leading-[1.55] text-muted">
+              This shows launches past 10% of their curve. Most never get
+              there — only about one in forty graduates.
+            </p>
+          </div>
+        )
+      ) : showing.length > 0 ? (
         <AssetList assets={showing} arrivals={arrivals} now={now} />
       ) : tab === "watchlist" && watchlist.isLoading ? (
         <p className="py-10 text-center text-[13.5px] text-muted">Loading your watchlist…</p>

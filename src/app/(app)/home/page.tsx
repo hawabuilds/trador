@@ -1,5 +1,5 @@
 import {snapshotStocks} from "@/lib/server/snapshot";
-import {fetchFeed} from "@/lib/server/sources";
+import {fetchFeed, fetchGraduating} from "@/lib/server/sources";
 
 import {HomeFeed} from "./HomeFeed";
 
@@ -28,7 +28,15 @@ export const metadata = {title: "Home"};
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const feed = await fetchFeed("trending");
+  /*
+   * Both in parallel. The graduating read is a separate query against a
+   * different index, and serialising them would add its latency to a first
+   * paint that already waits on the feed.
+   */
+  const [feed, graduating] = await Promise.all([
+    fetchFeed("trending"),
+    fetchGraduating(),
+  ]);
 
   return (
     <HomeFeed
@@ -39,6 +47,7 @@ export default async function HomePage() {
         capturedAt: feed.capturedAt,
       }}
       stocks={snapshotStocks()}
+      graduating={graduating}
       now={Date.now()}
     />
   );

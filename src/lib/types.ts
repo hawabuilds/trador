@@ -71,6 +71,14 @@ export interface Stonk extends AssetBase {
   /** Three-state. Null on a bonding curve, where there is no pool to measure. */
   readonly liquidityUsd: number | null;
   readonly isTradeable: boolean | null;
+  /**
+   * How far along its bonding curve, as a fraction in [0, 1].
+   *
+   * Only ever set while `status` is `pending`. Null on a graduated coin,
+   * because it is finished — and null is not 0%: one says "there is no
+   * progress left to report", the other says "nobody has bought this".
+   */
+  readonly curveProgress: number | null;
   readonly listedAt: string | null;
   /** Creator artwork, already resolved to a fetchable URL. */
   readonly imageUrl: string | null;

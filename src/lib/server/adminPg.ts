@@ -104,6 +104,7 @@ const STONK_COLUMNS = [
   "eligible",
   "is_tradeable",
   "is_custom_pair",
+  "curve_progress",
   "image_url",
   "image_source",
   "twitter",
@@ -184,6 +185,7 @@ const COLUMN_TYPES: Record<string, string> = {
   eligible: "boolean",
   is_tradeable: "boolean",
   is_custom_pair: "boolean",
+  curve_progress: "numeric",
   listed_at: "timestamptz",
 };
 
@@ -341,6 +343,27 @@ export async function pgListStonks(limit = 200): Promise<StonkRow[]> {
       `select * from public.stonks
        where status = 'listed' and eligible is distinct from false
        order by listed_at desc nulls last, mint desc
+       limit $1`,
+      [limit],
+    );
+    return rows as StonkRow[];
+  });
+}
+
+/**
+ * Launches still on the curve, nearest to graduating first.
+ *
+ * Separate from `pgListStonks` rather than a flag on it, because the two
+ * surfaces order by different things and mean different things. A graduated
+ * coin is ranked by what it is worth; a graduating one by how close it is, and
+ * it has no price to rank by at all.
+ */
+export async function pgListGraduating(limit = 200): Promise<StonkRow[]> {
+  return withClient(async (client) => {
+    const {rows} = await client.query(
+      `select * from public.stonks
+       where status = 'pending' and eligible is distinct from false
+       order by curve_progress desc nulls last, mint
        limit $1`,
       [limit],
     );

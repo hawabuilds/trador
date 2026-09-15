@@ -181,6 +181,21 @@ export const LAUNCHPAD_POOL = {
   STATUS: 17,
   VIRTUAL_A: 37,
   VIRTUAL_B: 45,
+  /**
+   * Quote raised so far, and the target that triggers migration.
+   *
+   * Found by diffing pools across states rather than from a published layout:
+   * on every graduated pool these two are equal to within a few base units,
+   * and on every curve pool the first is a small fraction of the second. A
+   * SOL-quoted pool's target reads exactly 85_000_000_000 — 85 SOL, the
+   * classic LaunchLab threshold — which is what confirmed the reading.
+   *
+   * Their ratio is the only progress number comparable across coins priced in
+   * different stocks, because the target is denominated in the quote asset and
+   * every stock has its own config.
+   */
+  REAL_QUOTE: 61,
+  FUND_RAISING_TARGET: 69,
   CONFIG_ID: 141,
   PLATFORM_ID: 173,
   MINT_A: 205,
