@@ -12,7 +12,23 @@
 -- than dropping it. Providers still cannot remove a row; they can only decide
 -- where it ranks.
 
-create or replace view public.stonk_feed as
+/*
+ * Dropped and recreated, not `create or replace`.
+ *
+ * The body is `select s.*`, so every column added to `stonks` widens this view
+ * and shifts the joined stat columns along by one. `create or replace view`
+ * refuses that — it can only append columns, never reposition them — and fails
+ * with "cannot change name of view column last_price to curve_progress". Since
+ * every migration in this directory is re-run on each deploy, that turned the
+ * next `alter table stonks add column` into a hard stop for the whole
+ * migration run, which is how adding `curve_progress` blocked notifications.
+ *
+ * Dropping first is safe precisely because this is a view: it holds no data,
+ * and nothing depends on it but queries that are recompiled anyway.
+ */
+drop view if exists public.stonk_feed;
+
+create view public.stonk_feed as
 select
   s.*,
   st.last_price,

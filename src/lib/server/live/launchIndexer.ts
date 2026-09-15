@@ -373,6 +373,32 @@ export async function indexGraduating(): Promise<IndexPass> {
     const top = writes.slice(0, GRADUATING_CAP);
 
     const written = await upsertStonks(top);
+
+    /*
+     * Notify off the back of the same sweep, because it is the only thing that
+     * sees both sides.
+     *
+     * Graduation has no log to subscribe to — the pool's status byte simply
+     * reads differently — so it is detected as a diff: a coin the store has as
+     * pending that this sweep no longer sees on the curve has finished. Both
+     * calls swallow their own failures; a notification must never cost the
+     * universe a pass.
+     */
+    try {
+      const {notifyGraduations, notifyNearGraduation} = await import(
+        "../notifications/graduationWatch"
+      );
+      await notifyNearGraduation(
+        top.map((row) => ({
+          mint: row.mint,
+          symbol: row.symbol ?? null,
+          progress: row.curve_progress ?? 0,
+        })),
+      );
+      await notifyGraduations(new Set(top.map((row) => row.mint)));
+    } catch (error) {
+      console.error("graduation notifications failed", error);
+    }
     const slot = await rpc<number>("getSlot", [{commitment: "finalized"}]);
 
     return {

@@ -123,6 +123,39 @@ export async function profileByHandle(
   return row ? toProfile(row, callerId) : null;
 }
 
+/**
+ * One profile by id.
+ *
+ * Separate from `profileByHandle` because the two keys are genuinely different
+ * and confusing them is silent: a Privy DID passed to the handle lookup simply
+ * matches nothing, so the caller gets `null` and carries on with a fallback
+ * name. That is how a follow notification ends up reading "Someone followed
+ * you" for every follower.
+ */
+export async function profileById(
+  userId: string,
+  callerId: string | null,
+): Promise<Profile | null> {
+  if (!socialReady || !userId) return null;
+
+  const rows = await query<RawProfile>(
+    `select u.id, u.handle, u.display_name, u.pfp_url, u.bio, u.wallet,
+            (select count(*) from public.follows f where f.followee_id = u.id) as followers,
+            (select count(*) from public.follows f where f.follower_id = u.id) as following,
+            exists (
+              select 1 from public.follows f
+               where f.followee_id = u.id and f.follower_id = $2
+            ) as is_following
+       from public.users u
+      where u.id = $1
+      limit 1`,
+    [userId, callerId ?? ""],
+  );
+
+  const row = rows[0];
+  return row ? toProfile(row, callerId) : null;
+}
+
 /** Everyone following this person. */
 export async function followersOf(
   userId: string,

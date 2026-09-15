@@ -9,6 +9,7 @@ import {FEE_BPS} from "@/config/fees";
 import {LESSON_COUNT} from "@/lib/learn";
 import {readLearnDone, writeLearnDone} from "@/lib/localStore";
 import {shortPubkey} from "@/lib/pubkey";
+import {NotificationSettings} from "./NotificationSettings";
 import {Sheet, SheetTitle} from "./ui/Sheet";
 import {
   ArrowUpRightIcon,
@@ -96,6 +97,10 @@ export function SettingsMenu({open, onClose}: {open: boolean; onClose: () => voi
                 : "No wallet yet. One is created when you sign in."}
             </Note>
           )}
+        </Group>
+
+        <Group label="Notifications">
+          <NotificationSettings />
         </Group>
 
         <Group label="Learn">
