@@ -343,13 +343,53 @@ function splitCursor(cursor: string): [string | null, string] {
   return [cursor.slice(0, separator) || null, cursor.slice(separator + 1)];
 }
 
+/**
+ * Mints per `.in()` filter.
+ *
+ * The filter travels in the URL, about 47 characters a mint. A wallet full of
+ * airdropped spam holds thousands of them: 500 already failed and 12,797 came
+ * back 414 Request-URI Too Large — and because the portfolio treats a failed
+ * lookup as "store unavailable", every coin in that wallet vanished with it.
+ * A hundred keeps each request near 5 KB.
+ */
+export const IN_FILTER_CHUNK = 100;
+/** How many of those chunked queries run at once. */
+const IN_FILTER_CONCURRENCY = 6;
+
+/** Split a list into consecutive slices of at most `size`. */
+export function chunk<T>(items: readonly T[], size: number): T[][] {
+  const slices: T[][] = [];
+  for (let start = 0; start < items.length; start += size) {
+    slices.push(items.slice(start, start + size));
+  }
+  return slices;
+}
+
+/** Run `select * where mint in (...)` over any number of mints. */
+async function selectByMints<T>(
+  table: string,
+  mints: readonly string[],
+  label: string,
+): Promise<T[]> {
+  const slices = chunk(mints, IN_FILTER_CHUNK);
+  const rows: T[] = [];
+  for (const batch of chunk(slices, IN_FILTER_CONCURRENCY)) {
+    const results = await Promise.all(
+      batch.map((slice) => db().from(table).select("*").in("mint", slice)),
+    );
+    for (const {data, error} of results) {
+      if (error) throw new Error(`${label} failed: ${error.message}`);
+      rows.push(...((data ?? []) as T[]));
+    }
+  }
+  return rows;
+}
+
 export async function statsFor(mints: string[]): Promise<Map<string, StatRow>> {
   if (mints.length === 0) return new Map();
 
-  const {data, error} = await db().from("stonk_stats").select("*").in("mint", mints);
-  if (error) throw new Error(`Stats query failed: ${error.message}`);
-
-  return new Map((data ?? []).map((row) => [(row as StatRow).mint, row as StatRow]));
+  const rows = await selectByMints<StatRow>("stonk_stats", mints, "Stats query");
+  return new Map(rows.map((row) => [row.mint, row]));
 }
 
 export async function findStonk(mint: Pubkey): Promise<{row: StonkRow; stat: StatRow | null} | null> {
@@ -365,8 +405,9 @@ export async function findStonk(mint: Pubkey): Promise<{row: StonkRow; stat: Sta
  * Several coins at once, by mint.
  *
  * For the portfolio, which starts from what a wallet holds rather than from a
- * page of the feed. Done as one query rather than a lookup per mint so a wallet
- * holding thirty coins costs one round trip.
+ * page of the feed. Batched rather than a lookup per mint, so a wallet holding
+ * thirty coins costs one round trip — and chunked, so one holding thousands of
+ * spam tokens still gets an answer instead of a 414.
  *
  * No `status` or `eligible` filter, deliberately. Someone who holds a coin
  * should see it whatever the feed has decided about it — hiding a position
@@ -379,10 +420,7 @@ export async function stonksByMints(
   const found = new Map<string, {row: StonkRow; stat: StatRow | null}>();
   if (mints.length === 0) return found;
 
-  const {data, error} = await db().from("stonks").select("*").in("mint", [...mints]);
-  if (error) throw new Error(`Holdings lookup failed: ${error.message}`);
-
-  const rows = (data ?? []) as StonkRow[];
+  const rows = await selectByMints<StonkRow>("stonks", mints, "Holdings lookup");
   const stats = await statsFor(rows.map((row) => row.mint));
 
   for (const row of rows) {
