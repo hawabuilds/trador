@@ -237,11 +237,39 @@ export async function fetchFeed(
           capturedAt: null,
         };
       }
-      // An empty store means the indexer has not run yet, not that the universe
-      // is empty. Fall through rather than showing a blank feed.
+      /*
+       * An empty *first* page means the indexer has not run yet, not that the
+       * universe is empty, so it falls through to the snapshot rather than
+       * showing a blank feed.
+       *
+       * An empty page *past a cursor* means something completely different: it
+       * is the end of the list, which is the normal way a keyset walk finishes.
+       * Falling through there would answer the last page of the feed with the
+       * entire bundled snapshot — every coin again, out of order, ignoring the
+       * cursor and the market-cap floor, and duplicating rows the caller is
+       * already showing.
+       *
+       * The bug was dormant for as long as nothing paged: page one is never
+       * empty while the store has rows, so the fallback only ever fired when
+       * the store really was unreachable.
+       */
+      if (options.cursor) {
+        return {items: [], cursor: null, source: "live", capturedAt: null};
+      }
     } catch {
-      // Same: a store error falls back rather than emptying the screen.
+      // A store *error* still falls back rather than emptying the screen —
+      // including mid-walk, where a short page is better than a broken one.
     }
+  }
+
+  /*
+   * The snapshot cannot answer a cursor: it is one bundled list with no
+   * ordering guarantee against the store's. Returning it here would restart the
+   * feed from the top midway through a scroll, so a paged request that gets
+   * this far ends the list instead.
+   */
+  if (options.cursor) {
+    return {items: [], cursor: null, source: "snapshot", capturedAt: null};
   }
 
   const snapshot = snapshotStonks();
