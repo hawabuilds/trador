@@ -389,3 +389,24 @@ export function writeActiveWallet(accountId: string, address: string): void {
   write("active-wallet", {...stored, [accountId]: address});
   announce();
 }
+
+// ---------------------------------------------------------------------------
+// What a sell pays out in
+// ---------------------------------------------------------------------------
+
+export type SellPayout = "SOL" | "USDC";
+
+/**
+ * SOL unless someone has chosen otherwise.
+ *
+ * Sells used to settle to USDC with no way to change it, and people selling a
+ * coin they bought with SOL expected SOL back. Remembered per browser, like
+ * slippage: it is a preference about how you trade, not about one ticket.
+ */
+export function readSellPayout(): SellPayout {
+  return read<string>("sell-payout", "SOL") === "USDC" ? "USDC" : "SOL";
+}
+
+export function writeSellPayout(payout: SellPayout): void {
+  write("sell-payout", payout);
+}

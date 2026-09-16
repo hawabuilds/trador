@@ -18,13 +18,24 @@ import {useSession} from "@/lib/session";
 import {cn} from "@/lib/cn";
 import {units} from "@/lib/format";
 import {formatPriceUsd} from "@/lib/priceState";
-import {readSlippageBps, writeSlippageBps} from "@/lib/localStore";
+import {
+  readSellPayout,
+  readSlippageBps,
+  writeSellPayout,
+  writeSlippageBps,
+} from "@/lib/localStore";
 import {USDC_MINT, WSOL_MINT} from "@/lib/programs";
 import type {Asset} from "@/lib/types";
 import {Modal} from "./ui/Modal";
 import {SettingsIcon} from "./ui/Icons";
 
-/** What a buy is funded with. Sells always go back to USDC. */
+/**
+ * What a buy is funded with, and what a sell pays out in.
+ *
+ * Sells used to settle to USDC unconditionally, which surprised anyone who had
+ * bought with SOL and expected SOL back. The same two choices now apply on both
+ * sides; a SOL payout arrives as native SOL (the build unwraps it).
+ */
 const PAY_WITH = [
   {mint: WSOL_MINT, symbol: "SOL", decimals: 9},
   {mint: USDC_MINT, symbol: "USDC", decimals: 6},
@@ -86,6 +97,7 @@ export function OrderSheet({
 
   const [activeSide, setActiveSide] = useState<"buy" | "sell">(side);
   const [payWith, setPayWith] = useState<(typeof PAY_WITH)[number]>(PAY_WITH[1]);
+  const [receiveIn, setReceiveIn] = useState<(typeof PAY_WITH)[number]>(PAY_WITH[0]);
   const [amount, setAmount] = useState("");
   const [slippageBps, setSlippageBps] = useState(100);
   const [configOpen, setConfigOpen] = useState(false);
@@ -101,7 +113,11 @@ export function OrderSheet({
 
   // Slippage is a browser preference, not an order field: someone who set 3%
   // once meant it for their trading, not for one ticket.
-  useEffect(() => setSlippageBps(readSlippageBps(100)), []);
+  useEffect(() => {
+    setSlippageBps(readSlippageBps(100));
+    const payout = readSellPayout();
+    setReceiveIn(PAY_WITH.find((option) => option.symbol === payout) ?? PAY_WITH[0]);
+  }, []);
 
   /*
    * Follow the button that opened the ticket, and reset everything with it.
@@ -206,7 +222,7 @@ export function OrderSheet({
     }
 
     const inputMint = buying ? payWith.mint : asset.mint;
-    const outputMint = buying ? asset.mint : USDC_MINT;
+    const outputMint = buying ? asset.mint : receiveIn.mint;
 
     let cancelled = false;
     setQuoting(true);
@@ -237,7 +253,7 @@ export function OrderSheet({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [canQuote, asset, buying, payWith, amountBaseUnits, slippageBps]);
+  }, [canQuote, asset, buying, payWith, receiveIn, amountBaseUnits, slippageBps]);
 
   const fee = feeFor(Number.isFinite(amountUsd) ? amountUsd : 0);
   const impactPct = quote ? Math.abs(quote.priceImpactPct * 100) : 0;
@@ -283,10 +299,10 @@ export function OrderSheet({
   /** What the confirm button receives, in the unit it will actually arrive in. */
   const estimatedOut = useMemo(() => {
     if (!quote || !asset) return null;
-    // Sells settle to USDC; buys arrive in the asset.
-    const decimals = buying ? assetDecimals : 6;
+    // Buys arrive in the asset; sells in whichever payout was chosen.
+    const decimals = buying ? assetDecimals : receiveIn.decimals;
     return Number(quote.outAmount) / 10 ** decimals;
-  }, [quote, asset, assetDecimals, buying]);
+  }, [quote, asset, assetDecimals, buying, receiveIn.decimals]);
 
   async function confirm() {
     if (!asset || !quote || !wallet || !session.signAndSend) return;
@@ -456,35 +472,27 @@ export function OrderSheet({
                 Amount
               </span>
               {buying ? (
-                <div className="flex gap-0.5 rounded-full bg-[var(--segment-track)] p-[2px]">
-                  {PAY_WITH.map((option) => {
-                    const active = option.mint === payWith.mint;
-                    return (
-                      <button
-                        key={option.mint}
-                        type="button"
-                        aria-pressed={active}
-                        onClick={() => {
-                          setPayWith(option);
-                          setAmount("");
-                          setQuote(null);
-                        }}
-                        className={cn(
-                          "tabular-nums rounded-full px-2 py-1 text-[10.5px] font-extrabold transition-colors",
-                          active
-                            ? "bg-[var(--bg-input)] text-ink shadow-tab-active"
-                            : "text-faint hover:text-muted",
-                        )}
-                      >
-                        {option.symbol}
-                      </button>
-                    );
-                  })}
-                </div>
+                <TokenToggle
+                  label="Pay with"
+                  value={payWith}
+                  onChange={(option) => {
+                    setPayWith(option);
+                    setAmount("");
+                    setQuote(null);
+                  }}
+                />
               ) : (
-                <span className="text-[10.5px] font-extrabold text-faint">
-                  {symbol}
-                </span>
+                // The amount stays in the coin; only the payout changes, so
+                // the typed number is kept.
+                <TokenToggle
+                  label="Receive"
+                  value={receiveIn}
+                  onChange={(option) => {
+                    setReceiveIn(option);
+                    writeSellPayout(option.symbol);
+                    setQuote(null);
+                  }}
+                />
               )}
             </div>
 
@@ -525,7 +533,7 @@ export function OrderSheet({
 
             <div className="tabular-nums mt-1 text-[12px] font-semibold text-faint">
               {quote && estimatedOut !== null
-                ? `≈ ${units(estimatedOut)} ${buying ? symbol : "USDC"}`
+                ? `≈ ${units(estimatedOut)} ${buying ? symbol : receiveIn.symbol}`
                 : quoting && entered > 0
                   ? "Finding route…"
                   : `${formatPriceUsd(priceUsd)} per ${symbol}`}
@@ -592,9 +600,8 @@ export function OrderSheet({
           {quote ? (
             <TicketBreakdown
               quote={quote}
-              buying={buying}
-              symbol={symbol}
-              outputDecimals={assetDecimals}
+              receivedSymbol={buying ? symbol : receiveIn.symbol}
+              receivedDecimals={buying ? assetDecimals : receiveIn.decimals}
               feeUsd={quote.platformFee ? fee.usd : 0}
               slippageBps={slippageBps}
               impactPct={impactPct}
@@ -698,36 +705,30 @@ function overBalanceMessage({
  */
 function TicketBreakdown({
   quote,
-  buying,
-  symbol,
-  outputDecimals,
+  receivedSymbol,
+  receivedDecimals,
   feeUsd,
   slippageBps,
   impactPct,
   impactLevel,
 }: {
   quote: QuoteState;
-  buying: boolean;
-  symbol: string;
-  /** Decimals of the asset, for sizing what a buy receives. */
-  outputDecimals: number;
+  /** What arrives: the asset on a buy, the chosen payout on a sell. */
+  receivedSymbol: string;
+  /**
+   * The decimals of what is being *received*, decided by the caller.
+   *
+   * This used to be worked out here and was wrong twice: a hardcoded 6 made a
+   * 9-decimal coin's minimum read a thousand times too large, and a SOL payout
+   * (9 decimals) would have done the same on a sell.
+   */
+  receivedDecimals: number;
   feeUsd: number;
   slippageBps: number;
   impactPct: number;
   impactLevel: "ok" | "warn" | "block";
 }) {
-  const receivedSymbol = buying ? symbol : "USDC";
-  /*
-   * The decimals of what is being *received*.
-   *
-   * This read `buying ? 6 : 6`, so it was 6 either way. A sell pays out USDC,
-   * which is 6, so that half was right by accident — but a buy receives the
-   * asset, and most launchpad coins are 6 while plenty are 9. On a 9-decimal
-   * coin the minimum received read a thousand times too large, directly under
-   * a button that places the trade.
-   */
-  const outDecimals = buying ? outputDecimals : 6;
-  const minOut = Number(quote.otherAmountThreshold) / 10 ** outDecimals;
+  const minOut = Number(quote.otherAmountThreshold) / 10 ** receivedDecimals;
 
   return (
     <div className="mt-2.5 space-y-1 px-1 text-[12px] font-semibold">
@@ -768,6 +769,50 @@ function Line({
       >
         {children}
       </span>
+    </div>
+  );
+}
+
+/** SOL or USDC: what a buy spends, or what a sell pays out. */
+function TokenToggle({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: (typeof PAY_WITH)[number];
+  onChange: (option: (typeof PAY_WITH)[number]) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-[10px] font-bold uppercase tracking-[0.09em] text-faint">
+        {label}
+      </span>
+      <div
+        role="group"
+        aria-label={label}
+        className="flex gap-0.5 rounded-full bg-[var(--segment-track)] p-[2px]"
+      >
+        {PAY_WITH.map((option) => {
+          const active = option.mint === value.mint;
+          return (
+            <button
+              key={option.mint}
+              type="button"
+              aria-pressed={active}
+              onClick={() => onChange(option)}
+              className={cn(
+                "tabular-nums rounded-full px-2 py-1 text-[10.5px] font-extrabold transition-colors",
+                active
+                  ? "bg-[var(--bg-input)] text-ink shadow-tab-active"
+                  : "text-faint hover:text-muted",
+              )}
+            >
+              {option.symbol}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
