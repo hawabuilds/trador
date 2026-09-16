@@ -750,7 +750,12 @@ export async function indexAll(): Promise<{
    */
   const listed = hasAdminPg
     ? await pgListStonks(DECORATE_CAP)
-    : (await listStonks({sort: "new", limit: 100})).rows;
+    : (
+        // No floor: this picks what to *refresh*, and a coin under the feed's
+        // market-cap floor still needs its price kept current. Filtering here
+        // would freeze it at whatever it was worth when it fell through.
+        await listStonks({sort: "new", limit: 100, applyNewFloor: false})
+      ).rows;
   const pending = hasAdminPg ? await pgListGraduating(DECORATE_CAP) : [];
 
   const onCurve = new Set(pending.map((row) => row.mint));

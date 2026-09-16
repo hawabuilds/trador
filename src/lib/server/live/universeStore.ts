@@ -188,8 +188,18 @@ export type FeedSort = "trending" | "new" | "marketCap" | "rewards";
 export interface FeedQuery {
   sort: FeedSort;
   limit?: number;
-  /** Keyset cursor, `listed_at|mint`. Never an offset. */
+  /** Keyset cursor, `graduated_at|mint` for New. Never an offset. */
   cursor?: string | null;
+  /**
+   * Whether the New sort's market-cap floor applies.
+   *
+   * On by default, because every *feed* read wants it. The decorate pass does
+   * not: it reads this same sort to pick which coins to refresh, and a floor
+   * there would mean a coin that fell under $10K could never be re-priced —
+   * so it would sit at its last known number forever, which is the one state
+   * worse than being hidden.
+   */
+  applyNewFloor?: boolean;
   quoteTicker?: string | null;
 }
 
@@ -247,7 +257,7 @@ export async function listStonks(query: FeedQuery): Promise<FeedPageRows> {
    * that graduated ninety seconds ago. Hiding it would filter out the newest
    * thing on the launchpad for being new.
    */
-  if (query.sort === "new") {
+  if (query.sort === "new" && query.applyNewFloor !== false) {
     request = request.or(
       `last_mcap.gte.${NEW_FEED_MIN_MCAP_USD},last_mcap.is.null`,
     );
