@@ -227,7 +227,14 @@ export function StonkfolioScreen() {
 
         <div className="mt-4">
           <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-faint">
-            {scrubbed ? "Value at" : "Trador value"}
+            {/*
+              "Portfolio value", not "Trador value". The app's name on the
+              number read as though it were some Trador-specific figure rather
+              than what the wallet is worth — and now that holdings are read
+              from the live store rather than a frozen snapshot, it is simply
+              the portfolio.
+            */}
+            {scrubbed ? "Value at" : "Portfolio value"}
           </div>
           <div className="tabular-nums mt-0.5 text-[30px] font-extrabold leading-none tracking-[-0.035em]">
             {query.isLoading
@@ -253,11 +260,11 @@ export function StonkfolioScreen() {
                 <span>{sol.toFixed(3)} SOL</span>
                 {/*
                   Counted and named rather than folded into the total. The
-                  number above is what Trador can price, not everything in the
-                  wallet.
+                  number above is what this app can price, not everything in
+                  the wallet.
                 */}
                 {query.data && query.data.otherCount > 0 ? (
-                  <span>· {query.data.otherCount} other tokens not in Trador</span>
+                  <span>· {query.data.otherCount} not priced here</span>
                 ) : null}
               </>
             )}

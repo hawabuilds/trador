@@ -361,6 +361,37 @@ export async function findStonk(mint: Pubkey): Promise<{row: StonkRow; stat: Sta
   return {row: data as StonkRow, stat: stats.get(mint) ?? null};
 }
 
+/**
+ * Several coins at once, by mint.
+ *
+ * For the portfolio, which starts from what a wallet holds rather than from a
+ * page of the feed. Done as one query rather than a lookup per mint so a wallet
+ * holding thirty coins costs one round trip.
+ *
+ * No `status` or `eligible` filter, deliberately. Someone who holds a coin
+ * should see it whatever the feed has decided about it — hiding a position
+ * because the coin fell out of the universe would be telling them their tokens
+ * are gone.
+ */
+export async function stonksByMints(
+  mints: readonly Pubkey[],
+): Promise<Map<string, {row: StonkRow; stat: StatRow | null}>> {
+  const found = new Map<string, {row: StonkRow; stat: StatRow | null}>();
+  if (mints.length === 0) return found;
+
+  const {data, error} = await db().from("stonks").select("*").in("mint", [...mints]);
+  if (error) throw new Error(`Holdings lookup failed: ${error.message}`);
+
+  const rows = (data ?? []) as StonkRow[];
+  const stats = await statsFor(rows.map((row) => row.mint));
+
+  for (const row of rows) {
+    found.set(row.mint, {row, stat: stats.get(row.mint) ?? null});
+  }
+
+  return found;
+}
+
 export async function searchStonks(needle: string, limit = 25): Promise<FeedPageRows> {
   let request = db()
     .from("stonks")

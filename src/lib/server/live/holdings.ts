@@ -15,6 +15,7 @@
 import {TOKEN_2022_PROGRAM, TOKEN_PROGRAM} from "@/lib/programs";
 import {type Pubkey} from "@/lib/pubkey";
 import {snapshotStocks, snapshotStonks} from "@/lib/server/snapshot";
+import {hasDatabase} from "@/lib/server/db";
 import type {Asset, Holding} from "@/lib/types";
 import {cached} from "./cache";
 
@@ -85,9 +86,7 @@ export async function stonkfolioFor(wallet: Pubkey): Promise<Stonkfolio> {
       byMint.set(mint, (byMint.get(mint) ?? 0) + amount);
     }
 
-    const universe = new Map<string, Asset>();
-    for (const stonk of snapshotStonks().items) universe.set(stonk.mint, stonk);
-    for (const stock of snapshotStocks().items) universe.set(stock.mint, stock);
+    const universe = await universeFor([...byMint.keys()]);
 
     const holdings: Holding[] = [];
     let otherCount = 0;
@@ -113,4 +112,54 @@ export async function stonkfolioFor(wallet: Pubkey): Promise<Stonkfolio> {
   });
 
   return {...value, stale};
+}
+
+/**
+ * The assets behind a set of held mints.
+ *
+ * **The store first, and the snapshot only as a floor.** This used to build the
+ * universe from the bundled snapshot alone — 140 coins frozen at generation
+ * time, against the 694 the indexer now knows. A coin bought today was not in
+ * that file, so it was counted as "other" and vanished from the portfolio while
+ * sitting plainly in the wallet. Someone who had just spent real money was told
+ * they owned nothing.
+ *
+ * Looked up by the mints actually held, so the cost is one query for a wallet
+ * rather than a scan of the universe. Prices come from the store too, which is
+ * what makes a position worth what the coin is worth now rather than what it
+ * was worth when the snapshot was cut.
+ *
+ * The snapshot still fills any mint the store does not answer for, so a
+ * deployment with no database shows a portfolio instead of an empty one.
+ */
+async function universeFor(mints: readonly string[]): Promise<Map<string, Asset>> {
+  const universe = new Map<string, Asset>();
+
+  // Stocks come from the registry and are priced live; there are 82 of them and
+  // the call is cached, so this is not worth narrowing to the ones held.
+  try {
+    const {fetchStocks} = await import("@/lib/server/sources");
+    for (const stock of (await fetchStocks()).items) universe.set(stock.mint, stock);
+  } catch {
+    for (const stock of snapshotStocks().items) universe.set(stock.mint, stock);
+  }
+
+  if (hasDatabase) {
+    try {
+      const {rowToStonk, stonksByMints} = await import("./universeStore");
+      const rows = await stonksByMints(mints as Pubkey[]);
+      for (const [mint, {row, stat}] of rows) {
+        universe.set(mint, rowToStonk(row, stat));
+      }
+    } catch {
+      // Falls through to the snapshot below rather than emptying the portfolio.
+    }
+  }
+
+  // Anything the store did not answer for, from the bundled floor.
+  for (const stonk of snapshotStonks().items) {
+    if (!universe.has(stonk.mint)) universe.set(stonk.mint, stonk);
+  }
+
+  return universe;
 }

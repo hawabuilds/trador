@@ -40,7 +40,16 @@ const CHAIN = "solana:mainnet" as const;
 function solanaRpcs() {
   const http =
     process.env.NEXT_PUBLIC_SOLANA_RPC_URL ??
-    (typeof window === "undefined" ? "https://api.mainnet-beta.solana.com" : `${window.location.origin}/api/rpc`);
+    (typeof window === "undefined"
+      ? "https://api.mainnet-beta.solana.com"
+      : `${window.location.origin}/api/rpc`);
+
+  /*
+   * Subscriptions are configured because the SDK's type requires them, not
+   * because this app depends on them: sends use `optimisticBroadcast` and the
+   * ticket confirms over HTTP through the proxy. The public endpoint refuses
+   * browser origins, which is exactly why nothing is allowed to need it.
+   */
   const ws =
     process.env.NEXT_PUBLIC_SOLANA_WS_URL ?? "wss://api.mainnet-beta.solana.com";
 
@@ -118,10 +127,26 @@ function PrivyBridge({children}: {children: React.ReactNode}) {
       // The chain is named explicitly. It is optional in the SDK, which means
       // an unset one is resolved by Privy rather than by us — and "whichever
       // cluster the SDK defaulted to" is not something a trade should rest on.
+      /*
+       * Broadcast, and confirm ourselves.
+       *
+       * Privy's own confirmation watches the signature over `rpcSubscriptions`,
+       * which is a websocket — and a route handler cannot proxy one, so that
+       * had to point at the public endpoint, which refuses browser origins. The
+       * transaction landed and the wallet then reported "Something went wrong",
+       * which is the worst possible pairing: the money moved and the UI said it
+       * had not.
+       *
+       * `optimisticBroadcast` keeps the send awaited — a failed broadcast still
+       * throws here — and skips only the confirmation watch. The ticket then
+       * polls for the status through our own RPC proxy, so confirmation runs
+       * over the same working path as everything else.
+       */
       const {signature} = await signAndSendTransaction({
         transaction,
         wallet,
         chain: CHAIN,
+        options: {optimisticBroadcast: true},
       });
       // Solana signatures are base58, everywhere — explorers, RPC, logs.
       return encodeBase58(signature);

@@ -3,6 +3,7 @@
 import {useEffect, useMemo, useState} from "react";
 
 import {FEE_BPS, feeFor, tooSmall} from "@/config/fees";
+import {confirmSignature} from "@/lib/confirmSignature";
 import {txUrl} from "@/config/explorer";
 import {useSession} from "@/lib/session";
 import {cn} from "@/lib/cn";
@@ -240,8 +241,29 @@ export function OrderSheet({
       );
       const sig = await session.signAndSend(bytes);
 
+      /*
+       * The signature exists from here on, so it is shown from here on.
+       *
+       * Set before confirmation rather than after, because once the network has
+       * the transaction the outcome is no longer ours to decide — and a ticket
+       * that shows nothing while it waits is one somebody closes and retries,
+       * paying twice for the same trade.
+       */
       setSignature(sig);
+      setStatus("Confirming on-chain…");
+
+      const outcome = await confirmSignature(sig);
       setStatus(null);
+
+      if (outcome === "failed") {
+        setError("The transaction was rejected on-chain. Open it to see why.");
+      } else if (outcome === "unknown") {
+        // Deliberately not an error. It is almost certainly landing, and
+        // calling it a failure is how a trade gets sent twice.
+        setError(
+          "Still confirming. Your transaction was sent — open it to follow along.",
+        );
+      }
     } catch (caught) {
       // Say what happened. A ticket that silently returns to its resting state
       // is indistinguishable from one that succeeded.
