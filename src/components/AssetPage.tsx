@@ -120,8 +120,10 @@ export function AssetPage({
         chart.points,
         trades.trades,
         TIMEFRAME_MS[chart.resolvedTimeframe],
+        // Every fill from chain: let it redraw the candles it spans.
+        {complete: trades.complete},
       ),
-    [chart.points, chart.resolvedTimeframe, trades.trades],
+    [chart.points, chart.resolvedTimeframe, trades.trades, trades.complete],
   );
 
   /**

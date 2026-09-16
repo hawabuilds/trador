@@ -22,6 +22,7 @@ import type {
 } from "@/lib/types";
 import {hasDatabase} from "./db";
 import {snapshotStock, snapshotStocks, snapshotStonk, snapshotStonks} from "./snapshot";
+import {chainTradesFor} from "./live/chainTape";
 import {candlesFor, deepestPoolFor, tradesFor} from "./live/gecko";
 import {findStonk, listStonks, rowToStonk, searchStonks} from "./live/universeStore";
 
@@ -135,40 +136,62 @@ export async function fetchChart(
   }
 }
 
+/**
+ * Where a tape came from.
+ *
+ * `chain` is every fill the pool made, so the chart may rebuild recent candles
+ * from it. `provider` is GeckoTerminal's partial view, which is only safe to
+ * append after the last indexed candle.
+ */
+export type TapeSource = "chain" | "provider";
+
 export async function fetchTrades(
   kind: string,
   id: string,
-): Promise<SourceResult<{trades: Trade[]; pollMs: number}>> {
+): Promise<SourceResult<{trades: Trade[]; pollMs: number; source: TapeSource}>> {
+  const empty = {trades: [] as Trade[], pollMs: 12_000, source: "provider" as TapeSource};
   const {data: asset} = await fetchAsset(kind, id);
   if (!asset) {
-    return {data: {trades: [], pollMs: 12_000}, stale: false, error: "Not listed here."};
+    return {data: empty, stale: false, error: "Not listed here."};
   }
 
   try {
-    const pool = await poolForAsset(asset);
+    const pool = await deepestPoolFor(asset.mint);
     if (!pool) {
-      return {
-        data: {trades: [], pollMs: 12_000},
-        stale: false,
-        error: "No pool is trading this yet.",
-      };
+      return {data: empty, stale: false, error: "No pool is trading this yet."};
     }
 
-    const {trades, stale} = await tradesFor(pool, asset.mint);
+    // The chain first; the provider only when the chain cannot answer.
+    if (pool.otherMint) {
+      try {
+        const chain = await chainTradesFor(pool.address, asset.mint, pool.otherMint);
+        if (chain) {
+          return {
+            data: {trades: chain.trades, pollMs: 6_000, source: "chain"},
+            stale: chain.stale,
+            error: null,
+          };
+        }
+      } catch {
+        // Fall through to the provider rather than empty the tape.
+      }
+    }
+
+    const {trades, stale} = await tradesFor(pool.address, asset.mint);
     // Without a provider key the free tier allows roughly 30 calls a minute, so
     // the tape refreshes every 12s rather than every 4s. Told to the client
     // rather than guessed there.
     return {
-      data: {trades, pollMs: process.env.COINGECKO_API_KEY ? 4_000 : 12_000},
+      data: {
+        trades,
+        pollMs: process.env.COINGECKO_API_KEY ? 4_000 : 12_000,
+        source: "provider",
+      },
       stale,
       error: null,
     };
   } catch (error) {
-    return {
-      data: {trades: [], pollMs: 12_000},
-      stale: true,
-      error: (error as Error).message,
-    };
+    return {data: empty, stale: true, error: (error as Error).message};
   }
 }
 

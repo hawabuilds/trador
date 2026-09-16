@@ -38,6 +38,8 @@ export function alignPointsToBucket(
 function bucketFills(
   fills: Array<{t: number; price: number}>,
   bucketMs: number,
+  /** Close of the candle before these, so the first one opens where it left off. */
+  priorClose?: number,
 ): ChartPoint[] {
   const out: ChartPoint[] = [];
   for (const fill of fills) {
@@ -47,12 +49,13 @@ function bucketFills(
       out[out.length - 1] = applyFill(last, fill.price);
       continue;
     }
+    const open = last?.price ?? priorClose ?? fill.price;
     out.push({
       t,
       price: fill.price,
-      open: last?.price ?? fill.price,
-      high: last != null ? Math.max(last.price, fill.price) : fill.price,
-      low: last != null ? Math.min(last.price, fill.price) : fill.price,
+      open,
+      high: Math.max(open, fill.price),
+      low: Math.min(open, fill.price),
     });
   }
   return out;
@@ -64,11 +67,20 @@ function bucketFills(
  * Candles refresh on a slower cadence; trades poll every couple of seconds.
  * Folds fills into the requested bucket so a 5m tab stays 5-minute candles
  * instead of growing a tick ladder after the last indexed bar.
+ *
+ * **A complete tape rebuilds what it covers.** When the trades are every fill
+ * the pool made (read from chain), any bucket they span from end to end is
+ * redrawn from them, replacing whatever the provider indexed. The provider's
+ * candles were built from a partial feed on busy pools — SHOEDOG's 1m series
+ * had 110 candles across six hours of continuous trading — and appending only
+ * after its last candle left those holes in place. A partial tape still only
+ * appends, because its absence of a fill proves nothing.
  */
 export function mergeTradesIntoChart(
   points: ChartPoint[],
   trades: Trade[],
   bucketMs?: number,
+  options: {complete?: boolean} = {},
 ): ChartPoint[] {
   if (trades.length === 0) return points;
 
@@ -102,6 +114,21 @@ export function mergeTradesIntoChart(
     bucketMs != null && bucketMs > 0
       ? alignPointsToBucket(points, bucketMs)
       : points;
+
+  if (options.complete && bucketMs != null && bucketMs > 0) {
+    // The oldest fill's bucket is only partly covered — the tape starts
+    // somewhere inside it — so it stays as indexed. Every later bucket is
+    // wholly known.
+    const coveredFrom = bucketStart(fills[0].t, bucketMs) + bucketMs;
+    const kept = aligned.filter((point) => point.t < coveredFrom);
+    const rebuilt = bucketFills(
+      fills.filter((fill) => fill.t >= coveredFrom),
+      bucketMs,
+      kept[kept.length - 1]?.price,
+    );
+    if (rebuilt.length > 0) return [...kept, ...rebuilt];
+  }
+
   const out = [...aligned];
   const useBuckets = bucketMs != null && bucketMs > 0;
   const anchor = useBuckets

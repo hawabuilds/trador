@@ -55,7 +55,14 @@ export function useTrades(kind: string, id: string, enabled = true) {
   const query = useQuery({
     queryKey: ["trades", kind, id],
     queryFn: () =>
-      get<{trades: Trade[]; pollMs: number; stale: boolean; error: string | null}>(
+      get<{
+        trades: Trade[];
+        pollMs: number;
+        /** `chain` is every fill; `provider` may be partial. */
+        source?: "chain" | "provider";
+        stale: boolean;
+        error: string | null;
+      }>(
         `/api/asset/${kind}/${id}/trades`,
       ),
     enabled,
@@ -66,6 +73,7 @@ export function useTrades(kind: string, id: string, enabled = true) {
 
   return {
     trades: query.data?.trades ?? [],
+    complete: query.data?.source === "chain",
     isLoading: query.isLoading,
     error: query.data?.error ?? (query.error as Error | null)?.message ?? null,
     retry: () => void query.refetch(),

@@ -14,6 +14,7 @@ export async function GET(
   return json({
     trades: result.data.trades,
     pollMs: result.data.pollMs,
+    source: result.data.source,
     stale: result.stale,
     error: result.error,
   });

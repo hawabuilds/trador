@@ -56,6 +56,14 @@ export interface PoolInfo {
   sells24h: number | null;
   /** Our coin's USD price as the provider reports it for its side. */
   priceUsd: number | null;
+  /**
+   * The mint on the other side of the pool.
+   *
+   * Taken from the pool itself rather than the coin's `quote_mint`: a coin
+   * launched against one asset often trades deepest against another once it
+   * graduates, and the tape has to know which vault to read.
+   */
+  otherMint: Pubkey | null;
 }
 
 const num = (value: unknown): number | null => {
@@ -89,6 +97,11 @@ export async function deepestPoolFor(mint: Pubkey): Promise<PoolInfo | null> {
         // Provider ids are `solana_<mint>`, and the mint is base58 — so this
         // comparison must stay case-sensitive.
         const isBase = baseId === `${NETWORK}_${mint}`;
+        const quoteId = String(
+          ((relationships.quote_token as {data?: {id?: string}})?.data?.id) ?? "",
+        );
+        const otherId = isBase ? quoteId : baseId;
+        const otherMint = asPubkey(otherId.startsWith(`${NETWORK}_`) ? otherId.slice(NETWORK.length + 1) : null);
 
         const change = attributes.price_change_percentage as
           | Record<string, unknown>
@@ -108,6 +121,7 @@ export async function deepestPoolFor(mint: Pubkey): Promise<PoolInfo | null> {
           priceUsd: num(
             isBase ? attributes.base_token_price_usd : attributes.quote_token_price_usd,
           ),
+          otherMint,
         } satisfies PoolInfo;
       })
       .filter((pool): pool is PoolInfo => pool !== null)

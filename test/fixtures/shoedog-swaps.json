@@ -1,0 +1,302 @@
+[
+  {
+    "signature": "4i7vhvMeuXMT1p8SXh6vVLEXRJSgQijMdtSzgDdW3yAdxk4ppuZpQFcmHJE9F9ak11tbY7itRp6CnpWkWZbWc6Ks",
+    "timestamp": 1789590653,
+    "feePayer": "BaBbwVi44Nr8faExEnuyRGk8MJpFajeJE7Tt88JVPU9y",
+    "source": "JUPITER",
+    "transactionError": null,
+    "accountData": [
+      {
+        "tokenBalanceChanges": [
+          {
+            "userAccount": "BaBbwVi44Nr8faExEnuyRGk8MJpFajeJE7Tt88JVPU9y",
+            "tokenAccount": "BtFz2EYw7Yd26AXsGW7WVimQ8FtjMGKar84W4ktHGxWk",
+            "rawTokenAmount": {
+              "tokenAmount": "59933094544",
+              "decimals": 6
+            },
+            "mint": "SkA82maVyUBgt4HUvMTLRDGyXX1yJpAsMNPhxEeSTNK"
+          }
+        ]
+      },
+      {
+        "tokenBalanceChanges": [
+          {
+            "userAccount": "6kRoMyYBuz4ReLmLyuqiTtSpVB61hAGRrD6xYBrotsBC",
+            "tokenAccount": "5ZbSWZNWLx1GiiUhPP9U6uc8UrMcUL76CJPeAZko3a1S",
+            "rawTokenAmount": {
+              "tokenAmount": "14552146",
+              "decimals": 6
+            },
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+          }
+        ]
+      },
+      {
+        "tokenBalanceChanges": [
+          {
+            "userAccount": "6kRoMyYBuz4ReLmLyuqiTtSpVB61hAGRrD6xYBrotsBC",
+            "tokenAccount": "72TMewTpQShtTMyF7RjhhELbuqS6VYwFvS2YPhHLHjE8",
+            "rawTokenAmount": {
+              "tokenAmount": "-402003",
+              "decimals": 6
+            },
+            "mint": "NKEda5nHhNGgjrE9nDdMvaEmkmJ96qqxzBVZEcKmjSg"
+          }
+        ]
+      },
+      {
+        "tokenBalanceChanges": [
+          {
+            "userAccount": "CJ1fhvsz9FwFM54JyXpNvAj6dvxtiRQjMhYmG1aQVVX8",
+            "tokenAccount": "CJ1fhvsz9FwFM54JyXpNvAj6dvxtiRQjMhYmG1aQVVX8",
+            "rawTokenAmount": {
+              "tokenAmount": "112827833",
+              "decimals": 9
+            },
+            "mint": "So11111111111111111111111111111111111111112"
+          }
+        ]
+      },
+      {
+        "tokenBalanceChanges": [
+          {
+            "userAccount": "EPUHjseXG3izk3MVUJ1PcyWT9xeBhtAnq8gUpq3j8Uni",
+            "tokenAccount": "EPUHjseXG3izk3MVUJ1PcyWT9xeBhtAnq8gUpq3j8Uni",
+            "rawTokenAmount": {
+              "tokenAmount": "-11116636",
+              "decimals": 6
+            },
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+          }
+        ]
+      },
+      {
+        "tokenBalanceChanges": [
+          {
+            "userAccount": "9GTj99g9tbz9U6UYDsX6YeRTgUnkYG6GTnHv3qLa5aXq",
+            "tokenAccount": "5BzogZvHNEuwstR4iwTWdd7jknFBZqJQWVjxPsDfEUD6",
+            "rawTokenAmount": {
+              "tokenAmount": "34871909",
+              "decimals": 9
+            },
+            "mint": "So11111111111111111111111111111111111111112"
+          }
+        ]
+      },
+      {
+        "tokenBalanceChanges": [
+          {
+            "userAccount": "9GTj99g9tbz9U6UYDsX6YeRTgUnkYG6GTnHv3qLa5aXq",
+            "tokenAccount": "HL8turx8hJEEPVH4ivxzxwfdxVA1PH3LeYbSmh3hYfzz",
+            "rawTokenAmount": {
+              "tokenAmount": "-3435510",
+              "decimals": 6
+            },
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+          }
+        ]
+      },
+      {
+        "tokenBalanceChanges": [
+          {
+            "userAccount": "GpMZbSM2GgvTKHJirzeGfMFoaZ8UR2X7F4v8vHTvxFbL",
+            "tokenAccount": "2DsKwonwfCkA6bahmKvi24BBDx3BkFb5fuAVVRCyNuWm",
+            "rawTokenAmount": {
+              "tokenAmount": "-60538479338",
+              "decimals": 6
+            },
+            "mint": "SkA82maVyUBgt4HUvMTLRDGyXX1yJpAsMNPhxEeSTNK"
+          }
+        ]
+      },
+      {
+        "tokenBalanceChanges": [
+          {
+            "userAccount": "GpMZbSM2GgvTKHJirzeGfMFoaZ8UR2X7F4v8vHTvxFbL",
+            "tokenAccount": "BP6tXz1X6NccowoSKMDu1JvzwSYYjDsAt7wx1cn6ZHD9",
+            "rawTokenAmount": {
+              "tokenAmount": "402003",
+              "decimals": 6
+            },
+            "mint": "NKEda5nHhNGgjrE9nDdMvaEmkmJ96qqxzBVZEcKmjSg"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "signature": "4fDkbqKPPzGsnnNzFZqPxAH1aavwTefwLz91ZgrprL1GQMbYWuuGWnKD9L6rmeysm7vAYiiJHDsdfySvPeKYoxxv",
+    "timestamp": 1789590660,
+    "feePayer": "8K5CjYXj5CXQVKrdVLehwoP25yhv2sgJtysrLBNg5ahv",
+    "source": "SYSTEM_PROGRAM",
+    "transactionError": null,
+    "accountData": [
+      {
+        "tokenBalanceChanges": [
+          {
+            "userAccount": "GpMZbSM2GgvTKHJirzeGfMFoaZ8UR2X7F4v8vHTvxFbL",
+            "tokenAccount": "2DsKwonwfCkA6bahmKvi24BBDx3BkFb5fuAVVRCyNuWm",
+            "rawTokenAmount": {
+              "tokenAmount": "18469872323",
+              "decimals": 6
+            },
+            "mint": "SkA82maVyUBgt4HUvMTLRDGyXX1yJpAsMNPhxEeSTNK"
+          }
+        ]
+      },
+      {
+        "tokenBalanceChanges": [
+          {
+            "userAccount": "8K5CjYXj5CXQVKrdVLehwoP25yhv2sgJtysrLBNg5ahv",
+            "tokenAccount": "8p8yX6St87K2uk1rwRFAYkJYkx9N12tB3b6HGG8K6PP5",
+            "rawTokenAmount": {
+              "tokenAmount": "-18656436690",
+              "decimals": 6
+            },
+            "mint": "SkA82maVyUBgt4HUvMTLRDGyXX1yJpAsMNPhxEeSTNK"
+          }
+        ]
+      },
+      {
+        "tokenBalanceChanges": [
+          {
+            "userAccount": "GpMZbSM2GgvTKHJirzeGfMFoaZ8UR2X7F4v8vHTvxFbL",
+            "tokenAccount": "BP6tXz1X6NccowoSKMDu1JvzwSYYjDsAt7wx1cn6ZHD9",
+            "rawTokenAmount": {
+              "tokenAmount": "-116019",
+              "decimals": 6
+            },
+            "mint": "NKEda5nHhNGgjrE9nDdMvaEmkmJ96qqxzBVZEcKmjSg"
+          }
+        ]
+      },
+      {
+        "tokenBalanceChanges": [
+          {
+            "userAccount": "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE",
+            "tokenAccount": "2WLWEuKDgkDUccTpbwYp1GToYktiSB1cXvreHUwiSUVP",
+            "rawTokenAmount": {
+              "tokenAmount": "4182710",
+              "decimals": 6
+            },
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+          }
+        ]
+      },
+      {
+        "tokenBalanceChanges": [
+          {
+            "userAccount": "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE",
+            "tokenAccount": "EUuUbDcafPrmVTD5M6qoJAoyyNbihBhugADAxRMn5he9",
+            "rawTokenAmount": {
+              "tokenAmount": "-42435251",
+              "decimals": 9
+            },
+            "mint": "So11111111111111111111111111111111111111112"
+          }
+        ]
+      },
+      {
+        "tokenBalanceChanges": [
+          {
+            "userAccount": "6kRoMyYBuz4ReLmLyuqiTtSpVB61hAGRrD6xYBrotsBC",
+            "tokenAccount": "5ZbSWZNWLx1GiiUhPP9U6uc8UrMcUL76CJPeAZko3a1S",
+            "rawTokenAmount": {
+              "tokenAmount": "-4182710",
+              "decimals": 6
+            },
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+          }
+        ]
+      },
+      {
+        "tokenBalanceChanges": [
+          {
+            "userAccount": "6kRoMyYBuz4ReLmLyuqiTtSpVB61hAGRrD6xYBrotsBC",
+            "tokenAccount": "72TMewTpQShtTMyF7RjhhELbuqS6VYwFvS2YPhHLHjE8",
+            "rawTokenAmount": {
+              "tokenAmount": "116019",
+              "decimals": 6
+            },
+            "mint": "NKEda5nHhNGgjrE9nDdMvaEmkmJ96qqxzBVZEcKmjSg"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "signature": "1jhJJ57uTGKrhn3Vgra9Jh1By32azoNwciZ6Z8yJRBR5WLsjGXh54Ezm1EUmS8dBXBht4MJEsryTH9vAgUvYxv6",
+    "timestamp": 1789590654,
+    "feePayer": "FzinEw1PzSEhYCt3BGfK73hTUg1fxCaYDoajBYnqGLYZ",
+    "source": "SYSTEM_PROGRAM",
+    "transactionError": null,
+    "accountData": [
+      {
+        "tokenBalanceChanges": [
+          {
+            "userAccount": "GpMZbSM2GgvTKHJirzeGfMFoaZ8UR2X7F4v8vHTvxFbL",
+            "tokenAccount": "2DsKwonwfCkA6bahmKvi24BBDx3BkFb5fuAVVRCyNuWm",
+            "rawTokenAmount": {
+              "tokenAmount": "1388926323663",
+              "decimals": 6
+            },
+            "mint": "SkA82maVyUBgt4HUvMTLRDGyXX1yJpAsMNPhxEeSTNK"
+          }
+        ]
+      },
+      {
+        "tokenBalanceChanges": [
+          {
+            "userAccount": "GpMZbSM2GgvTKHJirzeGfMFoaZ8UR2X7F4v8vHTvxFbL",
+            "tokenAccount": "BP6tXz1X6NccowoSKMDu1JvzwSYYjDsAt7wx1cn6ZHD9",
+            "rawTokenAmount": {
+              "tokenAmount": "-8862419",
+              "decimals": 6
+            },
+            "mint": "NKEda5nHhNGgjrE9nDdMvaEmkmJ96qqxzBVZEcKmjSg"
+          }
+        ]
+      },
+      {
+        "tokenBalanceChanges": [
+          {
+            "userAccount": "FzinEw1PzSEhYCt3BGfK73hTUg1fxCaYDoajBYnqGLYZ",
+            "tokenAccount": "GbZmussZWByAGB3ahDWfvFLVeEFTWBa8tYec9b4AcXBr",
+            "rawTokenAmount": {
+              "tokenAmount": "-1402955882488",
+              "decimals": 6
+            },
+            "mint": "SkA82maVyUBgt4HUvMTLRDGyXX1yJpAsMNPhxEeSTNK"
+          }
+        ]
+      },
+      {
+        "tokenBalanceChanges": [
+          {
+            "userAccount": "4V7CrUiP46jcJpZzPKzRerKS2VxHUt9bjiJPnT7gXFAU",
+            "tokenAccount": "8aU8EbZjL4HPSx17GisGqWp9GVi9z3r67YvSLZiER7fZ",
+            "rawTokenAmount": {
+              "tokenAmount": "-3239218089",
+              "decimals": 9
+            },
+            "mint": "So11111111111111111111111111111111111111112"
+          }
+        ]
+      },
+      {
+        "tokenBalanceChanges": [
+          {
+            "userAccount": "4V7CrUiP46jcJpZzPKzRerKS2VxHUt9bjiJPnT7gXFAU",
+            "tokenAccount": "Fb5BsS8SQWKuzu9jiRMG1h8enycBf51CxtKHghjwdChD",
+            "rawTokenAmount": {
+              "tokenAmount": "8862419",
+              "decimals": 6
+            },
+            "mint": "NKEda5nHhNGgjrE9nDdMvaEmkmJ96qqxzBVZEcKmjSg"
+          }
+        ]
+      }
+    ]
+  }
+]
