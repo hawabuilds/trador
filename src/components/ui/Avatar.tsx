@@ -1,5 +1,7 @@
 "use client";
 
+import {useState} from "react";
+
 import {cn} from "@/lib/cn";
 
 /**
@@ -61,8 +63,12 @@ interface AvatarProps {
  */
 export function Avatar({name, seed, src, size = 40, className}: AvatarProps) {
   const initial = (name?.trim()?.[0] ?? "?").toUpperCase();
+  // Creator-hosted art goes away. Remember which URL failed so a dead link
+  // falls back to the monogram instead of a broken-image glyph, while a new
+  // URL still gets its own chance.
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
 
-  if (src) {
+  if (src && src !== failedSrc) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
@@ -70,6 +76,7 @@ export function Avatar({name, seed, src, size = 40, className}: AvatarProps) {
         alt=""
         width={size}
         height={size}
+        onError={() => setFailedSrc(src)}
         style={{width: size, height: size}}
         className={cn("shrink-0 rounded-full object-cover", className)}
       />

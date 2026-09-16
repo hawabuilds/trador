@@ -370,7 +370,9 @@ function HoldingRow({holding}: {holding: Holding}) {
           {symbol.slice(0, 2).toUpperCase()}
         </span>
       ) : (
-        <Avatar name={symbol} seed={asset.mint} size={40} />
+        // The feed row passes the art and this row didn't, so a coin showed
+        // its picture everywhere except the screen listing what you own.
+        <Avatar name={symbol} src={asset.imageUrl} seed={asset.mint} size={40} />
       )}
 
       <div className="min-w-0 flex-1">
