@@ -25,6 +25,10 @@ export type SectorId =
   | "finance"
   | "funds"
   | "commodities"
+  | "health"
+  | "industrials"
+  | "media"
+  | "autos"
   | "preipo";
 
 export interface Sector {
@@ -43,6 +47,10 @@ export const SECTORS: readonly Sector[] = [
   {id: "finance", label: "Finance"},
   {id: "funds", label: "Funds"},
   {id: "commodities", label: "Commodities"},
+  {id: "health", label: "Health"},
+  {id: "industrials", label: "Industrials"},
+  {id: "media", label: "Media"},
+  {id: "autos", label: "Autos"},
   {id: "preipo", label: "Pre-IPO"},
 ];
 
@@ -99,6 +107,83 @@ const BY_TICKER: Record<string, SectorId> = {
   NEURALINK: "preipo",
   KALSHI: "preipo",
   ANDURIL: "preipo",
+
+  /*
+   * Backpack Securities, and the pre-IPO names the other issuers spell
+   * differently.
+   *
+   * These arrived with the registry expansion from 29 stocks to 82 and had no
+   * sector, so the row fell back to the company name — "Krispy Kreme, Inc.
+   * Common Stock - Backpack Securities" where its neighbour said "Semis". The
+   * issuer suffix is in every one of those names, which is what made a
+   * category line read as a provider credit.
+   */
+  MU: "semis",
+  INTC: "semis",
+  SNDK: "semis",
+  SKHY: "semis",
+  MRVL: "semis",
+
+  NBIS: "ai",
+  QUBT: "ai",
+
+  IBM: "software",
+  DELL: "software",
+  TTWO: "media",
+
+  RDDT: "internet",
+  SNAP: "internet",
+  BABA: "internet",
+  SHOP: "internet",
+  GRND: "internet",
+  RBLX: "internet",
+
+  FLY: "space",
+  SPCX: "space",
+
+  MSTR: "crypto",
+  BULL: "finance",
+  HOOD: "finance",
+
+  NKE: "consumer",
+  LULU: "consumer",
+  COST: "consumer",
+  WEN: "consumer",
+  DNUT: "consumer",
+  FLWS: "consumer",
+  GPRO: "consumer",
+  HTZ: "consumer",
+  DKNG: "consumer",
+
+  LLY: "health",
+  JNJ: "health",
+  PFE: "health",
+  MRNA: "health",
+  HIMS: "health",
+  PTN: "health",
+
+  BA: "industrials",
+  LMT: "industrials",
+  UPS: "industrials",
+
+  DJT: "media",
+  AMC: "media",
+  MGM: "media",
+  SPHR: "media",
+
+  TSLAx: "autos",
+  RIVN: "autos",
+
+  SCHH: "funds",
+  DRAM: "funds",
+  BOT: "funds",
+
+  FIGUREAI: "preipo",
+  XAI: "preipo",
+  SPACEX: "preipo",
+  tSpaceX: "preipo",
+  tOpenAI: "preipo",
+  tKalshi: "preipo",
 };
 
 export function sectorFor(ticker: string): SectorId | null {

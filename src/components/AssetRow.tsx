@@ -85,7 +85,18 @@ export function AssetRow({
         <div className="tabular-nums mt-[3px] flex items-center gap-2.5 truncate text-[12.5px] font-semibold">
           {stock ? (
             <span className="text-faint">
-              {asset.sector ? SECTOR_LABEL.get(asset.sector) : asset.name}
+              {/*
+                The category, and nothing else.
+
+                Falling back to `asset.name` printed the issuer's own product
+                string — "Krispy Kreme, Inc. Common Stock - Backpack
+                Securities" — in the slot where every other row shows one word.
+                Which issuer minted a stock belongs on the stock's page, where
+                there is room to say it plainly; here it is noise that pushes
+                the price off the row. An unmapped ticker shows nothing rather
+                than something long.
+              */}
+              {asset.sector ? SECTOR_LABEL.get(asset.sector) : null}
             </span>
           ) : (
             <>

@@ -27,10 +27,19 @@ const BATCH = 30;
 
 interface DexPair {
   baseToken?: {address?: string};
+  liquidity?: {usd?: number};
+  priceChange?: {h24?: number};
   info?: {
     websites?: {url?: string}[];
     socials?: {type?: string; url?: string}[];
   };
+}
+
+/** What DexScreener can tell us that Jupiter did not. */
+export interface DexFill {
+  links: Partial<SocialLinks>;
+  /** 24h price change, percent. Null when no pair reported one. */
+  priceChange24h: number | null;
 }
 
 /**
@@ -47,21 +56,20 @@ function socialsFrom(pair: DexPair): Partial<SocialLinks> {
 }
 
 /**
- * Project links for a set of mints, as far as DexScreener knows them.
+ * What DexScreener knows about a set of mints, as far as it goes.
  *
  * Returns only mints it had something for. A failure yields an empty map rather
  * than throwing: these links are decoration, and losing them must not cost the
  * decorate pass its prices.
  *
- * A token usually has several pairs. The first one carrying any links wins —
- * they are the same creator's entry duplicated across venues, and merging them
- * would mean choosing between two values for the same field with no way to tell
- * which is newer.
+ * Returns only mints it had something for. A failure yields an empty map rather
+ * than throwing: none of this is load-bearing, and losing it must not cost the
+ * decorate pass its prices.
  */
-export async function dexscreenerSocials(
+export async function dexscreenerFill(
   mints: readonly Pubkey[],
-): Promise<Map<string, Partial<SocialLinks>>> {
-  const found = new Map<string, Partial<SocialLinks>>();
+): Promise<Map<string, DexFill>> {
+  const found = new Map<string, DexFill>();
   if (mints.length === 0) return found;
 
   for (let i = 0; i < mints.length; i += BATCH) {
@@ -73,25 +81,61 @@ export async function dexscreenerSocials(
         {cache: "no-store", signal: AbortSignal.timeout(8_000)},
       );
       if (!response.ok) {
-        console.warn(`dexscreener socials -> ${response.status}`);
+        console.warn(`dexscreener fill -> ${response.status}`);
         continue;
       }
 
       const body = (await response.json()) as {pairs?: DexPair[] | null};
 
+      /*
+       * A token usually has several pairs, and they disagree.
+       *
+       * The deepest pair wins the price change: a percentage off a pool with
+       * four hundred dollars in it is noise, and printing it next to a real
+       * market cap would be the thin-pool pricing this codebase refuses
+       * everywhere else. Links take the first pair that carries any, since
+       * those are the same creator entry duplicated across venues.
+       */
+      const deepest = new Map<string, number>();
+
       for (const pair of body.pairs ?? []) {
         const mint = pair.baseToken?.address;
-        if (!mint || found.has(mint)) continue;
+        if (!mint) continue;
+
+        const current = found.get(mint) ?? {links: {}, priceChange24h: null};
 
         const links = socialsFrom(pair);
-        // Only record a mint we actually learned something about, so the caller
-        // can tell "no links" from "not asked".
-        if (links.x || links.telegram || links.discord || links.website) {
-          found.set(mint, links);
+        for (const [slot, url] of Object.entries(links)) {
+          if (url && !current.links[slot as keyof SocialLinks]) {
+            current.links[slot as keyof SocialLinks] = url;
+          }
         }
+
+        const change = pair.priceChange?.h24;
+        const depth = pair.liquidity?.usd ?? 0;
+        if (typeof change === "number" && Number.isFinite(change)) {
+          if (!deepest.has(mint) || depth > (deepest.get(mint) ?? 0)) {
+            deepest.set(mint, depth);
+            current.priceChange24h = change;
+          }
+        }
+
+        found.set(mint, current);
+      }
+
+      // Drop mints nothing was actually learned about, so the caller can tell
+      // "no data" from "not asked".
+      for (const [mint, fill] of found) {
+        const empty =
+          fill.priceChange24h === null &&
+          !fill.links.x &&
+          !fill.links.telegram &&
+          !fill.links.discord &&
+          !fill.links.website;
+        if (empty) found.delete(mint);
       }
     } catch (error) {
-      console.warn("dexscreener socials failed", (error as Error).message);
+      console.warn("dexscreener fill failed", (error as Error).message);
     }
   }
 

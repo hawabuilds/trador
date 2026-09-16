@@ -655,7 +655,7 @@ export async function decorateStonks(
     }
 
     /*
-     * Fill the links Jupiter did not carry.
+     * Fill what Jupiter did not carry.
      *
      * Jupiter returns `twitter` and `website` for roughly half the universe and
      * never returns telegram or discord at all. DexScreener has the links the
@@ -666,26 +666,65 @@ export async function decorateStonks(
      * set shrinks as the store fills rather than costing a full sweep each
      * pass. A failure yields nothing and the rest of the decoration stands.
      */
-    const needLinks = stonkWrites
-      .filter((write) => !write.twitter && !write.website)
+    const missingChange = new Set(
+      statWrites
+        .filter(
+          (stat) =>
+            stat.mint !== undefined &&
+            stat.price_change_24h === null &&
+            stat.last_price !== null,
+        )
+        .map((stat) => stat.mint as string),
+    );
+
+    /*
+     * Asked about a coin missing *either* piece.
+     *
+     * Jupiter's `stats24h` omits `priceChange` entirely for about a fifth of
+     * the universe — not zero, absent — while still returning price, volume and
+     * liquidity for the same coin. Those rows rendered a dash where every
+     * neighbour had a percentage, which reads as a broken row rather than as
+     * missing data. DexScreener has the number, and it is already being called
+     * here for links, so it costs the same request.
+     */
+    const needFill = stonkWrites
+      .filter(
+        (write) => !write.twitter || !write.website || missingChange.has(write.mint),
+      )
       .map((write) => write.mint as Pubkey);
 
-    if (needLinks.length > 0) {
+    if (needFill.length > 0) {
       try {
-        const {dexscreenerSocials} = await import("./dexscreener");
-        const extra = await dexscreenerSocials(needLinks);
+        const {dexscreenerFill} = await import("./dexscreener");
+        const extra = await dexscreenerFill(needFill);
 
         for (const write of stonkWrites) {
-          const links = extra.get(write.mint);
-          if (!links) continue;
+          const fill = extra.get(write.mint);
+          if (!fill) continue;
           // Never overwrite what Jupiter gave; only fill blanks.
-          write.twitter = write.twitter ?? links.x ?? null;
-          write.website = write.website ?? links.website ?? null;
-          write.telegram = write.telegram ?? links.telegram ?? null;
-          write.discord = write.discord ?? links.discord ?? null;
+          write.twitter = write.twitter ?? fill.links.x ?? null;
+          write.website = write.website ?? fill.links.website ?? null;
+          write.telegram = write.telegram ?? fill.links.telegram ?? null;
+          write.discord = write.discord ?? fill.links.discord ?? null;
+        }
+
+        for (const stat of statWrites) {
+          const fill = stat.mint ? extra.get(stat.mint) : undefined;
+          if (!fill || fill.priceChange24h === null) continue;
+          /*
+           * Only the change, and only when ours is missing.
+           *
+           * Deliberately not liquidity or market cap: DexScreener reports a
+           * different set of pairs than the one this row's numbers were
+           * measured from, and mixing them would put a market cap and a
+           * liquidity figure on the same row that were never true together.
+           */
+          if (stat.price_change_24h === null) {
+            stat.price_change_24h = fill.priceChange24h;
+          }
         }
       } catch (error) {
-        console.warn("dexscreener link fill failed", (error as Error).message);
+        console.warn("dexscreener fill failed", (error as Error).message);
       }
     }
 

@@ -131,6 +131,17 @@ html.dark {
   --overlay-wash: rgb(255 255 255 / 6%);
   --overlay-wash-hover: rgb(255 255 255 / 10%);
   --border-hover: rgb(255 255 255 / 14%);
+
+  /*
+   * The one place the brand colour is a *label* rather than a surface.
+   *
+   * A Solana chip wants the Solana purple, and the wash/ink pair here matches
+   * how the price chips are built: a low-alpha ground with a lighter ink on
+   * top, because #9945ff as small uppercase text on near-black is well under
+   * the contrast a 9.5px label needs. `--brand-300` clears 7:1 on the card.
+   */
+  --brand-wash: rgb(153 69 255 / 16%);
+  --brand-ink: var(--brand-300);
   --border-hover-strong: rgb(255 255 255 / 20%);
   --scrollbar: rgb(255 255 255 / 14%);
 

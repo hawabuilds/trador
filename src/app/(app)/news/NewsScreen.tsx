@@ -192,8 +192,13 @@ function TopicChip({topic}: {topic: FeedItem["topic"]}) {
     <span
       className={cn(
         "rounded-[5px] px-[6px] py-[3px] text-[9.5px] font-extrabold uppercase leading-none tracking-[0.07em]",
+        /*
+          Brand purple, not the price green. `--price-up` means "this number
+          went up" everywhere else in the app, and spending it on a topic label
+          both weakens that and made a Solana story read as a gainer.
+        */
         topic === "solana"
-          ? "bg-[var(--price-up-wash)] text-price-up"
+          ? "bg-[var(--brand-wash)] text-[var(--brand-ink)]"
           : "bg-[var(--overlay-wash)] text-muted",
       )}
     >

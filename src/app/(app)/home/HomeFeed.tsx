@@ -1,7 +1,8 @@
 "use client";
 
-import {useMemo, useState} from "react";
+import {useCallback, useEffect, useMemo, useState} from "react";
 import Link from "next/link";
+import {usePathname, useRouter, useSearchParams} from "next/navigation";
 
 import {StickyPageHeader} from "@/components/AppShell";
 import {NEW_FEED_MIN_MCAP_USD} from "@/config/feed";
@@ -40,6 +41,23 @@ import type {
  * drift the first time one is tuned.
  */
 
+/**
+ * A query parameter, or the default.
+ *
+ * Validated against the allowed values rather than cast: the URL is user input,
+ * and `?sort=<script>` reaching a component as a sort key is how a reflected
+ * value becomes a rendered one.
+ */
+function readParam<T extends string>(
+  value: string | null,
+  allowed: readonly T[],
+  fallback: T,
+): T {
+  return value && (allowed as readonly string[]).includes(value) ? (value as T) : fallback;
+}
+
+const HOME_TABS = ["watchlist", "stonks", "stocks"] as const satisfies readonly HomeTab[];
+
 const STONK_SORTS: FilterOption<StonkSort>[] = [
   {value: "trending", label: "Trending"},
   {
@@ -59,6 +77,8 @@ const STONK_SORTS: FilterOption<StonkSort>[] = [
     title: "Coins whose launch routes a share of every trade to holders, in stock",
   },
 ];
+
+const STONK_SORT_VALUES = STONK_SORTS.map((option) => option.value);
 
 const STOCK_SORTS: FilterOption<StockSort>[] = [
   {
@@ -89,12 +109,66 @@ export function HomeFeed({
   /** Server render time, so age strings match after hydration. */
   now: number;
 }) {
-  const [tab, setTab] = useState<HomeTab>("stonks");
-  const [stonkSort, setStonkSort] = useState<StonkSort>("trending");
+  /*
+   * Which tab and sort are showing lives in the URL, not only in state.
+   *
+   * Opening a coin pushes a history entry; coming back restores this screen
+   * from that entry. With the selection held only in `useState` it was rebuilt
+   * from its defaults, so a visitor who browsed New, tapped a coin and pressed
+   * back landed on Trending — having lost their place in a list they were
+   * halfway down.
+   *
+   * Chip taps `replace` rather than `push`, so the back button steps out of the
+   * feed instead of walking back through every filter touched on the way in.
+   */
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
+
+  const [tab, setTab] = useState<HomeTab>(
+    () => readParam(params.get("tab"), HOME_TABS, "stonks"),
+  );
+  const [stonkSort, setStonkSort] = useState<StonkSort>(
+    () => readParam(params.get("sort"), STONK_SORT_VALUES, "trending"),
+  );
   const [stockSort, setStockSort] = useState<StockSort>("launches");
   const [sector, setSector] = useState<SectorId | "all">("all");
-  const [quote, setQuote] = useState<string>("all");
+  const [quote, setQuote] = useState<string>(() => params.get("quote") ?? "all");
   const [watchFilter, setWatchFilter] = useState<WatchFilter>("all");
+
+  /*
+   * State to URL, one way.
+   *
+   * Only the values worth returning to are written, and defaults are left out
+   * entirely so the common case stays a clean `/home`. The guard matters: a
+   * `replace` on every render would fight the router and, on some Next
+   * versions, loop.
+   */
+  useEffect(() => {
+    const next = new URLSearchParams();
+    if (tab !== "stonks") next.set("tab", tab);
+    if (stonkSort !== "trending") next.set("sort", stonkSort);
+    if (quote !== "all") next.set("quote", quote);
+
+    const query = next.toString();
+    const current = params.toString();
+    if (query === current) return;
+
+    router.replace(query ? `${pathname}?${query}` : pathname, {scroll: false});
+  }, [tab, stonkSort, quote, params, pathname, router]);
+
+  /*
+   * URL back to state, for a back or forward press.
+   *
+   * The router re-renders this component with new `params` rather than
+   * remounting it, so the `useState` initialisers above do not run again and
+   * the selection would otherwise stay on whatever was last clicked.
+   */
+  useEffect(() => {
+    setTab(readParam(params.get("tab"), HOME_TABS, "stonks"));
+    setStonkSort(readParam(params.get("sort"), STONK_SORT_VALUES, "trending"));
+    setQuote(params.get("quote") ?? "all");
+  }, [params]);
 
   /*
    * The feed keeps moving after first paint.

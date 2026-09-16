@@ -14,6 +14,7 @@ import assert from "node:assert/strict";
 import {test} from "node:test";
 
 import {isPubkey} from "@/lib/pubkey";
+import {SECTORS, sectorFor} from "@/lib/sectors";
 import {
   ISSUERS,
   STOCK_MINTS,
@@ -361,5 +362,40 @@ test("the stocks that are present are the ones expected", () => {
     assert.ok(stock, `${ticker} missing from the registry`);
     assert.equal(stock.issuer, "prestocks");
     assert.equal(stock.kind, "pre-ipo");
+  }
+});
+
+/*
+ * Every stock has a category.
+ *
+ * The feed row shows the sector under the ticker, and it used to fall back to
+ * the company name when there was none. That read fine for the 29 stocks the
+ * map was written against, and then the registry grew to 82 — so 54 rows
+ * started printing the issuer's product string, "Krispy Kreme, Inc. Common
+ * Stock - Backpack Securities", in the slot where a neighbour said "Semis".
+ *
+ * The fallback is gone, which turns that failure into a blank line instead of
+ * a long one. This is what stops it being either: adding a stock without
+ * classifying it now fails here, at the point where the omission is cheap to
+ * fix.
+ */
+test("every stock in the registry has a sector", () => {
+  const unmapped = stocksByPopularity()
+    .filter((stock) => sectorFor(stock.ticker) === null)
+    .map((stock) => stock.ticker);
+
+  assert.deepEqual(
+    unmapped,
+    [],
+    `these tickers need a sector in lib/sectors.ts: ${unmapped.join(", ")}`,
+  );
+});
+
+test("every sector a stock claims is one the rail can render", () => {
+  const known = new Set(SECTORS.map((sector) => sector.id));
+  for (const stock of stocksByPopularity()) {
+    const sector = sectorFor(stock.ticker);
+    if (sector === null) continue;
+    assert.ok(known.has(sector), `${stock.ticker} claims unknown sector ${sector}`);
   }
 });
