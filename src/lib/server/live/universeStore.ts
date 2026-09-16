@@ -60,8 +60,17 @@ export interface StonkRow {
   image_color: string | null;
   twitter: string | null;
   telegram: string | null;
+  discord: string | null;
   website: string | null;
   listed_at: string | null;
+  /**
+   * When this app first saw the pool graduated.
+   *
+   * Distinct from `listed_at`, which is the token's mint date. A token minted
+   * ten days ago that bonded twenty minutes ago is the newest thing on the
+   * launchpad, and sorting the New feed by mint date buried it.
+   */
+  graduated_at: string | null;
 }
 
 export interface StatRow {
@@ -157,17 +166,17 @@ export function rowToStonk(row: StonkRow, stat?: StatRow | null): Stonk {
     changePct: stat?.price_change_24h ?? null,
     series: [],
     curveProgress: num(row.curve_progress),
-    listedAt: row.listed_at,
+    listedAt: row.graduated_at ?? row.listed_at,
     imageUrl: row.image_url,
     decimals: row.decimals,
     circulatingSupply: num(row.circulating_supply),
     socials:
-      row.twitter || row.telegram || row.website
+      row.twitter || row.telegram || row.website || row.discord
         ? {
             x: row.twitter,
             telegram: row.telegram,
             website: row.website,
-            discord: null,
+            discord: row.discord,
           }
         : null,
   };

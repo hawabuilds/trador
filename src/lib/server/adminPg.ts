@@ -105,11 +105,13 @@ const STONK_COLUMNS = [
   "is_tradeable",
   "is_custom_pair",
   "curve_progress",
+  "graduated_at",
   "image_url",
   "image_source",
   "twitter",
   "telegram",
   "website",
+  "discord",
   "listed_at",
 ] as const;
 
@@ -147,6 +149,18 @@ export async function pgUpsertStonks(writes: StonkWrite[]): Promise<number> {
     (column) => !["mint", "launchpad", "status"].includes(column),
   );
 
+  /*
+   * Columns where the **first** value wins, not the newest.
+   *
+   * Every other optional column uses `coalesce(excluded, stored)` so a later
+   * pass that knows more can fill a blank. `graduated_at` is the opposite: the
+   * sweep stamps it on every pass, so that direction overwrites it every ninety
+   * seconds and every coin reads as having graduated seconds ago. It records
+   * when the pool was *first* seen graduated, so the stored value is the one to
+   * keep and the incoming one is only a fallback.
+   */
+  const keepFirst = new Set(["graduated_at"]);
+
   const sql = `
     insert into public.stonks (${columns.join(", ")})
     values ${tuples.join(", ")}
@@ -155,8 +169,10 @@ export async function pgUpsertStonks(writes: StonkWrite[]): Promise<number> {
         .filter((column) => columns.includes(column as (typeof STONK_COLUMNS)[number]))
         .map((column) => `${column} = excluded.${column}`)
         .concat(
-          preserved.map(
-            (column) => `${column} = coalesce(excluded.${column}, public.stonks.${column})`,
+          preserved.map((column) =>
+            keepFirst.has(column)
+              ? `${column} = coalesce(public.stonks.${column}, excluded.${column})`
+              : `${column} = coalesce(excluded.${column}, public.stonks.${column})`,
           ),
         )
         .join(",\n      ")},
@@ -186,6 +202,7 @@ const COLUMN_TYPES: Record<string, string> = {
   is_tradeable: "boolean",
   is_custom_pair: "boolean",
   curve_progress: "numeric",
+  graduated_at: "timestamptz",
   listed_at: "timestamptz",
 };
 
@@ -337,12 +354,27 @@ export async function pgReadIndexerState(
  * would both lose the index and hide every unevaluated row. Its PostgREST twin
  * is `applyThreeStateFilter` in `universeStore`.
  */
+/**
+ * A page of listed coins for the decorate pass, **undecorated first**.
+ *
+ * The order is the whole point. This used to read `listed_at desc nulls last`,
+ * which starved precisely the rows that needed decorating: a freshly graduated
+ * coin has no `listed_at` until the decorate pass gives it one, so it sorted
+ * last, fell outside the cap, and could never be decorated. Ninety-four of six
+ * hundred and ninety-three coins were permanently unnamed, unpriced and
+ * undated — and because the New feed sorted on that same null date, every coin
+ * that graduated in the last several hours was invisible at the bottom of the
+ * list.
+ *
+ * `symbol is null` first breaks the cycle. Newly graduated coins are decorated
+ * on the very next pass regardless of how large the universe grows.
+ */
 export async function pgListStonks(limit = 200): Promise<StonkRow[]> {
   return withClient(async (client) => {
     const {rows} = await client.query(
       `select * from public.stonks
        where status = 'listed' and eligible is distinct from false
-       order by listed_at desc nulls last, mint desc
+       order by (symbol is null) desc, graduated_at desc nulls last, mint desc
        limit $1`,
       [limit],
     );

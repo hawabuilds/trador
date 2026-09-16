@@ -34,6 +34,7 @@ import {
   decodeStonkfunLaunch,
 } from "@/lib/launchpad/launchpadPool";
 import {decodeCustomPair} from "@/lib/launchpad/pumpPool";
+import {collectLinks} from "./socialLinks";
 import {encodeBase58, type Pubkey} from "@/lib/pubkey";
 import {STOCK_MINTS, stockForMint} from "@/lib/stocks/registry";
 import {quoteKindFor, statusFor} from "@/lib/universe";
@@ -143,6 +144,7 @@ export interface IndexPass {
  */
 export async function indexStonkfun(): Promise<IndexPass> {
   const before = rpcCalls;
+  const now = new Date().toISOString();
   let scanned = 0;
   let stockPaired = 0;
   const writes: StonkWrite[] = [];
@@ -193,6 +195,16 @@ export async function indexStonkfun(): Promise<IndexPass> {
           pays_holders: launch.paysHolders,
           reward_stock: launch.paysHolders ? launch.stock.ticker : null,
           status: statusFor({graduated: launch.pool.graduated}),
+          /*
+           * Stamped on every pass, and kept by the upsert's coalesce.
+           *
+           * `pgUpsertStonks` writes `coalesce(excluded.col, stonks.col)` for
+           * this column, so the *first* sweep that sees a pool graduated is the
+           * one that sticks and later passes leave it alone. That makes it
+           * "when Trador first saw this graduate" — which is what the New feed
+           * wants, and is not `listed_at`, the token's mint date.
+           */
+          graduated_at: now,
           /*
            * Written at `finalized`, so this row is as settled as Solana gets
            * and `eligible` can be true rather than null. The null state is for
@@ -530,6 +542,31 @@ export async function indexPumpCustomPairs(): Promise<IndexPass> {
  * is the multiplicand in every market cap on screen. Everything else here is
  * decoration and is allowed to be missing.
  */
+/**
+ * Jupiter's two link fields, filed by host rather than by field name.
+ *
+ * Jupiter reports whatever the creator put in the token metadata, and a creator
+ * whose only account is X routinely puts it in `website`. Assigning the fields
+ * straight across stores that under `website`, where no surface looking for X
+ * will find it. This runs them through the same classifier DexScreener's links
+ * go through, so both sources file a link the same way.
+ */
+function jupiterLinks(token: {twitter?: string | null; website?: string | null}) {
+  const links = collectLinks([
+    {url: token.twitter, type: "twitter"},
+    {url: token.website, type: "website"},
+  ]);
+
+  // Spread into the write, so a field Jupiter did not return stays absent and
+  // `updateStonks` coalesces rather than blanking what is already stored.
+  return {
+    ...(links.x ? {twitter: links.x} : {}),
+    ...(links.website ? {website: links.website} : {}),
+    ...(links.telegram ? {telegram: links.telegram} : {}),
+    ...(links.discord ? {discord: links.discord} : {}),
+  };
+}
+
 export async function decorateStonks(
   mints: Pubkey[],
   /**
@@ -578,8 +615,7 @@ export async function decorateStonks(
         // that comes back without them cannot blank what is already stored —
         // which matters here because Jupiter's metadata for a given coin comes
         // and goes depending on how recently it was indexed.
-        twitter: token.twitter,
-        website: token.website,
+        ...jupiterLinks(token),
         listed_at: token.createdAt,
       });
 
@@ -616,6 +652,41 @@ export async function decorateStonks(
         `decorate: ${attributionDisagreements} coin(s) where the provider's ` +
           `launchpad disagrees with the pool. Ours stands.`,
       );
+    }
+
+    /*
+     * Fill the links Jupiter did not carry.
+     *
+     * Jupiter returns `twitter` and `website` for roughly half the universe and
+     * never returns telegram or discord at all. DexScreener has the links the
+     * creator entered on the pair — a different pile of the same kind of data,
+     * overlapping only partly.
+     *
+     * Asked only about the coins still missing every link after Jupiter, so the
+     * set shrinks as the store fills rather than costing a full sweep each
+     * pass. A failure yields nothing and the rest of the decoration stands.
+     */
+    const needLinks = stonkWrites
+      .filter((write) => !write.twitter && !write.website)
+      .map((write) => write.mint as Pubkey);
+
+    if (needLinks.length > 0) {
+      try {
+        const {dexscreenerSocials} = await import("./dexscreener");
+        const extra = await dexscreenerSocials(needLinks);
+
+        for (const write of stonkWrites) {
+          const links = extra.get(write.mint);
+          if (!links) continue;
+          // Never overwrite what Jupiter gave; only fill blanks.
+          write.twitter = write.twitter ?? links.x ?? null;
+          write.website = write.website ?? links.website ?? null;
+          write.telegram = write.telegram ?? links.telegram ?? null;
+          write.discord = write.discord ?? links.discord ?? null;
+        }
+      } catch (error) {
+        console.warn("dexscreener link fill failed", (error as Error).message);
+      }
     }
 
     // Update, not upsert: decoration enriches coins the reconciler found and

@@ -32,12 +32,29 @@ import type {
  * A shared rail would have to offer Rewards on the Stocks tab, where the idea
  * is meaningless.
  */
+/**
+ * The floor under the New sort.
+ *
+ * Chosen against the distribution rather than picked round: $10K keeps 84 of
+ * the 694 listed coins, dropping the $1K–$5K band that is 75% of them on its
+ * own. The median listed coin is worth $2.9K, against the ~$39K it was worth
+ * the moment it graduated — so the floor sits under every genuinely new coin
+ * and over almost every dead one.
+ *
+ * The numbers move as the universe grows; the reasoning does not. It is a
+ * fraction of the graduation market cap, not a round number.
+ *
+ * Only this sort. Market cap and Trending are explicitly rankings — hiding rows
+ * there would make the ordering lie about what it is ordering.
+ */
+const NEW_FEED_MIN_MCAP_USD = 10_000;
+
 const STONK_SORTS: FilterOption<StonkSort>[] = [
   {value: "trending", label: "Trending"},
   {
     value: "new",
     label: "New",
-    title: "Newest graduations — coins that have bonded into a real pool",
+    title: "Newest graduations, above $10K market cap",
   },
   {
     value: "graduating",
@@ -161,10 +178,29 @@ export function HomeFeed({
       case "marketCap":
         return [...list].sort((a, b) => (b.marketCapUsd ?? 0) - (a.marketCapUsd ?? 0));
       case "new":
-        return [...list].sort(
-          (a, b) =>
-            new Date(b.listedAt ?? 0).getTime() - new Date(a.listedAt ?? 0).getTime(),
-        );
+        /*
+         * Newest graduations, with the dust filtered out.
+         *
+         * Graduating costs roughly $8,200 of the quote stock and lands a coin
+         * near $39K, but the median graduated coin has since fallen to about
+         * $2.9K — so without a floor this sort is mostly headstones. 518 of
+         * the 694 listed coins sit between $1K and $5K.
+         *
+         * An **unpriced** coin is kept, deliberately. Null market cap means the
+         * decorate pass has not reached it yet, which is the state a coin that
+         * graduated ninety seconds ago is in — exactly what this sort is for.
+         * Hiding it would filter out the newest thing on the launchpad for
+         * being new.
+         */
+        return list
+          .filter(
+            (stonk) =>
+              stonk.marketCapUsd === null || stonk.marketCapUsd >= NEW_FEED_MIN_MCAP_USD,
+          )
+          .sort(
+            (a, b) =>
+              new Date(b.listedAt ?? 0).getTime() - new Date(a.listedAt ?? 0).getTime(),
+          );
       default:
         return [...list].sort((a, b) => (b.price.usd ?? 0) - (a.price.usd ?? 0));
     }
