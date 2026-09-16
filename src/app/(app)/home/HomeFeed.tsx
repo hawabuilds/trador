@@ -4,7 +4,9 @@ import {useMemo, useState} from "react";
 import Link from "next/link";
 
 import {StickyPageHeader} from "@/components/AppShell";
+import {NEW_FEED_MIN_MCAP_USD} from "@/config/feed";
 import {AssetList} from "@/components/AssetRow";
+import {LoadMore} from "@/components/LoadMore";
 import {FilterRail, type FilterOption} from "@/components/FilterRail";
 import {HomeTabs, type HomeTab} from "@/components/HomeTabs";
 import {useArrivals} from "@/hooks/useArrivals";
@@ -32,22 +34,11 @@ import type {
  * A shared rail would have to offer Rewards on the Stocks tab, where the idea
  * is meaningless.
  */
-/**
- * The floor under the New sort.
- *
- * Chosen against the distribution rather than picked round: $10K keeps 84 of
- * the 694 listed coins, dropping the $1K–$5K band that is 75% of them on its
- * own. The median listed coin is worth $2.9K, against the ~$39K it was worth
- * the moment it graduated — so the floor sits under every genuinely new coin
- * and over almost every dead one.
- *
- * The numbers move as the universe grows; the reasoning does not. It is a
- * fraction of the graduation market cap, not a round number.
- *
- * Only this sort. Market cap and Trending are explicitly rankings — hiding rows
- * there would make the ordering lie about what it is ordering.
+/*
+ * `NEW_FEED_MIN_MCAP_USD` is imported rather than declared here: the store
+ * applies the same floor when it cuts a page, and two copies of a threshold
+ * drift the first time one is tuned.
  */
-const NEW_FEED_MIN_MCAP_USD = 10_000;
 
 const STONK_SORTS: FilterOption<StonkSort>[] = [
   {value: "trending", label: "Trending"},
@@ -307,16 +298,14 @@ export function HomeFeed({
                 onChange={setStonkSort}
               />
               {/*
-                Hidden on Graduating. That sort swaps the set rather than
-                reordering it, and the counts on these chips are computed from
-                the graduated feed — so every one of them would be wrong.
+                The quote filter is hidden on Graduating. That sort swaps the
+                set rather than reordering it, and the counts on these chips are
+                computed from the graduated feed — so every one of them would be
+                wrong. Nothing takes its place: the chip is labelled, the rows
+                carry a progress bar, and a sentence repeating that was in the
+                way of the list on every visit.
               */}
-              {stonkSort === "graduating" ? (
-                <p className="text-[12px] leading-[1.5] text-faint">
-                  Still on the bonding curve, closest first. Not tradeable here
-                  until they migrate into a pool.
-                </p>
-              ) : (
+              {stonkSort === "graduating" ? null : (
                 <FilterRail
                   label="Filter by the stock a coin is priced in"
                   options={quoteOptions}
@@ -364,7 +353,17 @@ export function HomeFeed({
           </div>
         )
       ) : showing.length > 0 ? (
-        <AssetList assets={showing} arrivals={arrivals} now={now} />
+        <>
+          <AssetList assets={showing} arrivals={arrivals} now={now} />
+          {/*
+            Only the Stonks tab pages. Stocks come from the registry — eighty-two
+            rows that all arrive at once — and the watchlist is whatever one
+            person saved, so neither has a second page to fetch.
+          */}
+          {tab === "stonks" && feed.hasMore ? (
+            <LoadMore onLoad={feed.loadMore} loading={feed.loadingMore} />
+          ) : null}
+        </>
       ) : tab === "watchlist" && watchlist.isLoading ? (
         <p className="py-10 text-center text-[13.5px] text-muted">Loading your watchlist…</p>
       ) : (

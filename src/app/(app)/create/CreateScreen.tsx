@@ -8,8 +8,7 @@ import {FilterRail, type FilterOption} from "@/components/FilterRail";
 import {LaunchpadMark} from "@/components/LaunchpadMark";
 import {Button} from "@/components/ui/Button";
 import {SearchBar} from "@/components/ui/SearchBar";
-import {ArrowUpRightIcon, CheckIcon, LockIcon, RocketIcon} from "@/components/ui/Icons";
-import {useLearn} from "@/hooks/useLearn";
+import {ArrowUpRightIcon, CheckIcon, RocketIcon} from "@/components/ui/Icons";
 import {useUser} from "@/hooks/useUser";
 import {cn} from "@/lib/cn";
 import {LAUNCHPADS, type LaunchpadId} from "@/lib/programs";
@@ -31,9 +30,10 @@ interface LaunchPlan {
 /**
  * Create — launch a coin priced in a tokenized stock.
  *
- * Gated on finishing Learn, because the thing being created has a real
- * consequence for whoever buys it: the pairing decides what they are actually
- * exposed to, and five minutes of reading is a fair price for the button.
+ * Open to anyone. Create used to be gated on finishing Learn, on the reasoning
+ * that the pairing decides what a buyer is exposed to — but a locked tab is a
+ * dead end for someone who arrived wanting to launch, and the screen already
+ * explains the pairing where it is chosen. Learn is a link, not a turnstile.
  *
  * The flow plans the launch against live chain state and shows exactly what it
  * would do, then says plainly that it will not sign. That is not a placeholder
@@ -41,7 +41,6 @@ interface LaunchPlan {
  * create instruction on mainnet is the one thing this app should not offer.
  */
 export function CreateScreen() {
-  const learn = useLearn();
   const {authenticated, wallet, login} = useUser();
 
   const [launchpad, setLaunchpad] = useState<LaunchpadId>("stonkfun");
@@ -85,31 +84,6 @@ export function CreateScreen() {
     } finally {
       setPlanning(false);
     }
-  }
-
-  // Learn gate. Rendered before anything else so the screen cannot be used
-  // past it, rather than disabling a button at the end of a filled-in form.
-  if (learn.hydrated && !learn.allDone) {
-    return (
-      <div className="grid h-full place-items-center px-8 text-center">
-        <div>
-          <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-wash text-faint">
-            <LockIcon className="h-6 w-6" />
-          </span>
-          <p className="mt-4 text-[14px] font-bold">Finish Learn to unlock Create</p>
-          <p className="mx-auto mt-1.5 max-w-[34ch] text-[13px] leading-[1.5] text-muted">
-            Pricing a coin in a stock changes what its buyers are exposed to.
-            Three lessons, about five minutes.
-          </p>
-          <Link
-            href="/learn"
-            className="mt-4 inline-flex h-10 items-center rounded-full bg-brand-500 px-5 text-[13.5px] font-extrabold text-white shadow-brand"
-          >
-            Open Learn ({learn.done}/3)
-          </Link>
-        </div>
-      </div>
-    );
   }
 
   return (

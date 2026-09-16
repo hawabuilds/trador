@@ -8,6 +8,7 @@
  * here and `applyThreeStateFilter` is the only way to express it.
  */
 
+import {NEW_FEED_MIN_MCAP_USD} from "@/config/feed";
 import {MIN_LIQUIDITY_USD} from "@/config/liquidity";
 import {type Pubkey, assertPubkey} from "@/lib/pubkey";
 import {applyThreeStateFilter, isTradeableFromLiquidity} from "@/lib/threeState";
@@ -234,6 +235,24 @@ export async function listStonks(query: FeedQuery): Promise<FeedPageRows> {
 
   const column = SORT_COLUMNS[query.sort];
 
+  /*
+   * The New floor, applied in the query rather than after it.
+   *
+   * Filtering a page client-side means a page of forty can render as four, and
+   * the next cursor still only advances forty — so scrolling appears to stall.
+   * Applied here, every page is a full page of rows somebody will actually see.
+   *
+   * An **unpriced** coin is kept deliberately: a null market cap means the
+   * decorate pass has not reached it yet, which is exactly the state of a coin
+   * that graduated ninety seconds ago. Hiding it would filter out the newest
+   * thing on the launchpad for being new.
+   */
+  if (query.sort === "new") {
+    request = request.or(
+      `last_mcap.gte.${NEW_FEED_MIN_MCAP_USD},last_mcap.is.null`,
+    );
+  }
+
   if (query.sort === "rewards") {
     // Only coins whose launch actually routes rewards. The rest under this
     // heading would imply they pay out and merely have not yet.
@@ -291,9 +310,18 @@ export async function listStonks(query: FeedQuery): Promise<FeedPageRows> {
   };
 }
 
-/** Which column each sort orders by, in the joined view. */
+/**
+ * Which column each sort orders by, in the joined view.
+ *
+ * `new` reads `graduated_at`, not `listed_at`. `listed_at` is the token's mint
+ * date, so ordering by it put a coin minted last month but bonded an hour ago
+ * below one minted yesterday that has not moved since — and because the page is
+ * cut *before* the client re-sorts, that coin never reached the client at all.
+ * The tab looked frozen while the worker was writing new rows every ninety
+ * seconds.
+ */
 const SORT_COLUMNS: Record<FeedSort, string> = {
-  new: "listed_at",
+  new: "graduated_at",
   marketCap: "last_mcap",
   trending: "vol_24h",
   rewards: "rewards_24h_usd",

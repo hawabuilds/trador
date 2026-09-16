@@ -1,5 +1,6 @@
 "use client";
 
+import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {keepPreviousData, useQuery} from "@tanstack/react-query";
 
 import type {FeedPage, Stock, Stonk, StonkSort} from "@/lib/types";
@@ -30,6 +31,20 @@ interface FeedResponse {
  * `refetchOnWindowFocus` matters more than the interval here: the common shape
  * is a tab left open for an hour and then looked at, and that should not show
  * an hour-old feed for fifteen seconds before catching up.
+ *
+ * ## Paging
+ *
+ * The first page polls; the pages after it do not. That split is the whole
+ * design. Re-fetching every loaded page on a fifteen-second timer would mean a
+ * request whose cost grows the further somebody scrolls, and rows reshuffling
+ * under a thumb that is halfway down the list. The rows near the top are the
+ * ones that change; the ones forty deep are history, and history does not need
+ * a poll.
+ *
+ * The consequence is that an older page can go stale while it is on screen. For
+ * a list ordered by when a coin graduated that is fine — its position cannot
+ * change, only its price, and the price is restated the moment the coin is
+ * opened.
  */
 export function useFeed({
   sort,
@@ -60,18 +75,97 @@ export function useFeed({
     refetchOnWindowFocus: true,
   });
 
+  /*
+   * Never empty while data exists.
+   *
+   * A failed poll keeps the last good page rather than blanking the feed: the
+   * rows on screen were true a moment ago, and a network blip is not a reason
+   * to tell someone the universe is empty.
+   */
+  const firstPage = query.data?.stonks ?? initial.stonks;
+
+  const [older, setOlder] = useState<readonly Stonk[]>([]);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  /*
+   * Everything loaded past the first page is dropped when the list changes.
+   *
+   * A different sort is a different ordering, so a cursor taken against the old
+   * one points into a sequence that no longer exists — following it would
+   * append rows from the middle of another list. Same for the quote filter,
+   * which changes the set rather than the order.
+   */
+  const listKey = `${sort}|${quoteTicker ?? "all"}`;
+  const lastKey = useRef(listKey);
+  useEffect(() => {
+    if (lastKey.current === listKey) return;
+    lastKey.current = listKey;
+    setOlder([]);
+    setCursor(null);
+  }, [listKey]);
+
+  // Before anything extra is loaded the next page follows the polled first
+  // page; afterwards it follows the last page actually fetched.
+  const nextCursor = older.length === 0 ? firstPage.cursor : cursor;
+
+  const loadMore = useCallback(async () => {
+    if (!nextCursor || loadingMore) return;
+
+    setLoadingMore(true);
+    try {
+      const params = new URLSearchParams({sort, cursor: nextCursor});
+      if (quoteTicker && quoteTicker !== "all") params.set("quote", quoteTicker);
+
+      const response = await fetch(`/api/feed?${params}`);
+      if (!response.ok) return;
+
+      const body = (await response.json()) as FeedResponse;
+      const key = lastKey.current;
+      // The sort could have changed while this was in flight; appending then
+      // would splice one ordering into another.
+      if (key !== `${sort}|${quoteTicker ?? "all"}`) return;
+
+      setOlder((previous) => [...previous, ...body.stonks.items]);
+      setCursor(body.stonks.cursor);
+    } catch {
+      // A failed page leaves the cursor untouched, so the next scroll retries
+      // the same page rather than skipping it.
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [nextCursor, loadingMore, sort, quoteTicker]);
+
+  /*
+   * One list, deduplicated by mint.
+   *
+   * The first page polls while the pages under it do not, so a coin that falls
+   * out of the first page between two polls can also be sitting in an older
+   * page — and React would then see two rows with the same key. First
+   * occurrence wins, which is the polled copy and therefore the fresher one.
+   */
+  const items = useMemo<readonly Stonk[]>(() => {
+    if (older.length === 0) return firstPage.items;
+
+    const seen = new Set<string>();
+    const merged: Stonk[] = [];
+    for (const stonk of [...firstPage.items, ...older]) {
+      if (seen.has(stonk.mint)) continue;
+      seen.add(stonk.mint);
+      merged.push(stonk);
+    }
+    return merged;
+  }, [firstPage.items, older]);
+
   return {
-    /*
-     * Never empty while data exists.
-     *
-     * A failed poll keeps the last good page rather than blanking the feed: the
-     * rows on screen were true a moment ago, and a network blip is not a reason
-     * to tell someone the universe is empty.
-     */
-    stonks: query.data?.stonks ?? initial.stonks,
+    stonks: {...firstPage, items},
     stocks: query.data?.stocks ?? initial.stocks,
     graduating: query.data?.graduating ?? initial.graduating ?? [],
     isFetching: query.isFetching,
     error: query.error ? (query.error as Error).message : null,
+    /** Whether another page exists, and how to ask for it. */
+    hasMore: Boolean(nextCursor),
+    loadingMore,
+    loadMore,
   };
 }

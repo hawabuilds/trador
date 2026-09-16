@@ -32,7 +32,7 @@ interface SearchResponse {
   pastedMint: string | null;
 }
 
-export function SearchScreen() {
+export function SearchScreen({preview}: {preview: readonly Asset[]}) {
   const [raw, setRaw] = useState("");
   const [query, setQuery] = useState("");
   const [scope, setScope] = useState<Scope>("all");
@@ -96,10 +96,16 @@ export function SearchScreen() {
       </StickyPageHeader>
 
       {!searching ? (
-        <Hint
-          title="Search the universe"
-          body="Every coin priced against a tokenized stock, every stock they are priced in, and everyone trading them. Pasting a mint looks it up directly."
-        />
+        /*
+          What the tab shows before anyone types.
+
+          Rows rather than a sentence explaining that rows exist. Someone
+          opening search usually wants one specific thing, but the ones who do
+          not are better served by four stocks and four coins they can tap than
+          by a paragraph — and the mix is itself the answer to what this box
+          accepts.
+        */
+        <Preview assets={preview} />
       ) : pastedMint ? (
         /*
           A real address that is not in Trador. Saying so is the whole point:
@@ -165,6 +171,32 @@ function PersonRow({person}: {person: Profile}) {
         </div>
       </div>
     </Link>
+  );
+}
+
+/** The empty state: a few real rows, labelled for what they are. */
+function Preview({assets}: {assets: readonly Asset[]}) {
+  // Nothing to preview is not worth an empty heading. It happens only when the
+  // store is unreachable *and* the bundled snapshot is empty.
+  if (assets.length === 0) {
+    return (
+      <Hint
+        title="Search the universe"
+        body="Every coin priced against a tokenized stock, every stock they are priced in, and everyone trading them. Pasting a mint looks it up directly."
+      />
+    );
+  }
+
+  return (
+    <section>
+      <h2 className="mb-1.5 text-[10.5px] font-bold uppercase tracking-[0.07em] text-faint">
+        Trending
+      </h2>
+      <AssetList assets={assets} />
+      <p className="px-1 pt-4 text-center text-[12px] leading-[1.5] text-faint">
+        Or paste a mint to look it up directly.
+      </p>
+    </section>
   );
 }
 
