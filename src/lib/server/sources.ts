@@ -11,9 +11,17 @@
 import {cache} from "react";
 
 import {asPubkey, type Pubkey} from "@/lib/pubkey";
-import type {Asset, ChartPoint, Stock, Stonk, Timeframe, Trade} from "@/lib/types";
+import type {
+  Asset,
+  ChartPoint,
+  FeedPage,
+  Stock,
+  Stonk,
+  Timeframe,
+  Trade,
+} from "@/lib/types";
 import {hasDatabase} from "./db";
-import {snapshotStock, snapshotStonk, snapshotStonks} from "./snapshot";
+import {snapshotStock, snapshotStocks, snapshotStonk, snapshotStonks} from "./snapshot";
 import {candlesFor, deepestPoolFor, tradesFor} from "./live/gecko";
 import {findStonk, listStonks, rowToStonk, searchStonks} from "./live/universeStore";
 
@@ -330,4 +338,53 @@ export function allStonks(): readonly Stonk[] {
 
 export function findStock(ticker: string): Stock | null {
   return snapshotStock(ticker);
+}
+
+/**
+ * The stock list, priced live.
+ *
+ * `snapshotStocks` builds the list from the registry and prices it from the
+ * bundled snapshot — which is frozen at generation time and, since the registry
+ * grew from 29 stocks to 82, has no entry at all for most of them. This puts a
+ * current price on every one.
+ *
+ * Failure is a downgrade, not an error: if the provider is unreachable the
+ * snapshot's own prices stand, which is exactly what this function is wrapping.
+ * A stock still shows a dash only when nobody has ever had a price for it.
+ */
+export async function fetchStocks(): Promise<FeedPage<Stock>> {
+  const page = snapshotStocks();
+
+  try {
+    const {stockPrices} = await import("./live/stockPrices");
+    const live = await stockPrices(page.items.map((stock) => stock.mint));
+    if (live.size === 0) return page;
+
+    return {
+      ...page,
+      items: page.items.map((stock): Stock => {
+        const quote = live.get(stock.mint);
+        if (!quote || quote.usd === null) return stock;
+
+        return {
+          ...stock,
+          /*
+           * Labelled `pool`, not `oracle`. This is an aggregate of on-chain
+           * venues; the registry's `priceAuthority: "pyth"` describes where the
+           * price *should* come from once Pyth is wired, and overstating it
+           * here would make that field meaningless.
+           */
+          price: {
+            usd: quote.usd,
+            source: "pool" as const,
+            status: "priced" as const,
+            at: new Date().toISOString(),
+          },
+          changePct: quote.changePct ?? stock.changePct,
+        };
+      }),
+    };
+  } catch {
+    return page;
+  }
 }

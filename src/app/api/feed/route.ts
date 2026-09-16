@@ -1,6 +1,6 @@
 import {publicJson} from "@/lib/server/http";
-import {fetchFeed, fetchGraduating} from "@/lib/server/sources";
-import {snapshotStocks} from "@/lib/server/snapshot";
+import {fetchFeed, fetchGraduating, fetchStocks} from "@/lib/server/sources";
+
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +58,7 @@ export async function GET(request: Request) {
    * authority that was checked by hand. Polling a database for it would add a
    * query per request to answer a question whose answer is in the bundle.
    */
-  const stocks = snapshotStocks();
+  const stocks = await fetchStocks();
 
   /*
    * Launches still on the curve, nearest to graduating first.

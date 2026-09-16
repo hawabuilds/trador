@@ -1,5 +1,4 @@
-import {snapshotStocks} from "@/lib/server/snapshot";
-import {fetchFeed} from "@/lib/server/sources";
+import {fetchFeed, fetchStocks} from "@/lib/server/sources";
 
 import {SearchScreen} from "./SearchScreen";
 
@@ -28,11 +27,14 @@ const PREVIEW = 4;
 export default async function SearchPage() {
   // Falls back to the bundled snapshot when the store is unreachable, so the
   // preview degrades to slightly stale rows rather than to an empty screen.
-  const trending = await fetchFeed("trending", {limit: PREVIEW});
+  const [trending, stocks] = await Promise.all([
+    fetchFeed("trending", {limit: PREVIEW}),
+    fetchStocks(),
+  ]);
 
   return (
     <SearchScreen
-      preview={[...snapshotStocks().items.slice(0, PREVIEW), ...trending.items.slice(0, PREVIEW)]}
+      preview={[...stocks.items.slice(0, PREVIEW), ...trending.items.slice(0, PREVIEW)]}
     />
   );
 }

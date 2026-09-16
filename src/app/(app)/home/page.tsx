@@ -1,5 +1,4 @@
-import {snapshotStocks} from "@/lib/server/snapshot";
-import {fetchFeed, fetchGraduating} from "@/lib/server/sources";
+import {fetchFeed, fetchGraduating, fetchStocks} from "@/lib/server/sources";
 
 import {HomeFeed} from "./HomeFeed";
 
@@ -33,9 +32,10 @@ export default async function HomePage() {
    * different index, and serialising them would add its latency to a first
    * paint that already waits on the feed.
    */
-  const [feed, graduating] = await Promise.all([
+  const [feed, graduating, stocks] = await Promise.all([
     fetchFeed("trending"),
     fetchGraduating(),
+    fetchStocks(),
   ]);
 
   return (
@@ -46,7 +46,7 @@ export default async function HomePage() {
         source: feed.source,
         capturedAt: feed.capturedAt,
       }}
-      stocks={snapshotStocks()}
+      stocks={stocks}
       graduating={graduating}
       now={Date.now()}
     />

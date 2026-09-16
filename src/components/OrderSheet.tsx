@@ -101,6 +101,10 @@ export function OrderSheet({
     setConfigOpen(false);
   }, [asset?.id, side]);
 
+  /** The asset's own decimals, which both the estimate and the minimum need. */
+  const assetDecimals =
+    asset === null ? 6 : asset.kind === "stonk" ? (asset.decimals ?? 6) : asset.decimals;
+
   const priceUsd = asset?.price.usd ?? null;
   const typed = Number.parseFloat(amount);
   const entered = Number.isFinite(typed) && typed > 0 ? typed : 0;
@@ -129,9 +133,8 @@ export function OrderSheet({
       return String(Math.round(entered * 10 ** payWith.decimals));
     }
 
-    const decimals = asset.kind === "stonk" ? (asset.decimals ?? 6) : asset.decimals;
-    return String(Math.round(entered * 10 ** decimals));
-  }, [asset, buying, entered, payWith.decimals]);
+    return String(Math.round(entered * 10 ** assetDecimals));
+  }, [asset, assetDecimals, buying, entered, payWith.decimals]);
 
   const undersized =
     entered > 0 && !solSized && Number.isFinite(amountUsd) && tooSmall(amountUsd);
@@ -205,13 +208,10 @@ export function OrderSheet({
   /** What the confirm button receives, in the unit it will actually arrive in. */
   const estimatedOut = useMemo(() => {
     if (!quote || !asset) return null;
-    const decimals = buying
-      ? asset.kind === "stonk"
-        ? (asset.decimals ?? 6)
-        : asset.decimals
-      : 6; // Sells settle to USDC.
+    // Sells settle to USDC; buys arrive in the asset.
+    const decimals = buying ? assetDecimals : 6;
     return Number(quote.outAmount) / 10 ** decimals;
-  }, [quote, asset, buying]);
+  }, [quote, asset, assetDecimals, buying]);
 
   async function confirm() {
     if (!asset || !quote || !wallet || !session.signAndSend) return;
@@ -468,6 +468,7 @@ export function OrderSheet({
               quote={quote}
               buying={buying}
               symbol={symbol}
+              outputDecimals={assetDecimals}
               feeUsd={quote.platformFee ? fee.usd : 0}
               slippageBps={slippageBps}
               impactPct={impactPct}
@@ -546,6 +547,7 @@ function TicketBreakdown({
   quote,
   buying,
   symbol,
+  outputDecimals,
   feeUsd,
   slippageBps,
   impactPct,
@@ -554,13 +556,24 @@ function TicketBreakdown({
   quote: QuoteState;
   buying: boolean;
   symbol: string;
+  /** Decimals of the asset, for sizing what a buy receives. */
+  outputDecimals: number;
   feeUsd: number;
   slippageBps: number;
   impactPct: number;
   impactLevel: "ok" | "warn" | "block";
 }) {
   const receivedSymbol = buying ? symbol : "USDC";
-  const outDecimals = buying ? 6 : 6;
+  /*
+   * The decimals of what is being *received*.
+   *
+   * This read `buying ? 6 : 6`, so it was 6 either way. A sell pays out USDC,
+   * which is 6, so that half was right by accident — but a buy receives the
+   * asset, and most launchpad coins are 6 while plenty are 9. On a 9-decimal
+   * coin the minimum received read a thousand times too large, directly under
+   * a button that places the trade.
+   */
+  const outDecimals = buying ? outputDecimals : 6;
   const minOut = Number(quote.otherAmountThreshold) / 10 ** outDecimals;
 
   return (
