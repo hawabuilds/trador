@@ -366,3 +366,26 @@ export function readLearnDone(lessonCount: number): number {
 export function writeLearnDone(done: number, lessonCount: number): void {
   write("learn-done", Math.min(Math.max(Math.floor(done), 0), lessonCount));
 }
+
+// ---------------------------------------------------------------------------
+// Which wallet trades
+// ---------------------------------------------------------------------------
+
+/**
+ * The address chosen to trade from, per account.
+ *
+ * Only the public address is stored — it says which of your wallets is in
+ * use, and nothing more. Keyed by account so two people sharing a browser do
+ * not inherit each other's choice.
+ */
+export function readActiveWallet(accountId: string): string | null {
+  const stored = read<Record<string, string>>("active-wallet", {});
+  const value = stored[accountId];
+  return typeof value === "string" ? value : null;
+}
+
+export function writeActiveWallet(accountId: string, address: string): void {
+  const stored = read<Record<string, string>>("active-wallet", {});
+  write("active-wallet", {...stored, [accountId]: address});
+  announce();
+}

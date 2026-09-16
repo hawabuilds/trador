@@ -44,6 +44,11 @@ export function DemoSessionProvider({children}: {children: React.ReactNode}) {
       // Deliberately null. See the note above.
       signAndSend: null,
       getAccessToken: async () => null,
+      wallets: authenticated ? [{address: DEMO_WALLET, imported: false}] : [],
+      // A sample wallet has no key to export and nowhere to import one to.
+      setActiveWallet: null,
+      exportWallet: null,
+      importWallet: null,
     }),
     [authenticated, login, logout],
   );

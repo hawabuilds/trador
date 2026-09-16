@@ -1,15 +1,20 @@
 "use client";
 
-import {useCallback, useMemo} from "react";
+import {useCallback, useEffect, useMemo, useState} from "react";
 import {PrivyProvider, usePrivy} from "@privy-io/react-auth";
-import {useSignAndSendTransaction, useWallets} from "@privy-io/react-auth/solana";
+import {
+  useExportWallet,
+  useImportWallet,
+  useSignAndSendTransaction,
+  useWallets,
+} from "@privy-io/react-auth/solana";
 import {createSolanaRpc, createSolanaRpcSubscriptions} from "@solana/kit";
 
-import {encodeBase58} from "@/lib/pubkey";
-
-import {asPubkey} from "@/lib/pubkey";
+import {LOCAL_STORE_EVENT, readActiveWallet, writeActiveWallet} from "@/lib/localStore";
+import {asPubkey, encodeBase58, type Pubkey} from "@/lib/pubkey";
 import {SessionContext, type Session} from "@/lib/session";
 import {THEME} from "@/lib/theme";
+import {pickActiveWallet, type WalletEntry} from "@/lib/wallets";
 
 const APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? "";
 
@@ -105,9 +110,89 @@ function PrivyBridge({children}: {children: React.ReactNode}) {
   const {ready, authenticated, user, login, logout, getAccessToken} = usePrivy();
   const {wallets} = useWallets();
   const {signAndSendTransaction} = useSignAndSendTransaction();
+  const {exportWallet: privyExportWallet} = useExportWallet();
+  const {importWallet: privyImportWallet} = useImportWallet();
 
-  const wallet = wallets[0] ?? null;
-  const address = asPubkey(wallet?.address ?? null);
+  const userId = user?.id ?? null;
+
+  /** Which of the account's Solana wallets were imported rather than created. */
+  const importedByAddress = useMemo(() => {
+    const flags = new Map<string, boolean>();
+    for (const account of user?.linkedAccounts ?? []) {
+      if (account.type !== "wallet" || account.chainType !== "solana") continue;
+      flags.set(account.address, account.imported);
+    }
+    return flags;
+  }, [user]);
+
+  const entries = useMemo<WalletEntry[]>(
+    () =>
+      wallets.flatMap((connected) => {
+        const address = asPubkey(connected.address);
+        return address
+          ? [{address, imported: importedByAddress.get(connected.address) ?? false}]
+          : [];
+      }),
+    [wallets, importedByAddress],
+  );
+
+  /*
+   * The wallet that trades, chosen rather than defaulted.
+   *
+   * This was `wallets[0]`. With one wallet that is the only answer; with an
+   * imported second one it would let the list order decide which wallet signs
+   * and which portfolio is on screen.
+   */
+  const [storedActive, setStoredActive] = useState<string | null>(null);
+  useEffect(() => {
+    if (!userId) return;
+    const sync = () => setStoredActive(readActiveWallet(userId));
+    sync();
+    window.addEventListener(LOCAL_STORE_EVENT, sync);
+    return () => window.removeEventListener(LOCAL_STORE_EVENT, sync);
+  }, [userId]);
+
+  const active = pickActiveWallet(entries, storedActive);
+  const wallet = active
+    ? (wallets.find((connected) => connected.address === active.address) ?? null)
+    : null;
+  const address = active?.address ?? null;
+
+  const setActiveWallet = useCallback(
+    (next: Pubkey) => {
+      if (!userId) return;
+      writeActiveWallet(userId, next);
+      setStoredActive(next);
+    },
+    [userId],
+  );
+
+  // Privy renders the key in its own iframe; nothing comes back to this app.
+  const exportWallet = useCallback(
+    (target: Pubkey) => privyExportWallet({address: target}),
+    [privyExportWallet],
+  );
+
+  /*
+   * The one place key material passes through this codebase.
+   *
+   * Privy has no hosted screen for import, so the key has to be handed to its
+   * SDK from here. It goes straight to that call: not stored, not logged, not
+   * sent to this app's server, and the sheet that collected it clears it.
+   */
+  const importWallet = useCallback(
+    async (privateKey: string): Promise<Pubkey> => {
+      const imported = await privyImportWallet({privateKey: privateKey.trim()});
+      const importedAddress = asPubkey(imported.address);
+      if (!importedAddress) throw new Error("The imported wallet has an unexpected address.");
+      // Importing a wallet is a request to use it.
+      setActiveWallet(importedAddress);
+      return importedAddress;
+    },
+    [privyImportWallet, setActiveWallet],
+  );
+
+  const hasImported = entries.some((entry) => entry.imported);
 
   /**
    * Sign and send serialized transaction bytes, returning the signature.
@@ -187,6 +272,11 @@ function PrivyBridge({children}: {children: React.ReactNode}) {
           return null;
         }
       },
+      wallets: authenticated ? entries : [],
+      setActiveWallet: authenticated && entries.length > 1 ? setActiveWallet : null,
+      exportWallet: authenticated && entries.length > 0 ? exportWallet : null,
+      // Privy allows one imported wallet per account.
+      importWallet: authenticated && !hasImported ? importWallet : null,
     }),
     [
       ready,
@@ -199,6 +289,11 @@ function PrivyBridge({children}: {children: React.ReactNode}) {
       wallet,
       signAndSend,
       getAccessToken,
+      entries,
+      setActiveWallet,
+      exportWallet,
+      importWallet,
+      hasImported,
     ],
   );
 

@@ -3,6 +3,7 @@
 import {createContext, useContext} from "react";
 
 import type {Pubkey} from "./pubkey";
+import type {WalletEntry} from "./wallets";
 
 export interface AppUser {
   /** Stable identity id. Privy's DID in real mode. */
@@ -33,6 +34,24 @@ export interface Session {
   /** Null when there is no wallet to sign with. */
   signAndSend: ((transaction: Uint8Array) => Promise<string>) | null;
   getAccessToken: () => Promise<string | null>;
+
+  /** Every Solana wallet on the account. `user.wallet` is the one that trades. */
+  wallets: WalletEntry[];
+  /** Choose which wallet trades. Null when there is nothing to choose. */
+  setActiveWallet: ((address: Pubkey) => void) | null;
+  /**
+   * Open Privy's export screen for one wallet.
+   *
+   * The key is shown inside Privy's iframe, on Privy's domain; this app never
+   * receives it. Null in demo mode.
+   */
+  exportWallet: ((address: Pubkey) => Promise<void>) | null;
+  /**
+   * Import a wallet from its base58 private key, and make it the one that
+   * trades. Null in demo mode, or once the account already has an imported
+   * wallet — Privy allows one.
+   */
+  importWallet: ((privateKey: string) => Promise<Pubkey>) | null;
 }
 
 export const SessionContext = createContext<Session | null>(null);
