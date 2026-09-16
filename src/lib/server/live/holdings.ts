@@ -114,6 +114,52 @@ export async function stonkfolioFor(wallet: Pubkey): Promise<Stonkfolio> {
   return {...value, stale};
 }
 
+export interface Balances {
+  /** Native SOL, in lamports, as a decimal string. */
+  lamports: string;
+  /** Raw base units per requested mint, summed across every account for it. */
+  tokens: Record<string, {amount: string; decimals: number}>;
+}
+
+/**
+ * Exactly what a wallet holds of a few mints, for the order ticket.
+ *
+ * Raw base units rather than `uiAmount`: the ticket sizes "sell all" from this
+ * and has to send precisely the balance, which a float cannot promise.
+ *
+ * Filtered by mint, so it works for classic SPL and Token-2022 alike without
+ * asking about either program, and costs one call per mint instead of a scan of
+ * the whole wallet. Uncached on purpose — the ticket refetches straight after a
+ * trade, and a cached pre-trade balance is exactly the wrong answer then.
+ */
+export async function balancesFor(wallet: Pubkey, mints: readonly Pubkey[]): Promise<Balances> {
+  const [balance, ...perMint] = await Promise.all([
+    rpc<{value: number}>("getBalance", [wallet, {commitment: "confirmed"}]),
+    ...mints.map((mint) =>
+      rpc<{value: ParsedTokenAccount[]}>("getTokenAccountsByOwner", [
+        wallet,
+        {mint},
+        {encoding: "jsonParsed", commitment: "confirmed"},
+      ]),
+    ),
+  ]);
+
+  const tokens: Balances["tokens"] = {};
+  mints.forEach((mint, index) => {
+    let total = 0n;
+    let decimals = 0;
+    for (const entry of perMint[index].value) {
+      const amount = entry.account.data.parsed?.info?.tokenAmount;
+      if (!amount?.amount || !/^\d+$/.test(amount.amount)) continue;
+      total += BigInt(amount.amount);
+      decimals = amount.decimals ?? decimals;
+    }
+    tokens[mint] = {amount: total.toString(), decimals};
+  });
+
+  return {lamports: String(balance.value), tokens};
+}
+
 /**
  * The assets behind a set of held mints.
  *

@@ -1,8 +1,17 @@
 "use client";
 
 import {useEffect, useMemo, useState} from "react";
+import {useQueryClient} from "@tanstack/react-query";
 
 import {FEE_BPS, feeFor, tooSmall} from "@/config/fees";
+import {balancesKey, useBalances} from "@/hooks/useBalances";
+import {
+  SOL_FEE_RESERVE_LAMPORTS,
+  fromBaseUnits,
+  shareOf,
+  spendableLamports,
+  toBaseUnits,
+} from "@/lib/amounts";
 import {confirmSignature} from "@/lib/confirmSignature";
 import {txUrl} from "@/config/explorer";
 import {useSession} from "@/lib/session";
@@ -23,8 +32,16 @@ const PAY_WITH = [
 
 const QUICK_USD = [10, 25, 100];
 const QUICK_SOL = [0.05, 0.25, 1];
-/** Sell sizes, as a share of the position. */
-const SELL_STEPS = [25, 50, 75];
+/** Sell sizes, as a share of the position. 100 sells the exact balance. */
+const SELL_STEPS = [25, 50, 75, 100];
+
+/**
+ * SOL a trade funded in something else still needs, for its network fee and
+ * possibly rent on a token account it opens. There is no fee sponsorship, so a
+ * wallet below this cannot pay for the transaction it is about to be asked to
+ * sign.
+ */
+const MIN_FEE_LAMPORTS = 3_000_000n; // 0.003 SOL
 
 const SLIPPAGE_CHOICES = [50, 100, 300];
 
@@ -65,6 +82,7 @@ export function OrderSheet({
   onClose: () => void;
 }) {
   const session = useSession();
+  const queryClient = useQueryClient();
 
   const [activeSide, setActiveSide] = useState<"buy" | "sell">(side);
   const [payWith, setPayWith] = useState<(typeof PAY_WITH)[number]>(PAY_WITH[1]);
@@ -102,9 +120,33 @@ export function OrderSheet({
     setConfigOpen(false);
   }, [asset?.id, side]);
 
-  /** The asset's own decimals, which both the estimate and the minimum need. */
-  const assetDecimals =
+  const wallet = session.user?.wallet ?? null;
+  const canSign = session.signAndSend !== null && wallet !== null;
+
+  /*
+   * What the wallet actually holds of this asset and of USDC, plus its SOL.
+   *
+   * The ticket used to know none of this, so it could not offer a size as a
+   * share of a position, had no "sell all", and would happily ask you to sign
+   * a trade for more than you own — which then failed in simulation.
+   */
+  const balanceMints = useMemo(() => (asset ? [asset.mint, USDC_MINT] : []), [asset]);
+  const balances = useBalances(wallet, balanceMints, open && wallet !== null);
+  const held = asset ? balances.data?.tokens[asset.mint] : undefined;
+  const heldRaw = balances.data ? BigInt(held?.amount ?? "0") : null;
+  const usdcRaw = balances.data ? BigInt(balances.data.tokens[USDC_MINT]?.amount ?? "0") : null;
+  const lamports = balances.data ? BigInt(balances.data.lamports) : null;
+
+  /**
+   * The asset's own decimals, which both the estimate and the minimum need.
+   *
+   * The chain wins over the store when the wallet holds some: the mint account
+   * is the only authority on its precision, and a wrong value here sizes a sell
+   * a thousandfold off.
+   */
+  const storedDecimals =
     asset === null ? 6 : asset.kind === "stonk" ? (asset.decimals ?? 6) : asset.decimals;
+  const assetDecimals = heldRaw !== null && heldRaw > 0n && held ? held.decimals : storedDecimals;
 
   const priceUsd = asset?.price.usd ?? null;
   const typed = Number.parseFloat(amount);
@@ -127,15 +169,30 @@ export function OrderSheet({
    * sell in dollars directly would need a price the ticket may not have, which
    * is why an unpriced asset blocks rather than guesses.
    */
-  const amountBaseUnits = useMemo(() => {
-    if (!asset || entered <= 0) return null;
+  const amountRaw = useMemo(() => {
+    if (!asset) return null;
+    // Parsed from the text, not from the float: "sell all" writes the exact
+    // balance into the field, and it has to come back out unchanged.
+    const parsed = toBaseUnits(amount, buying ? payWith.decimals : assetDecimals);
+    return parsed !== null && parsed > 0n ? parsed : null;
+  }, [asset, amount, assetDecimals, buying, payWith.decimals]);
 
-    if (buying) {
-      return String(Math.round(entered * 10 ** payWith.decimals));
-    }
+  const amountBaseUnits = amountRaw === null ? null : amountRaw.toString();
 
-    return String(Math.round(entered * 10 ** assetDecimals));
-  }, [asset, assetDecimals, buying, entered, payWith.decimals]);
+  /** The most this side can spend, in the unit being typed. */
+  const availableRaw = buying
+    ? payWith.symbol === "SOL"
+      ? lamports === null
+        ? null
+        : spendableLamports(lamports)
+      : usdcRaw
+    : heldRaw;
+  const availableDecimals = buying ? payWith.decimals : assetDecimals;
+  const available =
+    availableRaw === null ? null : Number(fromBaseUnits(availableRaw, availableDecimals));
+  const overBalance = amountRaw !== null && availableRaw !== null && amountRaw > availableRaw;
+  const shortOnFees =
+    lamports !== null && !(buying && payWith.symbol === "SOL") && lamports < MIN_FEE_LAMPORTS;
 
   const undersized =
     entered > 0 && !solSized && Number.isFinite(amountUsd) && tooSmall(amountUsd);
@@ -187,9 +244,13 @@ export function OrderSheet({
   const impactBlocks = impactPct >= 50;
   const impactWarns = impactPct >= 15 && !impactBlocks;
 
-  const wallet = session.user?.wallet ?? null;
-  const canSign = session.signAndSend !== null && wallet !== null;
+  const fundingSymbol = buying ? payWith.symbol : symbol;
 
+  /*
+   * Checked in this order because each one is the more useful thing to say:
+   * no signer beats no balance, and "you don't have that much" beats a price
+   * impact figure computed for a trade that cannot happen anyway.
+   */
   const blockReason = !open
     ? null
     : !canSign
@@ -198,13 +259,26 @@ export function OrderSheet({
         : "Connect a wallet to trade."
       : entered <= 0
         ? null
-        : undersized
-          ? "Minimum trade is $1."
-          : !buying && (priceUsd === null || priceUsd <= 0)
-            ? "No price for this asset, so a sell cannot be sized."
-            : impactBlocks
-              ? `Price impact is ${impactPct.toFixed(1)}% — too high to place.`
-              : null;
+        : balances.isError
+          ? "Could not read your balance, so this trade cannot be checked. Try again in a moment."
+          : availableRaw === null
+            ? "Checking your balance…"
+            : overBalance
+              ? overBalanceMessage({
+                  buying,
+                  solFunded: buying && payWith.symbol === "SOL",
+                  available: available ?? 0,
+                  symbol: fundingSymbol,
+                })
+              : shortOnFees
+                ? "You need a little SOL for network fees — about 0.003 SOL."
+                : undersized
+                  ? "Minimum trade is $1."
+                  : !buying && (priceUsd === null || priceUsd <= 0)
+                    ? "No price for this asset, so a sell cannot be sized."
+                    : impactBlocks
+                      ? `Price impact is ${impactPct.toFixed(1)}% — too high to place.`
+                      : null;
 
   /** What the confirm button receives, in the unit it will actually arrive in. */
   const estimatedOut = useMemo(() => {
@@ -216,6 +290,9 @@ export function OrderSheet({
 
   async function confirm() {
     if (!asset || !quote || !wallet || !session.signAndSend) return;
+    // The button is disabled for these already; this is the last word, not the
+    // first, in case a balance refetch landed between render and press.
+    if (blockReason !== null) return;
 
     setError(null);
     setStatus("Building…");
@@ -254,6 +331,11 @@ export function OrderSheet({
 
       const outcome = await confirmSignature(sig);
       setStatus(null);
+
+      // Whatever happened, the balances this ticket limits against are now
+      // suspect, and so is the portfolio that sent you here.
+      void queryClient.invalidateQueries({queryKey: balancesKey(wallet, balanceMints)});
+      void queryClient.invalidateQueries({queryKey: ["stonkfolio", wallet]});
 
       if (outcome === "failed") {
         setError("The transaction was rejected on-chain. Open it to see why.");
@@ -463,15 +545,37 @@ export function OrderSheet({
                   <QuickButton
                     key={step}
                     label={`${step}%`}
-                    // Sizing a share of a position needs the position, and the
-                    // ticket does not hold holdings. Disabled rather than
-                    // wrong: a "50%" that sizes off nothing is worse than one
-                    // that plainly does not work.
-                    disabled
-                    onClick={() => undefined}
+                    // Disabled until there is a position to take a share of —
+                    // a "50%" that sizes off nothing is worse than one that
+                    // plainly waits.
+                    disabled={heldRaw === null || heldRaw <= 0n}
+                    onClick={() => {
+                      if (heldRaw === null) return;
+                      // Written as exact decimal text, so 100% comes back out
+                      // of the field as precisely the balance.
+                      setAmount(fromBaseUnits(shareOf(heldRaw, step), assetDecimals));
+                      setError(null);
+                      setSignature(null);
+                    }}
                   />
                 ))}
           </div>
+
+          {wallet ? (
+            <div className="tabular-nums mt-2 flex items-center justify-between gap-3 px-1 text-[12px] font-semibold">
+              <span className="text-faint">{buying ? "Available" : "You hold"}</span>
+              <span className={cn("truncate font-bold", overBalance ? "text-error" : "text-muted")}>
+                {balances.isError
+                  ? "Couldn't read balance"
+                  : available === null
+                    ? "…"
+                    : `${amountLabel(available)} ${fundingSymbol}`}
+                {buying && payWith.symbol === "SOL" && available !== null
+                  ? ` · ${Number(SOL_FEE_RESERVE_LAMPORTS) / 1e9} kept for fees`
+                  : ""}
+              </span>
+            </div>
+          ) : null}
 
           <div className="mt-3.5 flex items-center justify-between gap-3 rounded-2xl bg-[var(--segment-track)] px-3.5 py-2.5 text-[12.5px] font-semibold shadow-inset-soft">
             <span className="text-faint">
@@ -554,6 +658,33 @@ export function OrderSheet({
       ) : null}
     </Modal>
   );
+}
+
+function amountLabel(value: number): string {
+  return value === 0 ? "0" : units(value);
+}
+
+/** Why an amount is more than the wallet can cover, in the unit being typed. */
+function overBalanceMessage({
+  buying,
+  solFunded,
+  available,
+  symbol,
+}: {
+  buying: boolean;
+  solFunded: boolean;
+  available: number;
+  symbol: string;
+}): string {
+  if (!buying) {
+    return available === 0
+      ? `You don't hold any ${symbol} in this wallet.`
+      : `You only hold ${amountLabel(available)} ${symbol}.`;
+  }
+  if (solFunded) {
+    return `You can spend up to ${amountLabel(available)} SOL — a little is kept back for network fees.`;
+  }
+  return `You only have ${amountLabel(available)} ${symbol}.`;
 }
 
 /**
