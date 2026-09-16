@@ -32,12 +32,14 @@ export function TradesPanel({
   isLoading,
   error,
   onRetry,
+  emptyLabel = "No trades yet.",
 }: {
   trades: Trade[];
   symbol: string;
   isLoading: boolean;
   error?: string | null;
   onRetry?: () => void;
+  emptyLabel?: string;
 }) {
   const arrivals = useArrivals(trades.map((trade) => trade.id));
 
@@ -48,7 +50,7 @@ export function TradesPanel({
     return <PanelError message={error} onRetry={onRetry} />;
   }
   if (trades.length === 0) {
-    return <PanelNote>No trades yet.</PanelNote>;
+    return <PanelNote>{emptyLabel}</PanelNote>;
   }
 
   return (

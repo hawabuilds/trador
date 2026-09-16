@@ -178,7 +178,7 @@ export async function balancesFor(wallet: Pubkey, mints: readonly Pubkey[]): Pro
  * The snapshot still fills any mint the store does not answer for, so a
  * deployment with no database shows a portfolio instead of an empty one.
  */
-async function universeFor(mints: readonly string[]): Promise<Map<string, Asset>> {
+export async function universeFor(mints: readonly string[]): Promise<Map<string, Asset>> {
   const universe = new Map<string, Asset>();
 
   // Stocks come from the registry and are priced live; there are 82 of them and

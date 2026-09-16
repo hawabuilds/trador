@@ -5,6 +5,7 @@ import {useQueryClient} from "@tanstack/react-query";
 
 import {FEE_BPS, feeFor, tooSmall} from "@/config/fees";
 import {balancesKey, useBalances} from "@/hooks/useBalances";
+import {WALLET_TRADES_KEY} from "@/hooks/useWalletTrades";
 import {
   SOL_FEE_RESERVE_LAMPORTS,
   fromBaseUnits,
@@ -352,6 +353,8 @@ export function OrderSheet({
       // suspect, and so is the portfolio that sent you here.
       void queryClient.invalidateQueries({queryKey: balancesKey(wallet, balanceMints)});
       void queryClient.invalidateQueries({queryKey: ["stonkfolio", wallet]});
+      // And your history and cost basis, which now include this trade.
+      void queryClient.invalidateQueries({queryKey: [WALLET_TRADES_KEY, wallet]});
 
       if (outcome === "failed") {
         setError("The transaction was rejected on-chain. Open it to see why.");

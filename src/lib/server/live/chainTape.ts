@@ -25,9 +25,17 @@
 import type {Trade} from "@/lib/types";
 import type {Pubkey} from "@/lib/pubkey";
 import {cached, peek} from "./cache";
+import {
+  addressPage,
+  heliusKey,
+  parseTransactions,
+  signaturesFor,
+  uiAmount,
+  type ParsedTx,
+} from "./helius";
 import {jupTokens} from "./jupTokens";
 
-const API = process.env.HELIUS_API_URL ?? "https://api-mainnet.helius-rpc.com";
+export type {ParsedTx} from "./helius";
 
 /** Enough history to fill recent candles; the chart covers the rest. */
 export const TAPE_MAX = 300;
@@ -35,36 +43,6 @@ const PAGE = 100;
 /** Pages fetched when there is nothing cached to extend. */
 const COLD_PAGES = 3;
 const TTL_MS = 8_000;
-
-function heliusKey(): string | null {
-  if (process.env.HELIUS_API_KEY) return process.env.HELIUS_API_KEY;
-  const rpc = process.env.HELIUS_RPC_URL;
-  if (!rpc) return null;
-  try {
-    return new URL(rpc).searchParams.get("api-key");
-  } catch {
-    return null;
-  }
-}
-
-/** The subset of a Helius parsed transaction this reads. */
-export interface ParsedTx {
-  signature: string;
-  timestamp: number;
-  feePayer: string;
-  transactionError?: unknown;
-  accountData?: {
-    tokenBalanceChanges?: {
-      userAccount: string;
-      tokenAccount: string;
-      mint: string;
-      rawTokenAmount: {tokenAmount: string; decimals: number};
-    }[];
-  }[];
-}
-
-const uiAmount = (raw: {tokenAmount: string; decimals: number}): number =>
-  Number(raw.tokenAmount) / 10 ** raw.decimals;
 
 /**
  * One fill from one transaction, or null if the pool did not trade our coin.
@@ -128,30 +106,8 @@ export function mergeTape(newer: readonly Trade[], older: readonly Trade[]): Tra
     .slice(0, TAPE_MAX);
 }
 
-async function asParsed(response: Response): Promise<ParsedTx[]> {
-  if (!response.ok) throw new Error(`Chain tape returned ${response.status}.`);
-  const body = (await response.json()) as unknown;
-  if (!Array.isArray(body)) throw new Error("Chain tape returned an unexpected body.");
-  return body as ParsedTx[];
-}
-
-async function page(pool: Pubkey, key: string, before?: string): Promise<ParsedTx[]> {
-  const url =
-    `${API}/v0/addresses/${pool}/transactions?api-key=${key}&limit=${PAGE}` +
-    (before ? `&before=${before}` : "");
-  return asParsed(await fetch(url, {cache: "no-store"}));
-}
-
-async function parse(signatures: string[], key: string): Promise<ParsedTx[]> {
-  return asParsed(
-    await fetch(`${API}/v0/transactions?api-key=${key}`, {
-      method: "POST",
-      headers: {"content-type": "application/json"},
-      cache: "no-store",
-      body: JSON.stringify({transactions: signatures}),
-    }),
-  );
-}
+const page = (pool: Pubkey, key: string, before?: string) =>
+  addressPage(pool, key, PAGE, before);
 
 /**
  * Signatures touching the pool since one we already have, newest first.
@@ -163,32 +119,13 @@ async function signaturesSince(
   pool: Pubkey,
   until: string,
 ): Promise<{newest: string | null; succeeded: string[]; full: boolean}> {
-  const rpc = process.env.HELIUS_RPC_URL;
-  if (!rpc) throw new Error("No RPC for the chain tape.");
-  const response = await fetch(rpc, {
-    method: "POST",
-    headers: {"content-type": "application/json"},
-    cache: "no-store",
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "getSignaturesForAddress",
-      params: [pool, {until, limit: PAGE, commitment: "confirmed"}],
-    }),
-  });
-  const body = (await response.json()) as {
-    result?: {signature: string; err: unknown}[];
-    error?: {message: string};
-  };
-  if (!response.ok || body.error || !body.result) {
-    throw new Error(body.error?.message ?? `Signature list returned ${response.status}.`);
-  }
+  const rows = await signaturesFor(pool, {until, limit: PAGE});
   return {
-    newest: body.result[0]?.signature ?? null,
-    succeeded: body.result.filter((row) => !row.err).map((row) => row.signature),
+    newest: rows[0]?.signature ?? null,
+    succeeded: rows.filter((row) => !row.err).map((row) => row.signature),
     // Counted before dropping failures: a page of 100 with a few failed
     // transactions is still a page that may not reach back far enough.
-    full: body.result.length >= PAGE,
+    full: rows.length >= PAGE,
   };
 }
 
@@ -234,7 +171,7 @@ export async function chainTradesFor(
       // extending cannot leave a hole. A full page might not have.
       if (!fresh.full) {
         const added = fresh.succeeded.length
-          ? toFills(await parse(fresh.succeeded, key))
+          ? toFills(await parseTransactions(fresh.succeeded, key))
           : [];
         return {trades: mergeTape(added, previous.trades), head: fresh.newest};
       }

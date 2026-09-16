@@ -9,6 +9,8 @@ import {accountUrl, tokenUrl} from "@/config/explorer";
 import {launchpadFace} from "@/config/launchpads";
 import {useAsset, useChart, useTrades} from "@/hooks/useAsset";
 import {useLivePrice} from "@/hooks/useLivePrice";
+import {useUser} from "@/hooks/useUser";
+import {useWalletTrades} from "@/hooks/useWalletTrades";
 import {hoveredCandleChangePct} from "@/lib/chartLwc";
 import {changePctForPoints, mergeTradesIntoChart} from "@/lib/chartLive";
 import {TIMEFRAME_MS, chartWindowMs} from "@/lib/chartPlot";
@@ -20,9 +22,10 @@ import {readChartStyle, writeChartStyle} from "@/lib/localStore";
 import {formatLiquidityUsd, formatMarketCapAt, formatPriceUsd} from "@/lib/priceState";
 import {SECTOR_LABEL} from "@/lib/sectors";
 import {ISSUERS} from "@/lib/stocks/registry";
-import type {AssetKind, ChartPoint, ChartStyle, Timeframe} from "@/lib/types";
+import type {AssetKind, ChartPoint, ChartStyle, Timeframe, Trade} from "@/lib/types";
 import {STOCK_TIMEFRAMES, TIMEFRAMES, timeframeLabel} from "@/lib/types";
 import {AssetSkeleton} from "./AssetPageSkeleton";
+import {FilterRail, type FilterOption} from "./FilterRail";
 import {LaunchpadMark} from "./LaunchpadMark";
 import {PanelTabs, type PanelTab} from "./PanelTabs";
 import {PillRail} from "./PillRail";
@@ -68,6 +71,13 @@ const PriceChart = dynamic(
 
 type PanelKey = "trades" | "comments" | "detail";
 
+type TapeScope = "all" | "mine";
+
+const TAPE_SCOPES: FilterOption<TapeScope>[] = [
+  {value: "all", label: "All"},
+  {value: "mine", label: "Mine"},
+];
+
 /**
  * The chart page, shared by both sides of the universe.
  *
@@ -111,6 +121,34 @@ export function AssetPage({
 
   const chart = useChart(kind, id, timeframe);
   const trades = useTrades(kind, id, true);
+
+  /*
+   * Your own trades in this asset, from the same wallet history the Stonkfolio
+   * lists. Only fetched once "Mine" is picked, and shown in the tape's own
+   * layout so the two read the same way.
+   */
+  const {wallet} = useUser();
+  const [tapeScope, setTapeScope] = useState<TapeScope>("all");
+  const mine = useWalletTrades(wallet, {
+    mint: asset?.mint ?? null,
+    enabled: panel === "trades" && tapeScope === "mine" && Boolean(asset),
+  });
+  const mineAsTape = useMemo<Trade[]>(
+    () =>
+      mine.trades.map((trade) => ({
+        id: `${trade.signature}:${trade.mint}`,
+        side: trade.side,
+        amount: trade.amount,
+        // Unpriced stays unpriced: the tape renders a dash, not $0.
+        amountUsd: trade.valueUsd ?? Number.NaN,
+        priceUsd: trade.priceUsd ?? Number.NaN,
+        maker: wallet ?? "",
+        txHash: trade.signature,
+        makerHandle: null,
+        at: trade.at,
+      })),
+    [mine.trades, wallet],
+  );
 
   const symbol = asset?.kind === "stock" ? asset.ticker : (asset?.symbol ?? "");
 
@@ -380,13 +418,36 @@ export function AssetPage({
 
       <div className="pt-3">
         {panel === "trades" ? (
-          <TradesPanel
-            trades={trades.trades}
-            symbol={symbol}
-            isLoading={trades.isLoading}
-            error={trades.error}
-            onRetry={trades.retry}
-          />
+          <>
+            {wallet ? (
+              <div className="pb-3">
+                <FilterRail
+                  label="Whose trades"
+                  options={TAPE_SCOPES}
+                  value={tapeScope}
+                  onChange={setTapeScope}
+                />
+              </div>
+            ) : null}
+            {tapeScope === "mine" && wallet ? (
+              <TradesPanel
+                trades={mineAsTape}
+                symbol={symbol}
+                isLoading={mine.isLoading}
+                error={mine.error}
+                onRetry={mine.retry}
+                emptyLabel={mine.notice ?? `You haven't traded ${symbol} from this wallet yet.`}
+              />
+            ) : (
+              <TradesPanel
+                trades={trades.trades}
+                symbol={symbol}
+                isLoading={trades.isLoading}
+                error={trades.error}
+                onRetry={trades.retry}
+              />
+            )}
+          </>
         ) : panel === "comments" ? (
           <CommentsPanel kind={asset.kind} assetId={asset.id} symbol={symbol} />
         ) : asset.kind === "stonk" ? (

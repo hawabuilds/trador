@@ -250,3 +250,70 @@ export async function tradesFor(
 
   return {trades: value, stale};
 }
+
+// ---------------------------------------------------------------------------
+// SOL in dollars, at a moment in the past
+// ---------------------------------------------------------------------------
+
+/** The deepest SOL/USDC pool, whose candles price SOL over time. */
+const SOL_USD_POOL = "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE";
+const SOL_MINT = "So11111111111111111111111111111111111111112";
+
+/** One call returns up to this many candles. */
+const CANDLE_LIMIT = 1000;
+/** Minute candles for the last week; hourly beyond it, where a minute is noise. */
+const MINUTE_HORIZON_S = 7 * 24 * 3600;
+
+/**
+ * Candles per window, keyed on the window's end.
+ *
+ * Windows are fixed, not centred on the trade, so a wallet with forty trades
+ * in one afternoon costs one request rather than forty. A window that ends in
+ * the future is still filling in and is cached briefly; a closed one never
+ * changes.
+ */
+async function solWindow(
+  bucket: "minute" | "hour",
+  windowEnd: number,
+): Promise<Array<[number, number]>> {
+  const nowS = Date.now() / 1000;
+  const {value} = await cached(
+    `sol-usd:${bucket}:${windowEnd}`,
+    windowEnd > nowS ? 60_000 : 24 * 3600_000,
+    async () => {
+      const body = await gecko<{data?: {attributes?: {ohlcv_list?: number[][]}}}>(
+        `/networks/${NETWORK}/pools/${SOL_USD_POOL}/ohlcv/${bucket}` +
+          `?aggregate=1&limit=${CANDLE_LIMIT}&before_timestamp=${Math.min(windowEnd, Math.floor(nowS))}` +
+          `&token=${SOL_MINT}&currency=usd`,
+      );
+      return (body.data?.attributes?.ohlcv_list ?? [])
+        .map(([t, , , , close]) => [t, close] as [number, number])
+        .filter(([, close]) => Number.isFinite(close) && close > 0)
+        .sort((a, b) => a[0] - b[0]);
+    },
+  );
+  return value;
+}
+
+/**
+ * SOL's USD price at a unix time, or null if no candle reaches it.
+ *
+ * The close of the candle containing the moment, or the nearest one before it —
+ * a quiet minute has no candle, and the last traded price is the price.
+ */
+export async function solUsdAt(unixSeconds: number): Promise<number | null> {
+  const recent = Date.now() / 1000 - unixSeconds < MINUTE_HORIZON_S;
+  const bucket = recent ? "minute" : "hour";
+  const step = recent ? 60 : 3600;
+  // Leave a margin so a moment near a window's start still has earlier candles.
+  const span = step * (CANDLE_LIMIT - 100);
+  const windowEnd = Math.ceil((unixSeconds + 1) / span) * span;
+
+  const candles = await solWindow(bucket, windowEnd);
+  let best: number | null = null;
+  for (const [t, close] of candles) {
+    if (t > unixSeconds) break;
+    best = close;
+  }
+  return best ?? candles[0]?.[1] ?? null;
+}

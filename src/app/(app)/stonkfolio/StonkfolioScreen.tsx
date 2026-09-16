@@ -17,14 +17,24 @@ import {EditProfileSheet} from "@/components/EditProfileSheet";
 import {SettingsMenu} from "@/components/SettingsMenu";
 import {SocialRow} from "@/components/SocialRow";
 import {PriceDelta} from "@/components/ui/PriceDelta";
+import {WalletTradeList} from "@/components/WalletTradeList";
 import {useBalanceHistory, type BalanceRange} from "@/hooks/useBalanceHistory";
 import {useMe} from "@/hooks/useMe";
 import {useUser} from "@/hooks/useUser";
+import {useWalletTrades} from "@/hooks/useWalletTrades";
 import {cn} from "@/lib/cn";
+import {holdingProfit, signedMoney, type Position} from "@/lib/walletTrades";
 import {compact, compactMoney, stamp, units} from "@/lib/format";
 import {formatPriceUsd} from "@/lib/priceState";
 import {shortPubkey} from "@/lib/pubkey";
 import type {Holding} from "@/lib/types";
+
+type View = "holdings" | "history";
+
+const VIEWS: FilterOption<View>[] = [
+  {value: "holdings", label: "Holdings"},
+  {value: "history", label: "History"},
+];
 
 type Split = "all" | "stonk" | "stock";
 
@@ -54,6 +64,7 @@ interface StonkfolioResponse {
  */
 export function StonkfolioScreen() {
   const {authenticated, wallet, displayName, handle, pfpUrl, isDemo, login} = useUser();
+  const [view, setView] = useState<View>("holdings");
   const [split, setSplit] = useState<Split>("all");
   const [copied, setCopied] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -87,6 +98,13 @@ export function StonkfolioScreen() {
   }, [query.data?.holdings, split]);
 
   const sol = (query.data?.solLamports ?? 0) / 1_000_000_000;
+
+  // Loaded for both views: history lists it, holdings take their cost from it.
+  const trades = useWalletTrades(wallet);
+  const positions = useMemo(
+    () => new Map(trades.positions.map((position) => [position.mint, position])),
+    [trades.positions],
+  );
 
   if (!authenticated) {
     return (
@@ -279,8 +297,11 @@ export function StonkfolioScreen() {
           onScrub={setScrubbed}
         />
 
-        <div className="py-3.5">
-          <FilterRail label="Split holdings" options={SPLITS} value={split} onChange={setSplit} />
+        <div className="space-y-2.5 py-3.5">
+          <FilterRail label="Holdings or history" options={VIEWS} value={view} onChange={setView} />
+          {view === "holdings" ? (
+            <FilterRail label="Split holdings" options={SPLITS} value={split} onChange={setSplit} />
+          ) : null}
         </div>
       </StickyPageHeader>
 
@@ -290,7 +311,19 @@ export function StonkfolioScreen() {
         </p>
       ) : null}
 
-      {query.isLoading ? (
+      {view === "history" ? (
+        <WalletTradeList
+          trades={trades.trades}
+          assets={trades.assets}
+          isLoading={trades.isLoading}
+          error={trades.error}
+          notice={trades.notice}
+          hasMore={trades.hasMore}
+          loadingMore={trades.loadingMore}
+          onLoadMore={trades.loadMore}
+          onRetry={trades.retry}
+        />
+      ) : query.isLoading ? (
         <ul>
           {Array.from({length: 5}).map((_unused, index) => (
             <li key={index} className="flex items-center gap-3 py-3.5">
@@ -324,7 +357,7 @@ export function StonkfolioScreen() {
         <ul className="-mx-[22px]">
           {holdings.map((holding) => (
             <li key={`${holding.asset.kind}:${holding.asset.id}`}>
-              <HoldingRow holding={holding} />
+              <HoldingRow holding={holding} position={positions.get(holding.asset.mint)} />
             </li>
           ))}
         </ul>
@@ -355,10 +388,11 @@ export function StonkfolioScreen() {
   );
 }
 
-function HoldingRow({holding}: {holding: Holding}) {
+function HoldingRow({holding, position}: {holding: Holding; position?: Position}) {
   const {asset} = holding;
   const stock = asset.kind === "stock";
   const symbol = stock ? asset.ticker : asset.symbol;
+  const profit = holdingProfit(holding.amount, holding.valueUsd, position);
 
   return (
     <Link
@@ -397,6 +431,28 @@ function HoldingRow({holding}: {holding: Holding}) {
           {/* Unpriced says so. It is not worth zero. */}
           {holding.valueUsd === null ? "Unpriced" : compactMoney(holding.valueUsd)}
         </div>
+        {/*
+          Profit on what is held: worth now minus what it cost. Only shown
+          when the trade history covers the purchase. A leading ~ means part of
+          the holding arrived without a known price (a transfer, an airdrop, a
+          token-for-token swap), so the figure covers only the bought part.
+        */}
+        {profit ? (
+          <div
+            title={
+              profit.partial
+                ? "Covers only the part of this holding with a known purchase price."
+                : "Current value minus what you paid."
+            }
+            className={cn(
+              "tabular-nums mt-[3px] text-[12.5px] font-bold",
+              profit.usd >= 0 ? "text-price-up" : "text-price-down",
+            )}
+          >
+            {profit.partial ? "~" : ""}
+            {signedMoney(profit.usd)}
+          </div>
+        ) : null}
       </div>
     </Link>
   );
