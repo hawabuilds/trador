@@ -163,9 +163,9 @@ export async function followersOf(
 ): Promise<Profile[]> {
   return people(
     `join public.follows f on f.follower_id = u.id
-      where f.followee_id = $1`,
-    userId,
+      where f.followee_id = $2`,
     callerId,
+    [userId],
   );
 }
 
@@ -176,9 +176,9 @@ export async function followingOf(
 ): Promise<Profile[]> {
   return people(
     `join public.follows f on f.followee_id = u.id
-      where f.follower_id = $1`,
-    userId,
+      where f.follower_id = $2`,
     callerId,
+    [userId],
   );
 }
 
@@ -242,14 +242,18 @@ interface RawProfile {
 /**
  * A list of people, with follower counts and the caller's follow state.
  *
- * `$1` is the subject (whose followers/following are being listed) and `$2` is
- * the caller. `extra` appends further bindings starting at `$3`, which is how
- * the search below passes a pattern without a subject — the clause it supplies
- * simply never mentions `$1`.
+ * `$1` is the caller, which every query here references through `is_following`.
+ * A clause supplies its own bindings from `$2` onward.
+ *
+ * **Every parameter must be referenced by the clause.** This used to pass the
+ * subject as `$1` and let the search clause simply not mention it — which
+ * Postgres rejects outright with "could not determine data type of parameter
+ * $1", because an unused placeholder has no type to infer. The throw was caught
+ * and turned into an empty list, so user search returned nobody, always, and
+ * looked like an empty database rather than a broken query.
  */
 async function people(
   clause: string,
-  userId: string,
   callerId: string | null,
   extra: unknown[] = [],
 ): Promise<Profile[]> {
@@ -261,13 +265,13 @@ async function people(
             (select count(*) from public.follows x where x.follower_id = u.id) as following,
             exists (
               select 1 from public.follows x
-               where x.followee_id = u.id and x.follower_id = $2
+               where x.followee_id = u.id and x.follower_id = $1
             ) as is_following
        from public.users u
        ${clause}
       order by u.handle
       limit 200`,
-    [userId, callerId ?? "", ...extra],
+    [callerId ?? "", ...extra],
   );
 
   return rows.map((row) => toProfile(row, callerId));
@@ -325,6 +329,22 @@ function normalizeHandle(handle: string | null | undefined): string | null {
  * every account in the database — which is not a crash, just a privacy leak
  * shaped like a feature.
  */
+/**
+ * A LIKE pattern that matches the text given, and nothing more.
+ *
+ * `%` and `_` are wildcards, so a search for `%` would otherwise return every
+ * account in the database — not a crash, just a privacy leak shaped like a
+ * feature. They are escaped with a backslash, which is the escape character
+ * `ilike` uses by default.
+ *
+ * The previous version wrote the replacement as a template literal with an
+ * escaped dollar sign, which produced the literal seven characters `${match}`
+ * rather than a backslash and the matched wildcard.
+ */
+export function likePattern(needle: string): string {
+  return `%${needle.replace(/[%_\\]/g, (match) => "\\" + match)}%`;
+}
+
 export async function searchPeople(
   needle: string,
   callerId: string | null,
@@ -335,13 +355,11 @@ export async function searchPeople(
   const trimmed = needle.trim().replace(/^@/, "");
   if (trimmed.length === 0) return [];
 
-  const pattern = `%${trimmed.replace(/[\%_]/g, (match) => `\${match}`)}%`;
+  const pattern = likePattern(trimmed);
 
   try {
     const found = await people(
-      // No subject, so `$1` goes unused and the pattern rides in as `$3`.
-      `where u.handle ilike $3 or u.display_name ilike $3`,
-      "",
+      `where u.handle ilike $2 or u.display_name ilike $2`,
       callerId,
       [pattern],
     );
