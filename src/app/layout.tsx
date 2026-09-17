@@ -37,7 +37,23 @@ export const metadata: Metadata = {
     siteName: APP_NAME,
     type: "website",
   },
+  /*
+   * Kept for iOS 16 and earlier, which read standalone from here. Newer iOS
+   * reads `display` from the manifest, which is why that file exists now.
+   */
   appleWebApp: {capable: true, title: APP_NAME, statusBarStyle: "black-translucent"},
+  /*
+   * The home-screen icon. Without an `apple-touch-icon` iOS installs a
+   * screenshot of the page as the icon, which is how an installed app ends up
+   * looking like a bookmark.
+   */
+  icons: {
+    icon: [
+      {url: "/brand/favicon-32.png", sizes: "32x32", type: "image/png"},
+      {url: "/brand/favicon-128.png", sizes: "128x128", type: "image/png"},
+    ],
+    apple: [{url: "/brand/apple-icon.png", sizes: "180x180", type: "image/png"}],
+  },
 };
 
 export const viewport: Viewport = {

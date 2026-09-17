@@ -4,6 +4,7 @@ import {
   deleteSubscription,
   pushConfigured,
   saveSubscription,
+  sendWebPush,
   vapidPublicKey,
 } from "@/lib/server/notifications/push";
 
@@ -29,6 +30,8 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as {
     endpoint?: string;
     keys?: {p256dh?: string; auth?: string};
+    /** Send one notification straight back, to prove it arrived. */
+    test?: boolean;
   } | null;
 
   if (!body?.endpoint || !body.keys?.p256dh || !body.keys.auth) {
@@ -41,7 +44,34 @@ export async function POST(request: Request) {
       {endpoint: body.endpoint, keys: {p256dh: body.keys.p256dh, auth: body.keys.auth}},
       request.headers.get("user-agent"),
     );
-    return json({ok: true});
+
+    /*
+     * One notification back, immediately.
+     *
+     * Turning notifications on is otherwise an act of faith: the switch flips
+     * and nothing happens until some future event, so there is no way to tell a
+     * working subscription from one that silently failed at the push service.
+     * This makes the first one arrive while the person is still looking at the
+     * screen — and if it does not, they learn that now rather than by missing
+     * something later.
+     *
+     * A failure here is not a failed subscription. The row is already saved, so
+     * the count is reported and the request still succeeds.
+     */
+    let sent = 0;
+    if (body.test) {
+      try {
+        ({sent} = await sendWebPush(caller.userId, {
+          title: "Notifications are on",
+          body: "You will hear about graduations, replies and coins you hold.",
+          url: "/home",
+        }));
+      } catch {
+        // Reported as zero below.
+      }
+    }
+
+    return json({ok: true, sent});
   } catch (error) {
     return json({error: (error as Error).message}, {status: 503});
   }

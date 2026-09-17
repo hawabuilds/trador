@@ -98,7 +98,9 @@ export function usePushNotifications() {
       const response = await fetch("/api/notifications/subscribe", {
         method: "POST",
         headers: {"content-type": "application/json", authorization: `Bearer ${token}`},
-        body: JSON.stringify(subscription.toJSON()),
+        // `test` asks the server for one notification back, so the first thing
+        // that happens after allowing is a notification arriving.
+        body: JSON.stringify({...subscription.toJSON(), test: true}),
       });
 
       setState(response.ok ? "on" : "off");

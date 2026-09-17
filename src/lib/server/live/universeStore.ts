@@ -297,23 +297,7 @@ export async function listStonks(query: FeedQuery): Promise<FeedPageRows> {
   const rows = joined as unknown as StonkRow[];
 
   // The view already carried the stats, so no second query is needed.
-  const stats = new Map<string, StatRow>(
-    joined.map((row) => [
-      row.mint,
-      {
-        mint: row.mint,
-        last_price: row.last_price,
-        last_mcap: row.last_mcap,
-        liquidity_usd: row.liquidity_usd,
-        vol_24h: row.vol_24h,
-        price_change_24h: row.price_change_24h,
-        rewards_24h_usd: row.rewards_24h_usd,
-        price_status: row.price_status,
-        price_source: row.price_source,
-        priced_at: row.priced_at,
-      },
-    ]),
-  );
+  const stats = new Map<string, StatRow>(joined.map((row) => [row.mint, statFrom(row)]));
 
   const last = joined[joined.length - 1];
   return {
@@ -323,6 +307,28 @@ export async function listStonks(query: FeedQuery): Promise<FeedPageRows> {
       joined.length === limit && last
         ? `${(last as unknown as Record<string, unknown>)[column] ?? ""}|${last.mint}`
         : null,
+  };
+}
+
+/**
+ * The stats half of a `stonk_feed` row.
+ *
+ * The view is a LEFT JOIN, so every read of it carries both halves in one row
+ * and both the feed and search split them the same way. One definition, because
+ * two copies drift the moment a stat column is added to one and not the other.
+ */
+function statFrom(row: StonkRow & StatRow): StatRow {
+  return {
+    mint: row.mint,
+    last_price: row.last_price,
+    last_mcap: row.last_mcap,
+    liquidity_usd: row.liquidity_usd,
+    vol_24h: row.vol_24h,
+    price_change_24h: row.price_change_24h,
+    rewards_24h_usd: row.rewards_24h_usd,
+    price_status: row.price_status,
+    price_source: row.price_source,
+    priced_at: row.priced_at,
   };
 }
 
@@ -437,11 +443,27 @@ export async function stonksByMints(
 }
 
 export async function searchStonks(needle: string, limit = 25): Promise<FeedPageRows> {
+  /*
+   * Biggest first, and read through the view to make that possible.
+   *
+   * This used to select from the bare table with no `order by` at all, so
+   * Postgres returned whatever the scan reached first and the limit cut an
+   * arbitrary twenty-five out of the matches. Searching a ticker with hundreds
+   * of coins priced against it showed a near-random handful, dust included,
+   * with the obvious answer often missing entirely.
+   *
+   * Market cap is the ranking because a search for a ticker is a search for the
+   * market: the thing somebody means by "TSLA" is the largest coin priced in
+   * it, not the newest or the smallest. An unpriced coin sorts last rather than
+   * being dropped — it is still a real match, it just cannot be ranked.
+   */
   let request = db()
-    .from("stonks")
+    .from("stonk_feed")
     .select("*")
     .eq("status", "listed")
     .or(`symbol.ilike.%${needle}%,name.ilike.%${needle}%,quote_ticker.ilike.%${needle}%`)
+    .order("last_mcap", {ascending: false, nullsFirst: false})
+    .order("mint", {ascending: false})
     .limit(limit);
 
   request = applyThreeStateFilter(request, "eligible");
@@ -449,8 +471,12 @@ export async function searchStonks(needle: string, limit = 25): Promise<FeedPage
   const {data, error} = await request;
   if (error) throw new Error(`Search failed: ${error.message}`);
 
-  const rows = (data ?? []) as StonkRow[];
-  return {rows, stats: await statsFor(rows.map((row) => row.mint)), cursor: null};
+  // The view carries the stats, so the rows come back already priced.
+  const joined = (data ?? []) as (StonkRow & StatRow)[];
+  const stats = new Map<string, StatRow>(
+    joined.map((row) => [row.mint, statFrom(row)]),
+  );
+  return {rows: joined as unknown as StonkRow[], stats, cursor: null};
 }
 
 // ---------------------------------------------------------------------------
