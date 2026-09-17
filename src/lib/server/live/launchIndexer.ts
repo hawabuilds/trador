@@ -34,6 +34,12 @@ import {
   decodeStonkfunLaunch,
 } from "@/lib/launchpad/launchpadPool";
 import {decodeCustomPair} from "@/lib/launchpad/pumpPool";
+import {
+  CLMM_MINTS_SLICE,
+  CLMM_POOL,
+  decodeClmmLaunch,
+  stonkfunClmmFilters,
+} from "@/lib/launchpad/stonkfunClmm";
 import {collectLinks} from "./socialLinks";
 import {encodeBase58, type Pubkey} from "@/lib/pubkey";
 import {STOCK_MINTS, stockForMint} from "@/lib/stocks/registry";
@@ -106,7 +112,13 @@ async function rpcWithRetry<T>(method: string, params: unknown[]): Promise<T> {
 }
 
 /** How many coins one full pass will decorate, and in what batch size. */
-const DECORATE_CAP = 600;
+/*
+ * A thousand per pass: with the direct CLMM launches the universe is several
+ * thousand coins, and `pgListStonks` rotates through them stalest-first, so
+ * this sets how often the oldest price is refreshed — every few passes — at
+ * roughly twenty-five token-API calls.
+ */
+const DECORATE_CAP = 1000;
 const DECORATE_BATCH = 120;
 
 const bytes = (base64: string): Uint8Array =>
@@ -185,6 +197,7 @@ export async function indexStonkfun(): Promise<IndexPass> {
         writes.push({
           mint: launch.pool.baseMint,
           launchpad: "stonkfun",
+          pool_kind: "curve",
           pool: entry.pubkey,
           platform_config: platform.platformId,
           config_kind: platform.kind,
@@ -243,6 +256,88 @@ export async function indexStonkfun(): Promise<IndexPass> {
 
 // ---------------------------------------------------------------------------
 // StonkFun, still on the curve
+// ---------------------------------------------------------------------------
+// StonkFun, direct CLMM launches
+// ---------------------------------------------------------------------------
+
+/**
+ * Every coin StonkFun opened straight into a CLMM pool against a verified stock.
+ *
+ * The curve sweep above cannot see these — there is no LaunchLab pool to find —
+ * and there are far more of them than curve launches. See `stonkfunClmm.ts` for
+ * how a pool is attributed.
+ *
+ * One `getProgramAccounts` call, filtered by the RPC on account size and on the
+ * pool's creator being StonkFun's launcher, with a 64-byte slice of the two
+ * mints. Thousands of pools come back as a few hundred kilobytes.
+ *
+ * Written `listed` from the start, because a CLMM pool trades from its first
+ * block. `graduated_at` is deliberately not stamped here: stamping "now" on the
+ * first sweep would put four thousand coins at the top of New as if they had
+ * all launched this minute. Decoration fills it from the token's creation time.
+ *
+ * `pays_holders` is left unknown rather than false. Reward routing is a
+ * LaunchLab platform-config feature and there is no config to read here, so
+ * "does not pay" would be a claim nobody checked.
+ */
+export async function indexStonkfunClmm(): Promise<IndexPass> {
+  const before = rpcCalls;
+  let scanned = 0;
+  let stockPaired = 0;
+  const writes: StonkWrite[] = [];
+
+  try {
+    const accounts = await rpc<{pubkey: string; account: {data: [string, string]}}[]>(
+      "getProgramAccounts",
+      [
+        CLMM_POOL.PROGRAM,
+        {
+          encoding: "base64",
+          commitment: "finalized",
+          dataSlice: CLMM_MINTS_SLICE,
+          filters: stonkfunClmmFilters(),
+        },
+      ],
+    );
+
+    scanned = accounts.length;
+
+    for (const entry of accounts) {
+      const launch = decodeClmmLaunch(entry.pubkey as Pubkey, bytes(entry.account.data[0]));
+      if (!launch) continue;
+      stockPaired += 1;
+
+      writes.push({
+        mint: launch.mint,
+        launchpad: "stonkfun",
+        pool_kind: "clmm",
+        pool: launch.pool,
+        quote_mint: launch.quote.mint,
+        quote_ticker: launch.quote.ticker,
+        quote_kind: quoteKindFor(launch.quote.mint),
+        status: "listed",
+        eligible: true,
+      });
+    }
+
+    const written = await upsertStonks(writes);
+    const slot = await rpc<number>("getSlot", [{commitment: "finalized"}]);
+    await writeIndexerState("stonkfun:clmm", {last_slot: slot, slots_behind: 0});
+
+    return {launchpad: "stonkfun", scanned, stockPaired, written, rpcCalls: rpcCalls - before, slot, error: null};
+  } catch (error) {
+    return {
+      launchpad: "stonkfun",
+      scanned,
+      stockPaired,
+      written: 0,
+      rpcCalls: rpcCalls - before,
+      slot: 0,
+      error: (error as Error).message,
+    };
+  }
+}
+
 // ---------------------------------------------------------------------------
 
 /**
@@ -352,6 +447,7 @@ export async function indexGraduating(): Promise<IndexPass> {
         writes.push({
           mint: pool.baseMint,
           launchpad: "stonkfun",
+          pool_kind: "curve",
           pool: entry.pubkey,
           platform_config: platform.platformId,
           config_kind: platform.kind,
@@ -486,6 +582,7 @@ export async function indexPumpCustomPairs(): Promise<IndexPass> {
         writes.push({
           mint: pair.pool.baseMint,
           launchpad: "pumpfun",
+          pool_kind: "curve",
           pool: entry.pubkey,
           creator: pair.pool.coinCreator,
           quote_mint: pair.pool.quoteMint,
@@ -580,6 +677,16 @@ export async function decorateStonks(
    * with identical five-figure depth.
    */
   onCurve: ReadonlySet<string> = new Set(),
+  /**
+   * Which of these StonkFun opened straight into a CLMM pool.
+   *
+   * For those the token's creation *is* the launch — the mint and the pool are
+   * made in one transaction — so it is the right value for `graduated_at`. For a
+   * curve launch it is exactly the wrong one, which is why this is opt-in by
+   * set rather than applied to every coin: that mistake is what once sorted a
+   * coin that bonded twenty minutes ago under one minted yesterday.
+   */
+  direct: ReadonlySet<string> = new Set(),
 ): Promise<{priced: number; named: number; error: string | null}> {
   if (mints.length === 0) return {priced: 0, named: 0, error: null};
 
@@ -617,6 +724,8 @@ export async function decorateStonks(
         // and goes depending on how recently it was indexed.
         ...jupiterLinks(token),
         listed_at: token.createdAt,
+        // Kept-first by the writer, so this fills a blank and never moves one.
+        ...(direct.has(mint) && token.createdAt ? {graduated_at: token.createdAt} : {}),
       });
 
       const usd = token.usdPrice;
@@ -749,6 +858,7 @@ export async function indexAll(): Promise<{
   decorated: {priced: number; named: number; error: string | null};
 }> {
   const stonkfun = await indexStonkfun();
+  const direct = await indexStonkfunClmm();
   const pumpfun = await indexPumpCustomPairs();
 
   /*
@@ -798,6 +908,9 @@ export async function indexAll(): Promise<{
   const pending = hasAdminPg ? await pgListGraduating(DECORATE_CAP) : [];
 
   const onCurve = new Set(pending.map((row) => row.mint));
+  const directLaunches = new Set(
+    listed.filter((row) => row.pool_kind === "clmm").map((row) => row.mint),
+  );
   const rows = [...listed, ...pending];
 
   let named = 0;
@@ -806,7 +919,7 @@ export async function indexAll(): Promise<{
 
   for (let i = 0; i < rows.length; i += DECORATE_BATCH) {
     const batch = rows.slice(i, i + DECORATE_BATCH).map((row) => row.mint as Pubkey);
-    const result = await decorateStonks(batch, onCurve);
+    const result = await decorateStonks(batch, onCurve, directLaunches);
     named += result.named;
     priced += result.priced;
     // Keep the first error but carry on: one bad batch should not stop the rest
@@ -819,7 +932,9 @@ export async function indexAll(): Promise<{
   await writeIndexerState("live-tip", {heartbeat_at: new Date().toISOString()});
 
   return {
-    passes: graduating ? [stonkfun, pumpfun, graduating] : [stonkfun, pumpfun],
+    passes: graduating
+      ? [stonkfun, direct, pumpfun, graduating]
+      : [stonkfun, direct, pumpfun],
     decorated,
   };
 }

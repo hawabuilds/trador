@@ -204,6 +204,18 @@ function readExistingCount(): number | null {
   }
 }
 
+/** The registry as last written, or nothing if it has never been. */
+function readExistingEntries(): {mint: string; launchesQuotedAgainst?: number}[] {
+  try {
+    const parsed = JSON.parse(readFileSync(OUT, "utf8")) as unknown;
+    return Array.isArray(parsed)
+      ? (parsed as {mint: string; launchesQuotedAgainst?: number}[])
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 function heading(text: string): void {
   console.log(`\n${"─".repeat(76)}\n${text}\n${"─".repeat(76)}`);
 }
@@ -243,7 +255,16 @@ async function main(): Promise<void> {
     return;
   }
 
-  const ranked = rankQuoteAssets(pools, 3).slice(0, 120);
+  /*
+   * Every quote asset with three or more launches, not the top 120.
+   *
+   * The cap was a cost guard, and it cut off a real stock: VIDAx sits at rank
+   * 140 with 73 launches, so every coin priced in it failed the universe test.
+   * The whole ranked list is a few hundred mints — a handful of batched calls —
+   * and a long tail costs nothing in trust, because a candidate is admitted only
+   * if a recognised issuer key minted or controls it.
+   */
+  const ranked = rankQuoteAssets(pools, 3);
   console.log(`\n  ${pools.length} pools → ${ranked.length} quote assets used by 3+ launches`);
 
   /*
@@ -275,6 +296,27 @@ async function main(): Promise<void> {
         extra.push(mint);
       }
     }
+  }
+
+  /*
+   * And every mint already in the registry.
+   *
+   * Range completion rests on Helius's DAS index, which has both timed out and
+   * returned an empty range for Backed's key with no error at all. Either way
+   * the range members it would have listed dropped out of the candidates, the
+   * result shrank from 82 to 61, and the only way past the shrink guard was
+   * `--force` — which would have deleted 21 real stocks.
+   *
+   * Re-checking what is already registered removes that dependency without
+   * loosening anything: these mints go through exactly the same on-chain
+   * authority check as the rest, so a mint that no longer verifies still drops
+   * out. What cannot happen any more is a stock disappearing because an index
+   * had a bad hour.
+   */
+  for (const entry of readExistingEntries()) {
+    if (censused.has(entry.mint)) continue;
+    censused.add(entry.mint);
+    extra.push(entry.mint as Pubkey);
   }
 
   const candidates = [...ranked.map((row) => row.mint), ...extra];

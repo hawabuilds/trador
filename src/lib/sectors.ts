@@ -87,6 +87,7 @@ const BY_TICKER: Record<string, SectorId> = {
   SKHY: "semis",
   SNDK: "semis",
   MRVL: "semis",
+  AMD: "semis",
 
   // AI & Data — including the pre-IPO AI labs, classified by what they build.
   PLTRx: "ai",
@@ -101,6 +102,8 @@ const BY_TICKER: Record<string, SectorId> = {
   // Software
   MSFTx: "software",
   IBM: "software",
+  // An AI-agent operating system sold to enterprises: software, not compute.
+  VIDAx: "software",
 
   // Internet & Media
   GOOGLx: "internet",
@@ -136,6 +139,9 @@ const BY_TICKER: Record<string, SectorId> = {
   DFDVx: "crypto",
   STRCx: "crypto",
   BULL: "crypto",
+  WULF: "crypto",
+  // Forward Industries runs a Solana treasury; that is what its price tracks.
+  FWDI: "crypto",
 
   // Quantum
   QUBT: "quantum",
@@ -168,6 +174,8 @@ const BY_TICKER: Record<string, SectorId> = {
   AMC: "consumer",
   MGM: "consumer",
   UPS: "consumer",
+  BROS: "consumer",
+  LUV: "consumer",
 
   // Finance — prediction markets included, since that is what they settle.
   "BRK.Bx": "finance",

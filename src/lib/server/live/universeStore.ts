@@ -72,6 +72,12 @@ export interface StonkRow {
    * launchpad, and sorting the New feed by mint date buried it.
    */
   graduated_at: string | null;
+  /**
+   * `curve` for a LaunchLab or pump.fun curve launch, `clmm` for a coin
+   * StonkFun opened straight into a CLMM pool. Null only on a row written
+   * before the column existed and not yet backfilled.
+   */
+  pool_kind: "curve" | "clmm" | null;
 }
 
 export interface StatRow {

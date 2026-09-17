@@ -7,6 +7,7 @@
  */
 
 import {LAUNCHPAD_POOL, RAYDIUM_LAUNCHPAD, STONKFUN_PLATFORMS} from "@/lib/programs";
+import {CLMM_MINTS_SLICE, CLMM_POOL, stonkfunClmmFilters} from "@/lib/launchpad/stonkfunClmm";
 import {type Pubkey, readPubkeyAt} from "@/lib/pubkey";
 
 export const RPC_URL =
@@ -96,7 +97,52 @@ export async function allStonkfunPools(
     onProgress?.(platform.kind, pairs.length);
     all.push(...pairs);
   }
+
+  const clmm = await clmmPoolPairs();
+  onProgress?.("clmm (direct)", clmm.length / 2);
+  all.push(...clmm);
+
   return all;
+}
+
+/**
+ * StonkFun's direct CLMM launches, as census rows.
+ *
+ * Without these the census only saw stocks that curve launches price against,
+ * and VIDAx — quoted by 23 direct launches and no curve launch at all — never
+ * reached the registry, so every coin priced in it failed the universe test.
+ *
+ * A CLMM pool orders its two mints by address, not by base and quote, so each
+ * pool is emitted twice with the sides swapped. That counts both mints once as
+ * a quote. A launched coin then appears once and stays under the ranking
+ * threshold, while a stock appears as often as it is used — and nothing is
+ * admitted on a count anyway: a candidate still needs a recognised issuer key.
+ */
+export async function clmmPoolPairs(): Promise<PoolPair[]> {
+  const accounts = await rpc<{pubkey: string; account: {data: [string, string]}}[]>(
+    "getProgramAccounts",
+    [
+      CLMM_POOL.PROGRAM,
+      {
+        encoding: "base64",
+        commitment: "confirmed",
+        dataSlice: CLMM_MINTS_SLICE,
+        filters: stonkfunClmmFilters(),
+      },
+    ],
+  );
+
+  const pairs: PoolPair[] = [];
+  for (const entry of accounts) {
+    const data = base64ToBytes(entry.account.data[0]);
+    const mint0 = readPubkeyAt(data, 0);
+    const mint1 = readPubkeyAt(data, 32);
+    const pool = entry.pubkey as Pubkey;
+    if (!mint0 || !mint1) continue;
+    pairs.push({pool, mintA: mint0, mintB: mint1, platform: "clmm"});
+    pairs.push({pool, mintA: mint1, mintB: mint0, platform: "clmm"});
+  }
+  return pairs;
 }
 
 export interface QuoteCount {

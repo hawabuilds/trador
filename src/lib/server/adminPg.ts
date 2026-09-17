@@ -113,6 +113,7 @@ const STONK_COLUMNS = [
   "website",
   "discord",
   "listed_at",
+  "pool_kind",
 ] as const;
 
 /**
@@ -253,7 +254,13 @@ export async function pgUpdateStonks(writes: StonkWrite[]): Promise<number> {
   const sql = `
     update public.stonks as s set
       ${columns
-        .map((column) => `${column} = coalesce(v.${column}, s.${column})`)
+        // Same keep-first rule as the upsert: an enrichment pass may fill a
+        // blank `graduated_at` but must never move one already recorded.
+        .map((column) =>
+          column === "graduated_at"
+            ? `${column} = coalesce(s.${column}, v.${column})`
+            : `${column} = coalesce(v.${column}, s.${column})`,
+        )
         .join(", ")},
       updated_at = now()
     from (values ${tuples.join(", ")}) as v(mint, ${columns.join(", ")})
@@ -370,13 +377,37 @@ export async function pgReadIndexerState(
  * on the very next pass regardless of how large the universe grows.
  */
 export async function pgListStonks(limit = 200): Promise<StonkRow[]> {
+  /*
+   * Two queues, not one.
+   *
+   * The newest-first order below was fine while the universe fit inside one
+   * pass. It no longer does: with StonkFun's direct CLMM launches included
+   * there are thousands of listed coins against a pass that decorates a few
+   * hundred, and newest-first meant a coin that had once been named would
+   * never be re-priced again — its price frozen at whatever it was the day it
+   * was found.
+   *
+   * So a quarter of the pass goes to the hot end (unnamed coins, then the
+   * newest), where prices matter most and change fastest, and the rest goes to
+   * whichever coins were priced longest ago. Every coin comes round within a
+   * few passes, and the ones people are looking at never wait for the rotation.
+   */
+  const hot = Math.max(1, Math.floor(limit / 4));
   return withClient(async (client) => {
     const {rows} = await client.query(
-      `select * from public.stonks
-       where status = 'listed' and eligible is distinct from false
-       order by (symbol is null) desc, graduated_at desc nulls last, mint desc
-       limit $1`,
-      [limit],
+      `select * from (
+         (select s.* from public.stonks s
+           where s.status = 'listed' and s.eligible is distinct from false
+           order by (s.symbol is null) desc, s.graduated_at desc nulls last, s.mint desc
+           limit $1)
+         union
+         (select s.* from public.stonks s
+           left join public.stonk_stats st on st.mint = s.mint
+           where s.status = 'listed' and s.eligible is distinct from false
+           order by st.priced_at asc nulls first, s.mint
+           limit $2)
+       ) picked`,
+      [hot, limit - hot],
     );
     return rows as StonkRow[];
   });
