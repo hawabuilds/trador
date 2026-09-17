@@ -18,6 +18,7 @@
 
 import type {ChartPoint, Timeframe, Trade} from "@/lib/types";
 import {asPubkey, type Pubkey} from "@/lib/pubkey";
+import {STEP_MS, fillCandles} from "@/lib/fillCandles";
 import {cached} from "./cache";
 
 const BASE = "https://api.geckoterminal.com/api/v2";
@@ -174,7 +175,7 @@ export async function candlesFor(
 
       const rows = body.data?.attributes?.ohlcv_list ?? [];
 
-      return (
+      const points =
         rows
           .map(([seconds, open, high, low, close]) => ({
             t: seconds * 1000,
@@ -186,8 +187,14 @@ export async function candlesFor(
           // The provider returns newest-first; every chart consumer here
           // expects oldest-first.
           .filter((point) => Number.isFinite(point.price) && point.price > 0)
-          .sort((a, b) => a.t - b.t)
-      );
+          .sort((a, b) => a.t - b.t);
+
+      /*
+       * A bucket with no trade comes back missing, not flat, so the series has
+       * holes wherever the coin went quiet. Filled at the last close, which is
+       * what the price actually was for that bucket.
+       */
+      return fillCandles(points, STEP_MS[timeframe] ?? 0);
     },
   );
 

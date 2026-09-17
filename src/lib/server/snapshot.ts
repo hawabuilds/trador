@@ -14,6 +14,7 @@
  * Regenerate with `npm run seed:snapshot`.
  */
 
+import {displayImageUrl} from "@/lib/imageUrl";
 import {assertPubkey} from "@/lib/pubkey";
 import {sectorFor} from "@/lib/sectors";
 import {stocksByPopularity} from "@/lib/stocks/registry";
@@ -103,7 +104,7 @@ const STONKS: readonly Stonk[] = (SNAP.stonks ?? []).map((raw) => {
     // The bundled snapshot holds graduated coins only, so never a curve.
     curveProgress: null,
     listedAt: raw.listedAt,
-    imageUrl: raw.icon ?? null,
+    imageUrl: displayImageUrl(raw.icon ?? null),
     // Creator-supplied links are not indexed yet, and inventing them would be
     // worse than their absence.
     socials: null,

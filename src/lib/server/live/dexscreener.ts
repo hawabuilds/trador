@@ -1,5 +1,5 @@
 /**
- * DexScreener, used for one thing: the project links Jupiter does not carry.
+ * DexScreener, for the few things Jupiter's token API does not carry.
  *
  * Jupiter's token API is the primary source for metadata here — it batches
  * forty mints a call and returns name, artwork, supply and price together. What
@@ -9,8 +9,8 @@
  * kind of data, and the two overlap only partly.
  *
  * So this is a **fallback**, never a replacement. It is asked only about coins
- * that are still missing links after Jupiter has spoken, which bounds the work
- * to a shrinking set rather than the whole universe on every pass.
+ * still missing a link, a 24h change or artwork after Jupiter has spoken, which
+ * bounds the work to a shrinking set rather than the whole universe every pass.
  *
  * Nothing here decides what a coin *is*. Links are the one field a creator
  * controls completely, so they are cosmetic by definition — the attribution
@@ -20,7 +20,7 @@
 import type {Pubkey} from "@/lib/pubkey";
 import type {SocialLinks} from "@/lib/types";
 
-import {collectLinks} from "./socialLinks";
+import {collectLinks, httpUrl} from "./socialLinks";
 
 /** DexScreener's documented ceiling for the batch token endpoint. */
 const BATCH = 30;
@@ -30,6 +30,7 @@ interface DexPair {
   liquidity?: {usd?: number};
   priceChange?: {h24?: number};
   info?: {
+    imageUrl?: string;
     websites?: {url?: string}[];
     socials?: {type?: string; url?: string}[];
   };
@@ -40,6 +41,8 @@ export interface DexFill {
   links: Partial<SocialLinks>;
   /** 24h price change, percent. Null when no pair reported one. */
   priceChange24h: number | null;
+  /** Artwork, for the handful of coins the token API has none for. */
+  imageUrl: string | null;
 }
 
 /**
@@ -57,10 +60,6 @@ function socialsFrom(pair: DexPair): Partial<SocialLinks> {
 
 /**
  * What DexScreener knows about a set of mints, as far as it goes.
- *
- * Returns only mints it had something for. A failure yields an empty map rather
- * than throwing: these links are decoration, and losing them must not cost the
- * decorate pass its prices.
  *
  * Returns only mints it had something for. A failure yields an empty map rather
  * than throwing: none of this is load-bearing, and losing it must not cost the
@@ -102,7 +101,8 @@ export async function dexscreenerFill(
         const mint = pair.baseToken?.address;
         if (!mint) continue;
 
-        const current = found.get(mint) ?? {links: {}, priceChange24h: null};
+        const current =
+          found.get(mint) ?? {links: {}, priceChange24h: null, imageUrl: null};
 
         const links = socialsFrom(pair);
         for (const [slot, url] of Object.entries(links)) {
@@ -110,6 +110,10 @@ export async function dexscreenerFill(
             current.links[slot as keyof SocialLinks] = url;
           }
         }
+
+        // DexScreener hosts its own copy, which is why it is worth having:
+        // it answers when the creator's own gateway does not.
+        current.imageUrl ??= httpUrl(pair.info?.imageUrl);
 
         const change = pair.priceChange?.h24;
         const depth = pair.liquidity?.usd ?? 0;
@@ -128,6 +132,7 @@ export async function dexscreenerFill(
       for (const [mint, fill] of found) {
         const empty =
           fill.priceChange24h === null &&
+          fill.imageUrl === null &&
           !fill.links.x &&
           !fill.links.telegram &&
           !fill.links.discord &&

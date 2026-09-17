@@ -798,7 +798,11 @@ export async function decorateStonks(
      */
     const needFill = stonkWrites
       .filter(
-        (write) => !write.twitter || !write.website || missingChange.has(write.mint),
+        (write) =>
+          !write.twitter ||
+          !write.website ||
+          !write.image_url ||
+          missingChange.has(write.mint),
       )
       .map((write) => write.mint as Pubkey);
 
@@ -815,6 +819,11 @@ export async function decorateStonks(
           write.website = write.website ?? fill.links.website ?? null;
           write.telegram = write.telegram ?? fill.links.telegram ?? null;
           write.discord = write.discord ?? fill.links.discord ?? null;
+          // Only when the token API had none; its artwork is the creator's own.
+          if (!write.image_url && fill.imageUrl) {
+            write.image_url = fill.imageUrl;
+            write.image_source = "dexscreener";
+          }
         }
 
         for (const stat of statWrites) {

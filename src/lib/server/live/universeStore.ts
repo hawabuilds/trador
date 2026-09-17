@@ -8,6 +8,7 @@
  * here and `applyThreeStateFilter` is the only way to express it.
  */
 
+import {displayImageUrl} from "@/lib/imageUrl";
 import {NEW_FEED_MIN_MCAP_USD} from "@/config/feed";
 import {MIN_LIQUIDITY_USD} from "@/config/liquidity";
 import {type Pubkey, assertPubkey} from "@/lib/pubkey";
@@ -174,7 +175,8 @@ export function rowToStonk(row: StonkRow, stat?: StatRow | null): Stonk {
     series: [],
     curveProgress: num(row.curve_progress),
     listedAt: row.graduated_at ?? row.listed_at,
-    imageUrl: row.image_url,
+    // Proxied only where the host throttles; see `displayImageUrl`.
+    imageUrl: displayImageUrl(row.image_url),
     decimals: row.decimals,
     circulatingSupply: num(row.circulating_supply),
     socials:
