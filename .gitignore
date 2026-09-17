@@ -16,3 +16,7 @@ probe-output/
 *-candidates.json
 other-quotes.json
 unknown-quotes.json
+
+# Scratch probe scripts.
+.p*.mjs
+.probe*.mjs
