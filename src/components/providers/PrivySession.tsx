@@ -13,6 +13,7 @@ import {createSolanaRpc, createSolanaRpcSubscriptions} from "@solana/kit";
 import {LOCAL_STORE_EVENT, readActiveWallet, writeActiveWallet} from "@/lib/localStore";
 import {asPubkey, encodeBase58, type Pubkey} from "@/lib/pubkey";
 import {SessionContext, type Session} from "@/lib/session";
+import {writeSignedInHint} from "@/lib/signedInHint";
 import {THEME} from "@/lib/theme";
 import {pickActiveWallet, type WalletEntry} from "@/lib/wallets";
 
@@ -238,6 +239,16 @@ function PrivyBridge({children}: {children: React.ReactNode}) {
     },
     [signAndSendTransaction, wallet],
   );
+
+  /*
+   * Remember that this browser had a session, so the landing page can hold
+   * instead of showing the door to someone who is about to be redirected in.
+   * Written only once Privy is `ready`, because before that `authenticated` is
+   * false for everyone and would clear the hint it exists to keep.
+   */
+  useEffect(() => {
+    if (ready) writeSignedInHint(authenticated);
+  }, [ready, authenticated]);
 
   const twitter = user?.twitter ?? null;
 

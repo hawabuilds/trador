@@ -246,13 +246,13 @@ export function StonkfolioScreen() {
         <div className="mt-4">
           <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-faint">
             {/*
-              "Portfolio value", not "Trador value". The app's name on the
-              number read as though it were some Trador-specific figure rather
-              than what the wallet is worth — and now that holdings are read
-              from the live store rather than a frozen snapshot, it is simply
-              the portfolio.
+              "Stonkfolio value" — the screen is the Stonkfolio, so the number
+              on it is the Stonkfolio's. It briefly read "Trador value", which
+              sounded like some app-specific figure rather than the wallet's
+              worth, and then "Portfolio value", which named a screen that does
+              not exist here.
             */}
-            {scrubbed ? "Value at" : "Portfolio value"}
+            {scrubbed ? "Value at" : "Stonkfolio value"}
           </div>
           <div className="tabular-nums mt-0.5 text-[30px] font-extrabold leading-none tracking-[-0.035em]">
             {query.isLoading
@@ -292,6 +292,7 @@ export function StonkfolioScreen() {
         <BalanceSection
           points={history.points}
           ready={history.ready}
+          loading={history.isLoading}
           range={range}
           onRange={setRange}
           onScrub={setScrubbed}
@@ -484,12 +485,15 @@ const RANGES: FilterOption<BalanceRange>[] = [
 function BalanceSection({
   points,
   ready,
+  loading,
   range,
   onRange,
   onScrub,
 }: {
   points: readonly BalancePoint[];
   ready: boolean;
+  /** The first read is still in flight, so "no history" is not yet a fact. */
+  loading: boolean;
   range: BalanceRange;
   onRange: (next: BalanceRange) => void;
   onScrub: (point: BalancePoint | null) => void;
@@ -500,6 +504,16 @@ function BalanceSection({
     <div className="mt-3">
       {points.length >= 2 ? (
         <BalanceChart points={points} onScrub={onScrub} className="-mx-[22px]" />
+      ) : loading ? (
+        /*
+          Loading is a fourth state, and it was being drawn as the third.
+          "Your balance chart starts from the first time Trador sees this
+          wallet" is an explanation for a wallet with no history — printing it
+          while the history is still being fetched told everyone their chart was
+          empty, a beat before the chart appeared. An empty frame says the same
+          thing as a spinner and does not have to be taken back.
+        */
+        <div className="h-[132px] rounded-2xl bg-[var(--segment-track)] shadow-inset-soft" />
       ) : (
         <div className="grid h-[132px] place-items-center rounded-2xl bg-[var(--segment-track)] px-6 text-center shadow-inset-soft">
           <p className="max-w-[34ch] text-[12px] leading-[1.5] text-faint">

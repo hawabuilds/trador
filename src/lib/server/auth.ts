@@ -8,30 +8,30 @@
  *
  * The token is verified against Privy's published keys rather than decoded.
  * A decoded JWT is a claim; a verified one is a fact, and the difference is the
- * entire security of every write endpoint in the app.
+ * entire security of every write endpoint in the app. See `privyToken.ts` for
+ * what is checked.
  */
 
 import {unauthorized} from "@/lib/server/http";
+import {privyUserId} from "@/lib/server/privyToken";
 
 const APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? "";
-const APP_SECRET = process.env.PRIVY_APP_SECRET ?? "";
 
-export const hasServerAuth = Boolean(APP_ID && APP_SECRET);
+/**
+ * Accounts need the app id and nothing else.
+ *
+ * This used to also require `PRIVY_APP_SECRET`, because verification went
+ * through `PrivyClient`. It does not any more — a Privy access token is an
+ * ES256 JWT whose signing key is published — and that requirement was why every
+ * authenticated route answered 401 on a deployment that had never been given a
+ * secret: `/api/me` never ran, so `users` stayed empty and nobody could be
+ * searched for.
+ */
+export const hasServerAuth = Boolean(APP_ID);
 
 export interface Caller {
   /** Privy's DID — the primary key of `users`. */
   userId: string;
-}
-
-let clientPromise: Promise<import("@privy-io/server-auth").PrivyClient> | null = null;
-
-function client() {
-  if (!clientPromise) {
-    clientPromise = import("@privy-io/server-auth").then(
-      ({PrivyClient}) => new PrivyClient(APP_ID, APP_SECRET),
-    );
-  }
-  return clientPromise;
 }
 
 /**
@@ -44,7 +44,7 @@ function client() {
 export async function requireCaller(request: Request): Promise<Caller | Response> {
   if (!hasServerAuth) {
     return unauthorized(
-      "Accounts are not configured on this deployment. Set PRIVY_APP_SECRET.",
+      "Accounts are not configured on this deployment. Set NEXT_PUBLIC_PRIVY_APP_ID.",
     );
   }
 
@@ -53,8 +53,7 @@ export async function requireCaller(request: Request): Promise<Caller | Response
   if (!token) return unauthorized("Sign in to do that.");
 
   try {
-    const verified = await (await client()).verifyAuthToken(token);
-    return {userId: verified.userId};
+    return {userId: await privyUserId(token, APP_ID)};
   } catch {
     // Deliberately not echoing the verifier's message. It distinguishes
     // "expired" from "malformed" from "wrong app", which is useful to an

@@ -1,8 +1,9 @@
 "use client";
 
-import {useEffect} from "react";
+import {useEffect, useState} from "react";
 import Link from "next/link";
 import {useRouter} from "next/navigation";
+import {readSignedInHint} from "@/lib/signedInHint";
 
 import {APP_NAME, APP_SUBTITLE, APP_TAGLINE} from "@/config/app";
 import {useUser} from "@/hooks/useUser";
@@ -35,6 +36,16 @@ export function LoginScreen({
   const router = useRouter();
   const {ready, authenticated, isDemo, login} = useUser();
 
+  /*
+   * Was there a session here last time?
+   *
+   * Read in an effect so the server's HTML and the first client render agree —
+   * `localStorage` does not exist during rendering, and disagreeing about it is
+   * a hydration error rather than a flash.
+   */
+  const [returning, setReturning] = useState(false);
+  useEffect(() => setReturning(readSignedInHint()), []);
+
   /**
    * Already signed in? Go straight in.
    *
@@ -45,6 +56,23 @@ export function LoginScreen({
   useEffect(() => {
     if (ready && authenticated) router.replace("/home");
   }, [ready, authenticated, router]);
+
+  /*
+   * Hold, rather than show the door to someone who already has a key.
+   *
+   * Privy reports `authenticated: false` while it restores a session, so this
+   * page cannot yet tell a returning user from a visitor — it rendered the
+   * marketing page and then replaced it with the feed, which is a full second
+   * of sign-in screen on every cold open.
+   *
+   * Only held for someone this browser has seen signed in, so a first-time
+   * visitor still gets the page immediately rather than a blank screen. The
+   * background matches the app's, so the hold reads as a launch rather than a
+   * failure.
+   */
+  if ((returning && !ready) || (ready && authenticated)) {
+    return <div className="h-full bg-surface-base" />;
+  }
 
   return (
     <main className="flex h-full flex-col justify-between px-7 pb-10 pt-[calc(56px+env(safe-area-inset-top,0px))]">
