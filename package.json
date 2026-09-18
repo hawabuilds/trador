@@ -24,7 +24,8 @@
     "vapid": "node --import ./test/resolver.mjs scripts/vapid-keys.ts",
     "cron": "node --import ./test/resolver.mjs scripts/cron.ts",
     "db:migrate": "node --import ./test/resolver.mjs --env-file=.env.local scripts/migrate.ts",
-    "index:once": "node --import ./test/resolver.mjs --env-file=.env.local scripts/index-once.ts"
+    "index:once": "node --import ./test/resolver.mjs --env-file=.env.local scripts/index-once.ts",
+    "brand:icons": "node --import ./test/resolver.mjs scripts/brand-icons.ts"
   },
   "engines": {
     "node": ">=22.18.0"

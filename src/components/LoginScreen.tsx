@@ -6,6 +6,7 @@ import {useRouter} from "next/navigation";
 import {readSignedInHint} from "@/lib/signedInHint";
 
 import {APP_NAME, APP_SUBTITLE, APP_TAGLINE} from "@/config/app";
+import {TradorMark} from "@/components/ui/TradorMark";
 import {useUser} from "@/hooks/useUser";
 import {Button} from "./ui/Button";
 import {XIcon} from "./ui/Icons";
@@ -77,6 +78,7 @@ export function LoginScreen({
   return (
     <main className="flex h-full flex-col justify-between px-7 pb-10 pt-[calc(56px+env(safe-area-inset-top,0px))]">
       <div>
+        <TradorMark size={56} title={APP_NAME} className="mb-6 text-brand-500" />
         <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-brand-400">
           Solana
         </p>
