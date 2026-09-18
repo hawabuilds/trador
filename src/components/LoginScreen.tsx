@@ -77,15 +77,15 @@ export function LoginScreen() {
       </h1>
 
       {/*
-        Balanced, so the break falls after the comma rather than stranding
-        "Solana." alone on a second line.
+        The break is placed, not left to the browser. Balancing and a
+        non-breaking hyphen both still produced an orphaned word at this width;
+        the line has one natural pause, after the comma, so that is where it
+        breaks.
       */}
-      <p
-        className="mt-5 max-w-[24ch] text-[17px] font-normal leading-size-17 text-muted"
-        style={{textWrap: "balance"}}
-      >
-        {/* A non-breaking hyphen: "stock-paired" must never split across lines. */}
-        Everything stock‑paired, on Solana.
+      <p className="mt-5 text-[17px] font-normal leading-size-17 text-muted">
+        Everything stock‑paired,
+        <br />
+        on Solana.
       </p>
 
       <div className="mt-11 flex flex-col gap-2.5">
