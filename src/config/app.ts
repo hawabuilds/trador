@@ -1,5 +1,9 @@
 export const APP_NAME = "Trador";
-export const APP_TAGLINE = "Coins priced in stocks, on Solana";
+/*
+ * Matches the landing page's headline, so the tab title, the installed app's
+ * name and the first thing on screen all say the same thing.
+ */
+export const APP_TAGLINE = "Stock app for trenchers";
 export const APP_SUBTITLE =
   "Every tokenized stock, and every coin launched against one — in one feed.";
 

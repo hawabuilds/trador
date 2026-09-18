@@ -3,153 +3,146 @@
 import {useEffect, useState} from "react";
 import Link from "next/link";
 import {useRouter} from "next/navigation";
-import {readSignedInHint} from "@/lib/signedInHint";
 
-import {APP_NAME, APP_SUBTITLE, APP_TAGLINE} from "@/config/app";
+import {APP_NAME} from "@/config/app";
 import {TradorMark} from "@/components/ui/TradorMark";
 import {useUser} from "@/hooks/useUser";
+import {readSignedInHint} from "@/lib/signedInHint";
 import {Button} from "./ui/Button";
-import {XIcon} from "./ui/Icons";
+import {AppleIcon, ArrowRightIcon, XIcon} from "./ui/Icons";
+import {Modal} from "./ui/Modal";
 
 /**
- * The front door.
+ * The landing page, laid out the way HODL's is.
  *
- * This is the login, not a marketing page with a login hidden inside it. The
- * previous version linked straight to `/home` and buried `login()` in the
- * Stonkfolio, which made a fully configured Privy look broken — the app worked
- * but nothing ever asked who you were.
+ * One claim, one line of explanation, one thing to press. The wordmark sits on
+ * dark with clear space above the headline; the headline is light, large and on
+ * two lines, with the payoff on the second in the accent colour.
  *
- * No wallet vocabulary anywhere on it. Someone arriving here has not agreed to
- * learn what a mint is, and a wallet is created for them on the way in.
+ * **"Stock app for trenchers."** HODL's own shape — "RWA app for trenchers" —
+ * pointed at this app's universe, so the two read as siblings. The line under
+ * it says what the app actually holds, which a tagline aimed at an audience
+ * does not.
  *
- * The counts are real, read from the universe. A number that turns out to be
- * decoration is worse than no number.
+ * The counts that used to sit here are gone. They read from the bundled
+ * snapshot and said 140 coins while the live universe held thousands, and a
+ * number on a front door that is wrong by forty times is worse than none.
  */
-export function LoginScreen({
-  stonkCount,
-  stockCount,
-  verifiedCount,
-}: {
-  stonkCount: number;
-  stockCount: number;
-  verifiedCount: number;
-}) {
+export function LoginScreen() {
   const router = useRouter();
-  const {ready, authenticated, isDemo, login} = useUser();
+  const {ready, authenticated, login, isDemo} = useUser();
+  const [modalOpen, setModalOpen] = useState(false);
 
   /*
    * Was there a session here last time?
    *
    * Read in an effect so the server's HTML and the first client render agree —
-   * `localStorage` does not exist during rendering, and disagreeing about it is
-   * a hydration error rather than a flash.
+   * `localStorage` does not exist during rendering.
    */
   const [returning, setReturning] = useState(false);
   useEffect(() => setReturning(readSignedInHint()), []);
 
-  /**
-   * Already signed in? Go straight in.
-   *
-   * Guarded on `ready`, because Privy reports `authenticated: false` while it is
-   * still restoring a session — redirecting on that would bounce a signed-in
-   * person back to the door on every cold load.
-   */
   useEffect(() => {
     if (ready && authenticated) router.replace("/home");
   }, [ready, authenticated, router]);
 
   /*
-   * Hold, rather than show the door to someone who already has a key.
+   * Hold rather than show the door to someone who already has a key.
    *
-   * Privy reports `authenticated: false` while it restores a session, so this
-   * page cannot yet tell a returning user from a visitor — it rendered the
-   * marketing page and then replaced it with the feed, which is a full second
-   * of sign-in screen on every cold open.
-   *
-   * Only held for someone this browser has seen signed in, so a first-time
-   * visitor still gets the page immediately rather than a blank screen. The
-   * background matches the app's, so the hold reads as a launch rather than a
-   * failure.
+   * Privy reports `authenticated: false` while it restores a session, so a
+   * returning user would otherwise watch this page for a second before being
+   * sent in. Only held for someone this browser has seen signed in, so a
+   * first-time visitor still gets the page immediately.
    */
   if ((returning && !ready) || (ready && authenticated)) {
     return <div className="h-full bg-surface-base" />;
   }
 
-  return (
-    <main className="flex h-full flex-col justify-between px-7 pb-10 pt-[calc(56px+env(safe-area-inset-top,0px))]">
-      <div>
-        <TradorMark size={56} title={APP_NAME} className="mb-6 text-brand-500" />
-        <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-brand-400">
-          Solana
-        </p>
-        <h1 className="mt-3 text-[38px] font-extrabold leading-[1.05] tracking-[-0.04em] text-ink">
-          {APP_TAGLINE}
-        </h1>
-        <p className="mt-4 max-w-[31ch] text-[14px] leading-[1.6] text-muted">
-          {APP_SUBTITLE}
-        </p>
+  const startLogin = () => {
+    setModalOpen(false);
+    login();
+  };
 
-        <dl className="mt-9 grid grid-cols-3 gap-2.5">
-          <Stat value={stonkCount.toLocaleString("en-US")} label="Stonks" />
-          <Stat value={String(stockCount)} label="Stocks traded" />
-          <Stat value={String(verifiedCount)} label="Verified" />
-        </dl>
+  return (
+    <div className="flex h-full flex-col justify-center bg-surface-base px-8 pb-[max(48px,env(safe-area-inset-bottom))]">
+      <div className="mb-[1em] flex items-center gap-2.5 text-ink">
+        <TradorMark size={40} className="text-brand-500" />
+        <span className="text-[28px] font-extrabold tracking-[-0.04em]">{APP_NAME}</span>
       </div>
 
-      <div>
+      <h1 className="display-light text-[clamp(38px,11vw,46px)] font-light leading-[1.02] tracking-[-0.045em]">
+        Stock app for
+        <br />
+        <span className="font-medium text-accent-soft">trenchers</span>
+      </h1>
+
+      {/*
+        Balanced, so the break falls after the comma rather than stranding
+        "Solana." alone on a second line.
+      */}
+      <p
+        className="mt-5 max-w-[24ch] text-[17px] font-normal leading-size-17 text-muted"
+        style={{textWrap: "balance"}}
+      >
+        Everything stock-paired, on Solana.
+      </p>
+
+      <div className="mt-11 flex flex-col gap-2.5">
         {isDemo ? (
-          <>
-            {/*
-              Demo mode says so on the front door rather than letting someone
-              discover it at the moment they try to trade.
-            */}
-            <Link
-              href="/home"
-              className="flex h-[52px] w-full items-center justify-center rounded-full bg-brand-500 text-[15px] font-extrabold text-white shadow-brand transition-transform duration-150 hover:-translate-y-0.5"
-            >
-              Explore {APP_NAME}
-            </Link>
-            <p className="mt-3 text-center text-[11.5px] leading-[1.5] text-faint">
-              Demo mode — browse everything, but trading and launching are off
-              until a Privy app id is configured.
-            </p>
-          </>
+          /*
+            Demo mode has no login to open, so the button goes straight in —
+            and says so, rather than letting someone find out at the moment
+            they try to trade.
+          */
+          <Link
+            href="/home"
+            className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[17px] bg-brand-500 px-5 py-[18px] text-[16px] font-bold text-white shadow-brand transition-transform hover:-translate-y-0.5"
+          >
+            Join now
+            <ArrowRightIcon className="h-4 w-4" />
+          </Link>
         ) : (
-          <>
-            <Button
-              variant="primary"
-              fullWidth
-              onClick={login}
-              disabled={!ready}
-              className="h-[52px] text-[15px]"
-            >
-              <XIcon className="mr-2 h-[15px] w-[15px]" />
-              {ready ? "Continue with X" : "Loading…"}
-            </Button>
-            <p className="mt-3 text-center text-[11.5px] leading-[1.5] text-faint">
-              A wallet is created for you. Nothing to install, nothing to pay.
-            </p>
-          </>
+          <Button size="lg" fullWidth onClick={() => setModalOpen(true)} disabled={!ready}>
+            {ready ? "Join now" : "Loading…"}
+            {ready ? <ArrowRightIcon className="ml-2 h-4 w-4" /> : null}
+          </Button>
         )}
 
-        <Link
-          href="/learn"
-          className="mt-2.5 flex h-[46px] w-full items-center justify-center rounded-full text-[14px] font-bold text-muted transition-colors duration-150 hover:text-ink"
+        <button
+          type="button"
+          disabled
+          aria-label="iOS app coming soon"
+          className="flex w-full items-center justify-center gap-2.5 rounded-2xl bg-[var(--bg-input)] px-5 py-[18px] text-[16px] font-bold tracking-[-0.01em] text-faint shadow-inset-soft"
         >
-          What is a tokenized stock?
-        </Link>
-      </div>
-    </main>
-  );
-}
+          <AppleIcon className="h-[19px] w-[19px]" />
+          Coming soon
+        </button>
 
-function Stat({value, label}: {value: string; label: string}) {
-  return (
-    <div className="rounded-[14px] bg-[var(--overlay-wash)] px-3 py-2.5">
-      <dd className="tabular-nums text-[20px] font-extrabold leading-none tracking-[-0.02em] text-ink">
-        {value}
-      </dd>
-      <dt className="mt-1.5 text-[10.5px] font-bold text-faint">{label}</dt>
+        {isDemo ? (
+          <p className="mt-2 text-center text-[11.5px] font-medium text-faint">
+            Demo mode — set NEXT_PUBLIC_PRIVY_APP_ID for real login.
+          </p>
+        ) : null}
+      </div>
+
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title="Log in or create an account"
+      >
+        <button
+          type="button"
+          onClick={startLogin}
+          className="mb-2.5 flex w-full items-center justify-center gap-3 rounded-[15px] bg-brand-500 px-4 py-[15px] text-[16px] font-bold text-white shadow-brand transition-transform hover:-translate-y-px hover:bg-brand-600"
+        >
+          <XIcon className="h-[18px] w-[18px]" />
+          Continue with X
+        </button>
+        <p className="mx-auto mt-4 max-w-[32ch] text-center text-[11.5px] leading-[1.5] text-muted">
+          A wallet is created for you on the way in. Nothing to install, nothing
+          to pay.
+        </p>
+      </Modal>
     </div>
   );
 }
