@@ -84,7 +84,8 @@ export function LoginScreen() {
         className="mt-5 max-w-[24ch] text-[17px] font-normal leading-size-17 text-muted"
         style={{textWrap: "balance"}}
       >
-        Everything stock-paired, on Solana.
+        {/* A non-breaking hyphen: "stock-paired" must never split across lines. */}
+        Everything stock‑paired, on Solana.
       </p>
 
       <div className="mt-11 flex flex-col gap-2.5">
