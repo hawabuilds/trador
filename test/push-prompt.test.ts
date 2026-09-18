@@ -22,7 +22,7 @@ import {
 
 const ok = {
   authenticated: true,
-  standalone: true,
+  canSubscribe: true,
   state: "off",
   permission: "default" as NotificationPermission | null,
   dismissed: false,
@@ -33,10 +33,16 @@ test("the bar shows for a signed-in person in an installed app", () => {
   assert.equal(shouldShowPushBar(ok), true);
 });
 
-test("never in a browser tab", () => {
-  // iOS Safari delivers push only to installed apps, so the button would
-  // resolve to nothing at all.
-  assert.equal(shouldShowPushBar({...ok, standalone: false}), false);
+test("never where a subscription cannot be made", () => {
+  /*
+   * iOS Safari in a tab, or a browser with no push API. The button would
+   * resolve to nothing, and on iOS it would burn the one permission prompt.
+   *
+   * This is deliberately *not* "not installed". Gating on installation is what
+   * kept the bar off every desktop and Android browser, so nobody subscribed
+   * and the first follow notification had nowhere to go.
+   */
+  assert.equal(shouldShowPushBar({...ok, canSubscribe: false}), false);
 });
 
 test("never before signing in", () => {

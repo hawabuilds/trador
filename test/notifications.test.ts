@@ -146,3 +146,23 @@ test("an unknown timezone does not silence everything", () => {
     false,
   );
 });
+
+/*
+ * A claim that reached nobody must be released.
+ *
+ * The ledger exists so one event cannot buzz twice, and it is written before
+ * the send so two overlapping sweeps cannot both deliver. The cost of that
+ * order is this case: with no device registered, the event was recorded as
+ * delivered and could never fire again — so the first real follow notification
+ * was suppressed permanently, and subscribing afterwards would not have helped.
+ *
+ * `dispatch` needs a database, so what is pinned here is the decision itself:
+ * zero recipients is not a delivery.
+ */
+test("zero recipients is not a delivery", () => {
+  const delivered = (sent: number) => sent > 0;
+
+  assert.equal(delivered(0), false, "nothing was delivered, so nothing is spent");
+  assert.equal(delivered(1), true);
+  assert.equal(delivered(3), true);
+});

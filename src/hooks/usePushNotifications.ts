@@ -22,6 +22,15 @@ export function usePushNotifications() {
   const session = useSession();
   const [state, setState] = useState<PushState>("off");
   const [busy, setBusy] = useState(false);
+  /*
+   * Why the last attempt failed, in words.
+   *
+   * Every failure here used to end at `setState("off")`, so a switch that would
+   * not turn on gave no reason at all — indistinguishable from not having been
+   * tapped. Not knowing is how someone ends up believing notifications are on
+   * when nothing is registered.
+   */
+  const [error, setError] = useState<string | null>(null);
   const [publicKey, setPublicKey] = useState<string | null>(null);
 
   const supported =
@@ -71,11 +80,15 @@ export function usePushNotifications() {
   const enable = useCallback(async () => {
     if (!supported || !publicKey) return;
     setBusy(true);
+    setError(null);
 
     try {
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
         setState(permission === "denied" ? "denied" : "off");
+        if (permission === "denied") {
+          setError("Your browser blocked notifications. Allow them in site settings.");
+        }
         return;
       }
 
@@ -92,6 +105,7 @@ export function usePushNotifications() {
       const token = await session.getAccessToken();
       if (!token) {
         setState("off");
+        setError("Sign in again — this device could not be registered.");
         return;
       }
 
@@ -104,8 +118,12 @@ export function usePushNotifications() {
       });
 
       setState(response.ok ? "on" : "off");
-    } catch {
+      if (!response.ok) {
+        setError(`Could not register this device (${response.status}).`);
+      }
+    } catch (caught) {
       setState("off");
+      setError((caught as Error).message || "Could not turn notifications on.");
     } finally {
       setBusy(false);
     }
@@ -140,7 +158,7 @@ export function usePushNotifications() {
     }
   }, [supported, session]);
 
-  return {state, busy, enable, disable};
+  return {state, busy, error, enable, disable};
 }
 
 /**

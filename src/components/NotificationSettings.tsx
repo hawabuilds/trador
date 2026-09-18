@@ -4,6 +4,7 @@ import {useEffect, useState} from "react";
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 
 import {usePushNotifications} from "@/hooks/usePushNotifications";
+import {safariNeedsHomeScreen} from "@/lib/notifications/pushClient";
 import {useSession} from "@/lib/session";
 import {cn} from "@/lib/cn";
 import {MILESTONES, type Milestone} from "@/lib/notifications/milestones";
@@ -26,6 +27,11 @@ export function NotificationSettings() {
   const session = useSession();
   const push = usePushNotifications();
   const queryClient = useQueryClient();
+
+  // Read after mount: it depends on `navigator`, which the server render has no
+  // view of, and disagreeing about it is a hydration error rather than a flash.
+  const [needsHomeScreen, setNeedsHomeScreen] = useState(false);
+  useEffect(() => setNeedsHomeScreen(safariNeedsHomeScreen()), []);
 
   const prefs = useQuery({
     queryKey: ["notification-prefs"],
@@ -67,6 +73,23 @@ export function NotificationSettings() {
     return (
       <Note>
         Push is not configured on this deployment. Set VAPID keys to turn it on.
+      </Note>
+    );
+  }
+
+  /*
+   * iOS delivers push only to an installed app.
+   *
+   * A switch here would call `requestPermission` and resolve to nothing — and
+   * on iOS that spends the one prompt the person will ever be offered. Saying
+   * what to do instead is the only honest control.
+   */
+  if (needsHomeScreen) {
+    return (
+      <Note>
+        On iPhone, add Trador to your Home Screen first — Share, then Add to
+        Home Screen — and open it from there. Safari only delivers notifications
+        to installed apps.
       </Note>
     );
   }
@@ -160,6 +183,12 @@ export function NotificationSettings() {
             onChange={(patch) => save.mutate(patch)}
           />
         </>
+      ) : null}
+
+      {push.error ? (
+        <p role="alert" className="px-1 pt-2 text-[12px] font-semibold text-error">
+          {push.error}
+        </p>
       ) : null}
 
       {save.error ? (

@@ -45,6 +45,8 @@ export type DispatchOutcome =
   | "quiet"
   | "disabled"
   | "duplicate"
+  /** Wanted and not a repeat, but no device is registered to receive it. */
+  | "no-devices"
   | "no-store";
 
 /** Whether this person wants this kind at all. */
@@ -87,6 +89,22 @@ async function claim(
     );
     return (result.rowCount ?? 0) > 0;
   });
+}
+
+/** Undo a claim that turned out to reach nobody. */
+async function release(
+  userId: string,
+  kind: NotificationKind,
+  subject: string,
+  rung: number,
+): Promise<void> {
+  await withClient((client) =>
+    client.query(
+      `delete from public.notification_events
+        where user_id = $1 and kind = $2 and subject = $3 and rung = $4`,
+      [userId, kind, subject, rung],
+    ),
+  );
 }
 
 /**
@@ -139,7 +157,26 @@ export async function dispatch(
 
     if (!(await claim(userId, kind, subject, rung))) return "duplicate";
 
-    await sendWebPush(userId, payload);
+    /*
+     * A claim that reached nobody is released.
+     *
+     * Claiming before sending is right for concurrency — two overlapping
+     * sweeps must not both deliver — but it also meant that a notification
+     * with no device to go to was recorded as delivered and could never fire
+     * again. That is exactly what happened on the first real follow: the event
+     * dispatched correctly, nothing was subscribed yet, and the ledger then
+     * suppressed it forever. Turning notifications on afterwards would not have
+     * helped, which is the worst possible shape for this bug.
+     *
+     * Nothing was delivered, so nothing should be suppressed. Releasing cannot
+     * cause a double-send: the only path here had zero recipients.
+     */
+    const {sent} = await sendWebPush(userId, payload);
+    if (sent === 0) {
+      await release(userId, kind, subject, rung);
+      return "no-devices";
+    }
+
     return "sent";
   } catch (error) {
     // A dispatch failure must never fail the pass that triggered it. The

@@ -86,15 +86,22 @@ export function markPushDeclined(now = new Date()): void {
 /**
  * Whether the bar may appear.
  *
- * Pulled out as a function because it is six conditions that only ever line up
- * inside an installed app, which is the hardest place to click through by hand
- * — and the cost of getting it wrong is either nagging someone on every screen
- * or never asking at all. `push-prompt.test.ts` covers each condition.
+ * Pulled out as a function because the cost of getting it wrong is either
+ * nagging someone on every screen or never asking at all — and the second is
+ * what happened: gated on being installed, the bar never appeared for anyone
+ * browsing normally, so nobody ever subscribed and a follow notification had
+ * nowhere to go. `push-prompt.test.ts` covers each condition.
  */
 export function shouldShowPushBar(input: {
   authenticated: boolean;
-  /** Running as an installed app. iOS delivers push to nothing else. */
-  standalone: boolean;
+  /**
+   * Whether a subscription can actually be made here.
+   *
+   * This was `standalone`, which hid the bar in every desktop and Android
+   * browser — places where push works perfectly well in a tab. Only iOS
+   * requires an installed app, so only iOS should be asked to install one.
+   */
+  canSubscribe: boolean;
   /** From `usePushNotifications`: `off` means configured and not subscribed. */
   state: string;
   permission: NotificationPermission | null;
@@ -104,7 +111,7 @@ export function shouldShowPushBar(input: {
 }): boolean {
   return (
     input.authenticated &&
-    input.standalone &&
+    input.canSubscribe &&
     input.state === "off" &&
     input.permission === "default" &&
     !input.dismissed &&

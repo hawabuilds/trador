@@ -32,8 +32,10 @@ import {Sheet} from "./ui/Sheet";
  * someone who dismisses a prompt they did not summon usually blocks it for
  * good — a decision that cannot be reversed from inside the app.
  *
- * The bar is gated on being installed because of iOS: Safari delivers web push
- * only to home-screen apps, so in a tab the button would resolve to nothing.
+ * The bar appears wherever a subscription can actually be made. That is every
+ * browser except iOS in a tab, where Safari delivers push only to an installed
+ * app — there the sheet explains Add to Home Screen instead of offering a
+ * button that cannot work.
  */
 export type PushIntent = "watchlist" | "comment" | "trade" | "launch";
 
@@ -78,12 +80,19 @@ export function PushPrompt() {
    * throw. The bar appearing one frame late is invisible; a hydration error is
    * the whole screen.
    */
-  const [standalone, setStandalone] = useState(false);
+  const [canSubscribe, setCanSubscribe] = useState(false);
   const [permission, setPermission] = useState<NotificationPermission | null>(null);
   const [dismissed, setDismissed] = useState(true);
 
   useEffect(() => {
-    setStandalone(isStandaloneDisplay());
+    /*
+     * Can a subscription be made from here at all?
+     *
+     * Push works in an ordinary tab everywhere except iOS, where Safari
+     * delivers only to an installed app. Asking anywhere else is fine; asking
+     * on iOS-in-a-tab would spend the one prompt on something that cannot work.
+     */
+    setCanSubscribe(pushApiAvailable() && !safariNeedsHomeScreen());
     setDismissed(declinedRecently());
     if (typeof Notification !== "undefined") setPermission(Notification.permission);
 
@@ -154,7 +163,7 @@ export function PushPrompt() {
 
   const showBar = shouldShowPushBar({
     authenticated,
-    standalone,
+    canSubscribe,
     state: push.state,
     permission,
     dismissed,
