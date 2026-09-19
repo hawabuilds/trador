@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import {useRouter} from "next/navigation";
 
 import {APP_SCROLL_PAD_TOP} from "@/components/AppShell";
+import {RefreshButton} from "@/components/RefreshButton";
 import {accountUrl, tokenUrl} from "@/config/explorer";
 import {launchpadFace} from "@/config/launchpads";
 import {useAsset, useChart, useTrades} from "@/hooks/useAsset";
@@ -215,7 +216,10 @@ export function AssetPage({
 
   return (
     <div className={cn(APP_SCROLL_PAD_TOP, "pb-[calc(84px+env(safe-area-inset-bottom))]")}>
-      <BackButton onClick={() => router.back()} />
+      <div className="flex items-center justify-between">
+        <BackButton onClick={() => router.back()} />
+        <RefreshButton className="-mr-1.5" label="Refresh prices and trades" />
+      </div>
 
       {asset.kind === "stock" ? (
         // A tokenized equity is listed by symbol, with no artwork — the way a

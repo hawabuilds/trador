@@ -492,6 +492,18 @@ export function UserIcon(props: IconProps) {
   );
 }
 
+export function RefreshIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path
+        d="M20 11a8 8 0 0 0-13.7-5.3L4 8m0 0V4m0 4h4M4 13a8 8 0 0 0 13.7 5.3L20 16m0 0v4m0-4h-4"
+        {...stroke}
+        strokeWidth={2}
+      />
+    </Icon>
+  );
+}
+
 export function SortIcon(props: IconProps) {
   return (
     <Icon {...props}>

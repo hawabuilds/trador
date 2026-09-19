@@ -8,6 +8,7 @@ import {appOrigin} from "@/lib/routes";
 import {THEME_COLOR} from "@/lib/theme";
 
 import "./globals.css";
+import {ZoomLock} from "@/components/ZoomLock";
 
 /**
  * Inter for interface copy: 400 body, 300 large display, 500/700 headings.
@@ -59,6 +60,11 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  // Pinch and double-tap zoom off: this is a phone-shaped app, and a page that
+  // zooms under a fat-fingered tap on a chart reads as a website. `ZoomLock`
+  // handles the browsers that ignore these.
+  maximumScale: 1,
+  userScalable: false,
   viewportFit: "cover",
   // One colour, because there is one theme. Matches `--bg-base`, so the phone's
   // status bar and the page share an edge instead of showing a seam.
@@ -76,6 +82,7 @@ export default function RootLayout({
       data-theme="dark"
     >
       <body className="font-sans text-ink antialiased">
+        <ZoomLock />
         <Providers>
           <div className="app-frame">
             {children}
