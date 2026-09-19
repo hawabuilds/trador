@@ -8,7 +8,6 @@ import {StickyPageHeader} from "@/components/AppShell";
 import {NEW_FEED_MIN_MCAP_USD} from "@/config/feed";
 import {AssetList} from "@/components/AssetRow";
 import {CreateSheet} from "@/components/CreateSheet";
-import {RefreshButton} from "@/components/RefreshButton";
 import {LoadMore} from "@/components/LoadMore";
 import {FilterRail, type FilterOption} from "@/components/FilterRail";
 import {HomeTabs, type HomeTab} from "@/components/HomeTabs";
@@ -371,7 +370,6 @@ export function HomeFeed({
             Create is the app's one outbound action, so it gets the only filled
             brand-coloured control on the screen.
           */}
-          <RefreshButton className="-mr-1" label="Refresh the feed" />
           <button
             type="button"
             onClick={() => setCreateOpen(true)}

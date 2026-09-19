@@ -1,6 +1,6 @@
 "use client";
 
-import {useEffect, type ReactNode} from "react";
+import {useEffect, useRef, type ReactNode} from "react";
 import {useRouter} from "next/navigation";
 
 import {useUser} from "@/hooks/useUser";
@@ -8,6 +8,7 @@ import {useRegisterMe} from "@/hooks/useRegisterMe";
 import {isPrivyOAuthReturn} from "@/lib/session";
 
 import {cn} from "@/lib/cn";
+import {PullIndicator, RefreshDock, useRefreshAll, usePullToRefresh} from "./Refresh";
 import {PushPrompt} from "./PushPrompt";
 import {TabBar} from "./TabBar";
 
@@ -62,6 +63,11 @@ export function AppShell({children}: {children: ReactNode}) {
   // profile link resolves. Silent and fire-and-forget — see the hook.
   useRegisterMe();
 
+  // Pull-to-refresh, on the one scroll container every screen shares.
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const {refresh, refreshing} = useRefreshAll();
+  const pull = usePullToRefresh(scrollerRef, refresh);
+
   /**
    * Send a signed-out visitor to the door.
    *
@@ -89,11 +95,22 @@ export function AppShell({children}: {children: ReactNode}) {
 
   return (
     <div className="flex h-full flex-col bg-surface-base">
-      <div className="scroll-quiet min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-[22px] pb-[calc(96px+env(safe-area-inset-bottom))]">
+      <PullIndicator pull={pull} refreshing={refreshing} />
+      <div
+        ref={scrollerRef}
+        className="scroll-quiet min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-[22px] pb-[calc(96px+env(safe-area-inset-bottom))]"
+        style={{
+          // The list follows the finger, which is what makes the gesture feel
+          // like it is moving the content rather than playing an animation.
+          transform: pull > 0 ? `translateY(${pull * 0.6}px)` : undefined,
+          transition: pull === 0 ? "transform 220ms ease" : undefined,
+        }}
+      >
         {children}
       </div>
 
       <TabBar />
+      <RefreshDock refresh={refresh} refreshing={refreshing} />
       <PushPrompt />
     </div>
   );
