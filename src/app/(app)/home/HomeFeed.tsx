@@ -7,6 +7,7 @@ import {usePathname, useRouter, useSearchParams} from "next/navigation";
 import {StickyPageHeader} from "@/components/AppShell";
 import {NEW_FEED_MIN_MCAP_USD} from "@/config/feed";
 import {AssetList} from "@/components/AssetRow";
+import {CreateSheet} from "@/components/CreateSheet";
 import {LoadMore} from "@/components/LoadMore";
 import {FilterRail, type FilterOption} from "@/components/FilterRail";
 import {HomeTabs, type HomeTab} from "@/components/HomeTabs";
@@ -136,6 +137,13 @@ export function HomeFeed({
   const [sector, setSector] = useState<SectorId | "all">("all");
   const [quote, setQuote] = useState<string>(() => params.get("quote") ?? "all");
   const [watchFilter, setWatchFilter] = useState<WatchFilter>("all");
+  // The launch pop-up. `/create` redirects here with `?create=1`, so a link to
+  // Create from anywhere opens it over the feed.
+  const [createOpen, setCreateOpen] = useState(() => params.get("create") === "1");
+  const closeCreate = useCallback(() => {
+    setCreateOpen(false);
+    if (params.get("create")) router.replace(pathname, {scroll: false});
+  }, [params, router, pathname]);
 
   /*
    * State to URL, one way.
@@ -362,13 +370,14 @@ export function HomeFeed({
             Create is the app's one outbound action, so it gets the only filled
             brand-coloured control on the screen.
           */}
-          <Link
-            href="/create"
+          <button
+            type="button"
+            onClick={() => setCreateOpen(true)}
             className="inline-flex h-[34px] items-center gap-1.5 rounded-full bg-brand-500 px-3.5 text-[12.5px] font-extrabold text-white shadow-brand transition-transform duration-150 hover:-translate-y-0.5"
           >
             <RocketIcon className="h-[15px] w-[15px]" />
             Create
-          </Link>
+          </button>
         </div>
 
         <HomeTabs value={tab} onChange={setTab} />
@@ -483,6 +492,8 @@ export function HomeFeed({
           Add an RPC and Supabase for live prices.
         </p>
       ) : null}
+
+      <CreateSheet open={createOpen} onClose={closeCreate} />
     </div>
   );
 }
