@@ -1,6 +1,6 @@
 import {asPubkey} from "@/lib/pubkey";
 import {optionalCaller, requireCaller} from "@/lib/server/auth";
-import {commentsReady, listComments, mintFor, postComment} from "@/lib/server/comments";
+import {commentsReady, holdsAsset, listComments, mintFor, postComment} from "@/lib/server/comments";
 import {badRequest, json} from "@/lib/server/http";
 import {profileById} from "@/lib/server/social";
 import type {AssetKind} from "@/lib/types";
@@ -30,8 +30,13 @@ export async function GET(
 
   try {
     const caller = await optionalCaller(request);
-    const comments = await listComments(kind, assetId, caller?.userId ?? null);
-    return json({comments, localOnly: false});
+    const [comments, canPost] = await Promise.all([
+      listComments(kind, assetId, caller?.userId ?? null),
+      caller ? callerHolds(caller.userId, kind, assetId) : Promise.resolve(false),
+    ]);
+    // Said up front, so the composer can explain itself instead of accepting a
+    // post that the server will then refuse.
+    return json({comments, localOnly: false, canPost});
   } catch (error) {
     return json({error: (error as Error).message}, {status: 503});
   }
@@ -56,6 +61,20 @@ export async function POST(
   if (typeof body.body !== "string") return badRequest("Write something first.");
   const parentId =
     typeof body.parentId === "string" && /^\d+$/.test(body.parentId) ? body.parentId : null;
+
+  /*
+   * Only holders speak.
+   *
+   * Checked here, on the server, against the live balance. A disabled text box
+   * is a hint, not a rule — anyone can call this route directly — so this is
+   * the only place the rule actually holds.
+   */
+  if (!(await callerHolds(caller.userId, kind, assetId))) {
+    return json(
+      {error: "Only holders can comment. Buy some to join the conversation."},
+      {status: 403},
+    );
+  }
 
   try {
     const result = await postComment({
@@ -109,5 +128,21 @@ export async function POST(
     return json({ok: true, id: result.id});
   } catch (error) {
     return json({error: (error as Error).message}, {status: 503});
+  }
+}
+
+/** Whether this user's wallet currently holds the asset. False on any doubt. */
+async function callerHolds(userId: string, kind: AssetKind, assetId: string): Promise<boolean> {
+  const mint = mintFor(kind, assetId);
+  if (!mint) return false;
+  const me = await profileById(userId, null).catch(() => null);
+  const wallet = asPubkey(me?.wallet ?? null);
+  if (!wallet) return false;
+  try {
+    return await holdsAsset(wallet, mint);
+  } catch {
+    // An RPC failure refuses rather than allows: the rule is the point, and a
+    // post can be retried once the balance can be read.
+    return false;
   }
 }

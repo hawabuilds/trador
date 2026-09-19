@@ -64,7 +64,12 @@ export function useComments(kind: AssetKind, assetId: string) {
         headers: token ? {authorization: `Bearer ${token}`} : undefined,
       });
       if (!res.ok) throw new Error("Could not load comments.");
-      return (await res.json()) as {comments: AssetComment[]; localOnly: boolean};
+      return (await res.json()) as {
+        comments: AssetComment[];
+        localOnly: boolean;
+        /** Whether the caller holds this asset, which is what posting requires. */
+        canPost?: boolean;
+      };
     },
     retry: false,
     // Comments are a conversation: new ones should arrive without a reload.
@@ -175,7 +180,17 @@ export function useComments(kind: AssetKind, assetId: string) {
     isLoading: remote.isLoading,
     error: remote.error ? (remote.error as Error).message : null,
     retry: () => void remote.refetch(),
-    canPost: authenticated,
+    /*
+     * Posting needs a holding, decided by the server from the live balance.
+     * Only a deployment with no comment store falls back to "signed in", since
+     * those posts never leave the browser anyway.
+     */
+    canPost:
+      authenticated && (remote.data?.localOnly === false ? Boolean(remote.data.canPost) : true),
+    /** Liking is open to anyone signed in; only speaking needs a position. */
+    canLike: authenticated && remote.data?.localOnly === false,
+    /** Signed in, but not holding — the composer says so rather than just greying out. */
+    needsPosition: authenticated && remote.data?.localOnly === false && !remote.data.canPost,
     localOnly: remote.data?.localOnly ?? true,
     post,
   };

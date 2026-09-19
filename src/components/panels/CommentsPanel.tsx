@@ -45,8 +45,18 @@ export function CommentsPanel({
   const [replyTo, setReplyTo] = useState<{rootId: string; label: string} | null>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
 
-  const {threads, isLoading, error, retry, canPost, post, toggleLike, localOnly} =
-    useComments(kind, assetId);
+  const {
+    threads,
+    isLoading,
+    error,
+    retry,
+    canPost,
+    canLike,
+    needsPosition,
+    post,
+    toggleLike,
+    localOnly,
+  } = useComments(kind, assetId);
 
   useEffect(() => {
     setDraft("");
@@ -99,7 +109,8 @@ export function CommentsPanel({
               imageUrl={imageUrl ?? null}
               onReply={startReply}
               onLike={toggleLike}
-              canLike={canPost && !localOnly}
+              canLike={canLike}
+              canReply={canPost}
             />
           ))}
         </ul>
@@ -139,7 +150,9 @@ export function CommentsPanel({
                 ? replyTo
                   ? `Reply to ${replyTo.label}…`
                   : `Your take on ${symbol}…`
-                : "Sign in to post"
+                : needsPosition
+                  ? `Hold ${symbol} to comment`
+                  : "Sign in to post"
             }
             className="max-h-[64px] min-h-[38px] flex-1 resize-none rounded-2xl bg-[var(--bg-input)] px-3 py-2.5 text-[13px] leading-[1.4] text-ink shadow-inset-soft outline-none transition-[box-shadow,background-color] placeholder:text-faint focus:shadow-inset-focus disabled:cursor-not-allowed disabled:opacity-55"
           />
@@ -162,6 +175,15 @@ export function CommentsPanel({
             {remaining}
           </p>
         ) : null}
+        {/*
+          Why the box is closed, when it is. Only holders comment, so every take
+          here comes from someone with money on it.
+        */}
+        {needsPosition ? (
+          <p className="mt-1.5 text-[11px] font-medium leading-[1.45] text-faint">
+            Only {symbol} holders can comment. Buy any amount to join in.
+          </p>
+        ) : null}
         {/* Only said when it is true: a deployment with no store to post to. */}
         {localOnly && !isLoading ? (
           <p className="mt-1.5 text-[11px] font-medium leading-[1.45] text-faint">
@@ -180,6 +202,7 @@ function Thread({
   onReply,
   onLike,
   canLike,
+  canReply,
 }: {
   thread: CommentThread;
   symbol: string;
@@ -187,6 +210,7 @@ function Thread({
   onReply: (comment: AssetComment, rootId: string) => void;
   onLike: (commentId: string) => void;
   canLike: boolean;
+  canReply: boolean;
 }) {
   // Replies collapsed by default, as the reference does ("1 older").
   const [open, setOpen] = useState(false);
@@ -204,6 +228,7 @@ function Thread({
         onReply={(comment) => onReply(comment, thread.root.id)}
         onLike={onLike}
         canLike={canLike}
+        canReply={canReply}
       />
       {open && replies.length > 0 ? (
         <ul className="ml-[44px] border-l-2 border-[var(--overlay-wash-hover)]">
@@ -217,6 +242,7 @@ function Thread({
                 onReply={(comment) => onReply(comment, thread.root.id)}
                 onLike={onLike}
                 canLike={canLike}
+                canReply={canReply}
               />
             </li>
           ))}
@@ -237,6 +263,7 @@ function CommentRow({
   onReply,
   onLike,
   canLike,
+  canReply,
 }: {
   comment: AssetComment;
   symbol: string;
@@ -248,6 +275,8 @@ function CommentRow({
   onReply: (comment: AssetComment) => void;
   onLike: (commentId: string) => void;
   canLike: boolean;
+  /** Replying is commenting, so it needs a holding too. */
+  canReply: boolean;
 }) {
   const position = comment.position ?? null;
   const likes = comment.likes ?? 0;
@@ -331,14 +360,16 @@ function CommentRow({
               {likes}
             </button>
 
-            <button
-              type="button"
-              onClick={() => onReply(comment)}
-              className="flex items-center gap-1.5 transition-colors hover:text-accent-link"
-            >
-              <ReplyIcon className="h-[15px] w-[15px]" />
-              Reply
-            </button>
+            {canReply ? (
+              <button
+                type="button"
+                onClick={() => onReply(comment)}
+                className="flex items-center gap-1.5 transition-colors hover:text-accent-link"
+              >
+                <ReplyIcon className="h-[15px] w-[15px]" />
+                Reply
+              </button>
+            ) : null}
 
             {replyCount > 0 && onToggleReplies ? (
               <button

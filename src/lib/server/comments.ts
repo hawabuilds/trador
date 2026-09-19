@@ -169,6 +169,49 @@ async function positionsFor(
   return found;
 }
 
+/**
+ * Worth less than this and a balance is dust, not a position.
+ *
+ * Selling "all" through a router routinely leaves a few base units behind, and
+ * those crumbs must not keep the right to comment on a coin someone has left.
+ *
+ * A cent, not a dollar. Crumbs are fractions of a cent, while real positions
+ * start small: a first stock buy of $0.61 is a genuine position, and a dollar
+ * floor would have refused the person who made it.
+ */
+const MIN_POSITION_USD = 0.01;
+
+/**
+ * Does this wallet hold the asset right now?
+ *
+ * Read from the chain, not from trade history. History only knows about trades
+ * it has parsed, so someone who bought on another app, or whose history has
+ * not been read yet, would be wrongly refused — and someone who sold since the
+ * last read would be wrongly allowed. The live balance has neither problem.
+ *
+ * A coin with no current price counts any positive balance, since there is no
+ * way to tell dust from a position and refusing a real holder is the worse
+ * mistake.
+ */
+export async function holdsAsset(wallet: Pubkey, mint: Pubkey): Promise<boolean> {
+  const {balancesFor} = await import("./live/holdings");
+  const balances = await balancesFor(wallet, [mint]);
+  const held = balances.tokens[mint];
+  if (!held || !/^\d+$/.test(held.amount) || BigInt(held.amount) === 0n) return false;
+
+  const units = Number(held.amount) / 10 ** held.decimals;
+
+  let priceUsd: number | null = null;
+  try {
+    const {jupTokens} = await import("./live/jupTokens");
+    priceUsd = (await jupTokens([mint])).get(mint)?.usdPrice ?? null;
+  } catch {
+    priceUsd = null;
+  }
+
+  return priceUsd === null ? units > 0 : units * priceUsd >= MIN_POSITION_USD;
+}
+
 export type PostResult =
   | {ok: true; id: string; parentAuthorId: string | null}
   | {ok: false; reason: string};
