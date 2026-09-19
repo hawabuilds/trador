@@ -3,6 +3,7 @@
 import {useEffect, useRef, useState} from "react";
 
 import {accountUrl} from "@/config/explorer";
+import {useMe} from "@/hooks/useMe";
 import {useUser} from "@/hooks/useUser";
 import {cn} from "@/lib/cn";
 import {shortPubkey} from "@/lib/pubkey";
@@ -10,6 +11,7 @@ import {useSession} from "@/lib/session";
 import {NotificationSettings} from "./NotificationSettings";
 import {ExportWalletSheet, ImportWalletSheet} from "./WalletKeySheets";
 import {Sheet, SheetTitle} from "./ui/Sheet";
+import {Switch} from "./ui/Switch";
 import {
   ArrowUpRightIcon,
   BellIcon,
@@ -17,6 +19,7 @@ import {
   LockIcon,
   LogoutIcon,
   SettingsIcon,
+  UserIcon,
   WalletIcon,
 } from "./ui/Icons";
 
@@ -49,6 +52,8 @@ export function SettingsMenu() {
 
   const {wallet, handle, displayName, isDemo, logout} = useUser();
   const {wallets, setActiveWallet, exportWallet, importWallet} = useSession();
+  const me = useMe();
+  const [privacyError, setPrivacyError] = useState<string | null>(null);
 
   // Escape or a click anywhere else closes it, as a menu should.
   useEffect(() => {
@@ -189,6 +194,37 @@ export function SettingsMenu() {
             icon={<BellIcon className="h-4 w-4" />}
             label="Notifications"
           />
+          {/*
+            A switch rather than a row that opens something, so the menu stays
+            open and the change is visible where it was made. HODL's default:
+            on, until someone chooses otherwise.
+          */}
+          {me.handle ? (
+            <div className="mx-1 flex items-center gap-2 rounded-[10px] px-2.5 py-2">
+              <span className="text-muted">
+                <UserIcon className="h-4 w-4" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[14px] font-bold text-ink">Public Stonkfolio</div>
+                <div className="text-[11px] leading-snug text-faint">
+                  {privacyError ??
+                    (me.portfolioPublic
+                      ? "Your holdings and value show on your profile"
+                      : "Hidden from your profile, wallet included")}
+                </div>
+              </div>
+              <Switch
+                on={me.portfolioPublic}
+                label="Show my Stonkfolio on my profile"
+                onChange={() => {
+                  setPrivacyError(null);
+                  me.setPortfolioPublic(!me.portfolioPublic).catch(() =>
+                    setPrivacyError("Couldn't save. Try again."),
+                  );
+                }}
+              />
+            </div>
+          ) : null}
         </div>
 
         {!isDemo && wallet ? (

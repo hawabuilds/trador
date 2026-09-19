@@ -31,8 +31,13 @@
  */
 
 import {
+  LaunchpadConfig,
   LaunchpadPool,
+  PlatformConfig,
   PlatformCurveRule,
+  buyExactInInstruction,
+  getPdaCreatorVault,
+  getPdaPlatformVault,
   getPdaLaunchpadAuth,
   getPdaLaunchpadPoolId,
   getPdaLaunchpadVaultId,
@@ -40,23 +45,25 @@ import {
   initializeWithToken2022,
 } from "@raydium-io/raydium-sdk-v2";
 import {
-  ComputeBudgetProgram,
-  Connection,
-  Keypair,
-  PublicKey,
-  TransactionMessage,
-  VersionedTransaction,
-} from "@solana/web3.js";
+  createAssociatedTokenAccountIdempotentInstruction,
+  getAssociatedTokenAddressSync,
+} from "@solana/spl-token";
+import {Connection, Keypair, PublicKey} from "@solana/web3.js";
 import BN from "bn.js";
 
 import {RAYDIUM_LAUNCHPAD, STONKFUN_PLATFORMS} from "@/lib/programs";
 import type {StockMint} from "@/lib/stocks/registry";
 import {cached} from "./cache";
+import {
+  type AssembledLaunch,
+  type DevBuyPlan,
+  LaunchRefused,
+  RPC_URL,
+  assembleLaunch,
+  connection,
+} from "./launchAssemble";
 
-const RPC_URL =
-  process.env.HELIUS_RPC_URL ||
-  process.env.SOLANA_RPC_URL ||
-  "https://api.mainnet-beta.solana.com";
+export {LaunchRefused};
 
 const TOKEN_2022 = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
 
@@ -175,25 +182,39 @@ export async function launchTemplate(stock: StockMint): Promise<LaunchTemplate |
   return value;
 }
 
-export interface BuiltLaunch {
-  /** Signed by the new mint; the creator signs it next. */
-  transaction: string;
-  mint: string;
-  pool: string;
-  /** SOL the creator's wallet pays, from the simulation. */
-  costSol: number | null;
+/**
+ * Every stock StonkFun has launched a coin in — the stocks a launch here can
+ * be priced in, since the settings are copied from an existing launch.
+ *
+ * One sweep of StonkFun's pools reading only the 32 bytes of the quote mint,
+ * cached for an hour.
+ */
+export async function stonkfunQuoteMints(): Promise<string[]> {
+  const {value} = await cached("stonkfun-quote-mints", 3_600_000, async () => {
+    const accounts = await connection().getProgramAccounts(PROGRAM, {
+      dataSlice: {offset: 237, length: 32},
+      filters: [{dataSize: 429}, {memcmp: {offset: 173, bytes: PLATFORM.toBase58()}}],
+    });
+    return [...new Set(accounts.map((account) => new PublicKey(account.account.data).toBase58()))];
+  });
+  return value;
 }
 
-export class LaunchRefused extends Error {}
-
-export async function buildStonkfunLaunch(input: {
+export interface StonkfunLaunchInput {
   creator: string;
   name: string;
   symbol: string;
   uri: string;
   stock: StockMint;
   feeBps: number;
-}): Promise<BuiltLaunch> {
+  /** Stock to spend buying the coin in the same transaction, in base units; 0 for none. */
+  devBuyStock: bigint;
+}
+
+/** Fee rates are parts per million on LaunchLab. */
+const RATE_DENOMINATOR = 1_000_000;
+
+export async function buildStonkfunLaunch(input: StonkfunLaunchInput): Promise<BuiltLaunch> {
   const template = await launchTemplate(input.stock);
   if (!template) {
     throw new LaunchRefused(
@@ -206,28 +227,32 @@ export async function buildStonkfunLaunch(input: {
     );
   }
 
-  const connection = new Connection(RPC_URL, "confirmed");
+  const rpc = connection();
   const creator = new PublicKey(input.creator);
   const mintB = new PublicKey(input.stock.mint);
   const configId = new PublicKey(template.configId);
+  const quoteProgram = new PublicKey(input.stock.tokenProgram ?? TOKEN_2022.toBase58());
   const mint = Keypair.generate();
+  const auth = getPdaLaunchpadAuth(PROGRAM).publicKey;
   const pool = getPdaLaunchpadPoolId(PROGRAM, mint.publicKey, mintB).publicKey;
+  const vaultA = getPdaLaunchpadVaultId(PROGRAM, pool, mint.publicKey).publicKey;
+  const vaultB = getPdaLaunchpadVaultId(PROGRAM, pool, mintB).publicKey;
 
-  const instruction = initializeWithToken2022(
+  const launch = initializeWithToken2022(
     PROGRAM,
     creator,
     creator,
     configId,
     PLATFORM,
-    getPdaLaunchpadAuth(PROGRAM).publicKey,
+    auth,
     pool,
     mint.publicKey,
     mintB,
-    getPdaLaunchpadVaultId(PROGRAM, pool, mint.publicKey).publicKey,
-    getPdaLaunchpadVaultId(PROGRAM, pool, mintB).publicKey,
+    vaultA,
+    vaultB,
     // The quote stock's own token program. Every verified stock is Token-2022
     // today, but this is read from the registry rather than assumed.
-    new PublicKey(input.stock.tokenProgram ?? TOKEN_2022.toBase58()),
+    quoteProgram,
     template.decimals,
     input.name,
     input.symbol,
@@ -249,58 +274,73 @@ export async function buildStonkfunLaunch(input: {
     getPdaPlatformCurveRule(PROGRAM, PLATFORM, configId).publicKey,
   );
 
-  const {blockhash} = await connection.getLatestBlockhash("confirmed");
-  const transaction = new VersionedTransaction(
-    new TransactionMessage({
-      payerKey: creator,
-      recentBlockhash: blockhash,
-      instructions: [
-        // 97k units in simulation; headroom for a busier slot.
-        ComputeBudgetProgram.setComputeUnitLimit({units: 200_000}),
-        ComputeBudgetProgram.setComputeUnitPrice({microLamports: 50_000}),
-        instruction,
+  const creatorCoinAccount = getAssociatedTokenAddressSync(mint.publicKey, creator, false, TOKEN_2022);
+
+  let devBuy: DevBuyPlan | null = null;
+  if (input.devBuyStock > 0n) {
+    // The trade fee a buy pays: the config's own rate, plus StonkFun's
+    // platform share and the creator's share.
+    const [configAccount, platformAccount] = await rpc.getMultipleAccountsInfo([configId, PLATFORM]);
+    const tradeRate = configAccount ? Number(LaunchpadConfig.decode(configAccount.data).tradeFeeRate) : 0;
+    const platform = platformAccount ? PlatformConfig.decode(platformAccount.data) : null;
+    const rate =
+      tradeRate + Number(platform?.feeRate ?? 0) + Number(platform?.creatorFeeRate ?? 0);
+
+    devBuy = {
+      stockIn: input.devBuyStock,
+      stock: {mint: input.stock.mint, ticker: input.stock.ticker, decimals: input.stock.decimals},
+      creatorCoinAccount,
+      coinDecimals: template.decimals,
+      coinSupply: BigInt(template.supply),
+      tradingFeeBps: Math.round((rate / RATE_DENOMINATOR) * 10_000),
+      buy: [
+        createAssociatedTokenAccountIdempotentInstruction(
+          creator,
+          creatorCoinAccount,
+          creator,
+          mint.publicKey,
+          TOKEN_2022,
+        ),
+        buyExactInInstruction(
+          PROGRAM,
+          creator,
+          auth,
+          configId,
+          PLATFORM,
+          pool,
+          creatorCoinAccount,
+          getAssociatedTokenAddressSync(mintB, creator, false, quoteProgram),
+          vaultA,
+          vaultB,
+          mint.publicKey,
+          mintB,
+          TOKEN_2022,
+          quoteProgram,
+          getPdaPlatformVault(PROGRAM, PLATFORM, mintB).publicKey,
+          getPdaCreatorVault(PROGRAM, creator, mintB).publicKey,
+          new BN(input.devBuyStock.toString()),
+          // Any amount of coin: it is the first buy on a curve created one
+          // instruction earlier, so nothing can move the price in between.
+          new BN(1),
+        ),
       ],
-    }).compileToV0Message(),
-  );
-  transaction.sign([mint]);
-
-  /*
-   * Simulated before it is returned, against the creator's real balance.
-   *
-   * A failure here is the chain's own verdict — not enough SOL, a rule that
-   * changed — and the creator sees that sentence instead of signing a
-   * transaction that would fail and still cost them the fee.
-   */
-  const before = await connection.getBalance(creator);
-  const simulation = await connection.simulateTransaction(transaction, {
-    sigVerify: false,
-    replaceRecentBlockhash: false,
-    accounts: {encoding: "base64", addresses: [creator.toBase58()]},
-  });
-
-  if (simulation.value.err) {
-    const logs = simulation.value.logs ?? [];
-    const reason =
-      logs.find((line) => /insufficient/i.test(line)) ??
-      logs.find((line) => /Error Message:/.test(line))?.split("Error Message:")[1] ??
-      JSON.stringify(simulation.value.err);
-    // `AccountNotFound` is how the runtime says the payer has never held SOL.
-    const broke = /insufficient|AccountNotFound|InsufficientFunds/i.test(
-      `${reason} ${JSON.stringify(simulation.value.err)}`,
-    );
-    throw new LaunchRefused(
-      broke
-        ? "Not enough SOL in this wallet to pay for the launch — it costs about 0.01 SOL."
-        : `The launch would fail: ${reason.trim()}`,
-    );
+    };
   }
 
-  const after = simulation.value.accounts?.[0]?.lamports;
+  const assembled = await assembleLaunch({
+    creator,
+    launch: [launch],
+    signers: [mint],
+    devBuy,
+    launchpadLabel: "StonkFun",
+    // Raydium's own table: token programs, sysvars, metadata and its programs.
+    lookupTables: ["AcL1Vo8oy1ULiavEcjSUcwfBSForXMudcZvDZy5nzJkU"],
+  });
 
-  return {
-    transaction: Buffer.from(transaction.serialize()).toString("base64"),
-    mint: mint.publicKey.toBase58(),
-    pool: pool.toBase58(),
-    costSol: typeof after === "number" ? (before - after) / 1e9 : null,
-  };
+  return {...assembled, mint: mint.publicKey.toBase58(), pool: pool.toBase58()};
+}
+
+export interface BuiltLaunch extends AssembledLaunch {
+  mint: string;
+  pool: string;
 }

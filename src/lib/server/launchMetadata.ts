@@ -67,6 +67,15 @@ async function put(path: string, body: Buffer | string, contentType: string): Pr
 export class MetadataRejected extends Error {}
 
 /**
+ * An address exactly as long as a real one will be, for pricing a launch
+ * before anything is uploaded. The coin's on-chain metadata is sized to its
+ * `uri`, so a shorter stand-in would under-quote the rent.
+ */
+export function placeholderMetadataUri(): string {
+  return `${URL_BASE || "https://example.supabase.co"}/storage/v1/object/public/${BUCKET}/${"0".repeat(36)}.json`;
+}
+
+/**
  * Store a coin's image and metadata; return the URI the launch will point at.
  *
  * The image arrives as a data URL and is checked by its declared type and its

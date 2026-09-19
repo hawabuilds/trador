@@ -110,8 +110,45 @@ export function useMe() {
     [handle, session, queryClient],
   );
 
+  /**
+   * Show or hide the Stonkfolio on the public profile.
+   *
+   * Applied to the cached profile straight away so the switch moves when
+   * tapped, then written; a failed write puts it back, because a privacy
+   * setting that silently did not save is worse than one that visibly didn't.
+   */
+  const setPortfolioPublic = useCallback(
+    async (portfolioPublic: boolean) => {
+      if (!handle) return;
+      const key = ["profile", handle];
+      const previous = queryClient.getQueryData<ProfileResponse | null>(key);
+      if (previous) {
+        queryClient.setQueryData(key, {...previous, profile: {...previous.profile, portfolioPublic}});
+      }
+      try {
+        const token = await session.getAccessToken();
+        if (!token) throw new Error("Sign in again.");
+        const response = await fetch("/api/me", {
+          method: "PUT",
+          headers: {"content-type": "application/json", authorization: `Bearer ${token}`},
+          body: JSON.stringify({handle, portfolioPublic}),
+        });
+        if (!response.ok) throw new Error("Could not save that.");
+      } catch (error) {
+        if (previous) queryClient.setQueryData(key, previous);
+        throw error;
+      } finally {
+        await queryClient.invalidateQueries({queryKey: key});
+      }
+    },
+    [handle, session, queryClient],
+  );
+
   return {
     handle,
+    /** Shown on the public profile unless opted out. */
+    portfolioPublic: query.data?.profile.portfolioPublic ?? true,
+    setPortfolioPublic,
     // Local edits win over the server copy, which is what makes a save feel
     // immediate; the server value is the fallback, not the override.
     displayName:

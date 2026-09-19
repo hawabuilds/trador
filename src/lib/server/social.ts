@@ -25,7 +25,10 @@ export interface Profile {
   displayName: string;
   pfpUrl: string | null;
   bio: string | null;
+  /** Null when the person keeps their Stonkfolio private, to everyone but themselves. */
   wallet: string | null;
+  /** Whether their Stonkfolio shows on their profile. On unless they opted out. */
+  portfolioPublic: boolean;
   followers: number;
   following: number;
   /** Whether the caller follows this person. Null when nobody is signed in. */
@@ -95,6 +98,15 @@ export async function upsertMe(userId: string, patch: ProfilePatch): Promise<voi
     );
 }
 
+/** Show or hide the caller's Stonkfolio on their profile. */
+export async function setPortfolioPublic(userId: string, portfolioPublic: boolean): Promise<void> {
+  if (!socialReady) return;
+  await query(
+    `update public.users set portfolio_public = $2, updated_at = now() where id = $1`,
+    [userId, portfolioPublic],
+  );
+}
+
 /** One profile by handle, with the caller's follow state resolved. */
 export async function profileByHandle(
   handle: string,
@@ -106,7 +118,7 @@ export async function profileByHandle(
   if (!key) return null;
 
   const rows = await query<RawProfile>(
-    `select u.id, u.handle, u.display_name, u.pfp_url, u.bio, u.wallet,
+    `select u.id, u.handle, u.display_name, u.pfp_url, u.bio, u.wallet, u.portfolio_public,
             (select count(*) from public.follows f where f.followee_id = u.id) as followers,
             (select count(*) from public.follows f where f.follower_id = u.id) as following,
             exists (
@@ -139,7 +151,7 @@ export async function profileById(
   if (!socialReady || !userId) return null;
 
   const rows = await query<RawProfile>(
-    `select u.id, u.handle, u.display_name, u.pfp_url, u.bio, u.wallet,
+    `select u.id, u.handle, u.display_name, u.pfp_url, u.bio, u.wallet, u.portfolio_public,
             (select count(*) from public.follows f where f.followee_id = u.id) as followers,
             (select count(*) from public.follows f where f.follower_id = u.id) as following,
             exists (
@@ -234,6 +246,7 @@ interface RawProfile {
   pfp_url: string | null;
   bio: string | null;
   wallet: string | null;
+  portfolio_public: boolean | null;
   followers: string | number;
   following: string | number;
   is_following: boolean;
@@ -260,7 +273,7 @@ async function people(
   if (!socialReady) return [];
 
   const rows = await query<RawProfile>(
-    `select u.id, u.handle, u.display_name, u.pfp_url, u.bio, u.wallet,
+    `select u.id, u.handle, u.display_name, u.pfp_url, u.bio, u.wallet, u.portfolio_public,
             (select count(*) from public.follows x where x.followee_id = u.id) as followers,
             (select count(*) from public.follows x where x.follower_id = u.id) as following,
             exists (
@@ -284,7 +297,10 @@ function toProfile(row: RawProfile, callerId: string | null): Profile {
     displayName: row.display_name ?? row.handle ?? "Anonymous",
     pfpUrl: row.pfp_url,
     bio: row.bio,
-    wallet: row.wallet,
+    // A private Stonkfolio hides the wallet too — the address is the whole
+    // portfolio to anyone with an explorer. Its owner still sees their own.
+    wallet: row.portfolio_public === false && row.id !== callerId ? null : row.wallet,
+    portfolioPublic: row.portfolio_public !== false,
     // `count(*)` is bigint, which both drivers hand back as a string because it
     // does not fit a JS number safely. `Number` here, not at the call site.
     followers: Number(row.followers),

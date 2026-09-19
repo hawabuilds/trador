@@ -1,6 +1,6 @@
 import {json} from "@/lib/server/http";
 import {requireCaller} from "@/lib/server/auth";
-import {profileByHandle, upsertMe} from "@/lib/server/social";
+import {profileByHandle, setPortfolioPublic, upsertMe} from "@/lib/server/social";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +22,8 @@ export async function PUT(request: Request) {
     pfpUrl?: string | null;
     bio?: string | null;
     wallet?: string | null;
+    /** Show the Stonkfolio on the public profile. Absent leaves it unchanged. */
+    portfolioPublic?: boolean;
   };
 
   try {
@@ -34,6 +36,9 @@ export async function PUT(request: Request) {
       bio: clip(body.bio, 160),
       wallet: body.wallet ?? null,
     });
+    if (typeof body.portfolioPublic === "boolean") {
+      await setPortfolioPublic(caller.userId, body.portfolioPublic);
+    }
 
     const profile = body.handle
       ? await profileByHandle(body.handle, caller.userId)

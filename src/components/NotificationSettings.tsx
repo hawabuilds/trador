@@ -6,6 +6,7 @@ import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 import {usePushNotifications} from "@/hooks/usePushNotifications";
 import {safariNeedsHomeScreen} from "@/lib/notifications/pushClient";
 import {useSession} from "@/lib/session";
+import {Switch} from "@/components/ui/Switch";
 import {cn} from "@/lib/cn";
 import {MILESTONES, type Milestone} from "@/lib/notifications/milestones";
 import type {NotificationPrefs} from "@/lib/server/notifications/prefs";
@@ -352,39 +353,6 @@ function Row({
       </div>
       {children}
     </div>
-  );
-}
-
-function Switch({
-  on,
-  disabled,
-  onChange,
-}: {
-  on: boolean;
-  disabled?: boolean;
-  onChange: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      disabled={disabled}
-      onClick={onChange}
-      className={cn(
-        "relative h-[26px] w-[44px] shrink-0 rounded-full transition-colors duration-200",
-        on ? "bg-brand-500" : "bg-[var(--segment-track)]",
-        disabled && "opacity-40",
-      )}
-    >
-      <span
-        aria-hidden="true"
-        className={cn(
-          "absolute top-[3px] h-5 w-5 rounded-full bg-white transition-[left] duration-200",
-          on ? "left-[21px]" : "left-[3px]",
-        )}
-      />
-    </button>
   );
 }
 

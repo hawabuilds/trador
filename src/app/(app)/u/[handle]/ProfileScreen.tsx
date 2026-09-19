@@ -1,19 +1,22 @@
 "use client";
 
-import {useRef, useState} from "react";
+import {useMemo, useRef, useState} from "react";
 import {useRouter} from "next/navigation";
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 
 import {APP_SCROLL_PAD_TOP} from "@/components/AppShell";
 import {ConnectionsSheet} from "@/components/ConnectionsSheet";
+import {FilterRail, type FilterOption} from "@/components/FilterRail";
+import {HoldingRow} from "@/components/HoldingRow";
+import {useWalletTrades} from "@/hooks/useWalletTrades";
 import {Avatar} from "@/components/ui/Avatar";
 import {Button} from "@/components/ui/Button";
 import {ChevronLeftIcon, UserIcon} from "@/components/ui/Icons";
 import {useSession} from "@/lib/session";
 import {cn} from "@/lib/cn";
-import {compact} from "@/lib/format";
+import {compact, compactMoney} from "@/lib/format";
 import {shortPubkey} from "@/lib/pubkey";
-import type {Profile} from "@/lib/types";
+import type {Holding, Profile} from "@/lib/types";
 
 interface ProfileResponse {
   profile: Profile;
@@ -175,17 +178,11 @@ export function ProfileScreen({handle}: {handle: string}) {
           </div>
 
           {profile.wallet ? (
-            <div
-              className={cn(
-                "mt-4 flex items-center justify-between gap-3 rounded-2xl",
-                "bg-[var(--segment-track)] px-3.5 py-2.5 shadow-inset-soft",
-              )}
-            >
-              <span className="text-[12px] font-bold text-faint">Wallet</span>
-              <span className="font-mono text-[12.5px] font-semibold">
-                {shortPubkey(profile.wallet, 5, 5)}
-              </span>
-            </div>
+            <PublicStonkfolio wallet={profile.wallet} handle={profile.handle} isSelf={isSelf} />
+          ) : !profile.portfolioPublic ? (
+            <p className="mt-5 rounded-2xl bg-[var(--segment-track)] px-3.5 py-3 text-[13px] leading-[1.5] text-muted shadow-inset-soft">
+              @{profile.handle} keeps their Stonkfolio private.
+            </p>
           ) : null}
 
           {follow.error ? (
@@ -213,5 +210,120 @@ export function ProfileScreen({handle}: {handle: string}) {
         </>
       )}
     </div>
+  );
+}
+
+type Split = "all" | "stonk" | "stock";
+
+const SPLITS: FilterOption<Split>[] = [
+  {value: "all", label: "All"},
+  {value: "stonk", label: "Stonks"},
+  {value: "stock", label: "Stocks"},
+];
+
+interface StonkfolioResponse {
+  holdings: Holding[];
+  otherCount: number;
+  solLamports: number;
+  totalUsd: number;
+  error?: string;
+}
+
+/**
+ * Someone's Stonkfolio, on their profile — HODL's public holdings.
+ *
+ * Only rendered when the profile came back with a wallet, which the server
+ * withholds for anyone who opted out (their own view excepted). The numbers are
+ * the same reads as your own Stonkfolio: value from the chain, gains from the
+ * wallet's own trade history.
+ */
+function PublicStonkfolio({wallet, handle, isSelf}: {wallet: string; handle: string; isSelf: boolean}) {
+  const [split, setSplit] = useState<Split>("all");
+
+  const query = useQuery({
+    queryKey: ["stonkfolio", wallet],
+    queryFn: async (): Promise<StonkfolioResponse> => {
+      const response = await fetch(`/api/stonkfolio?wallet=${wallet}`);
+      const body = (await response.json()) as StonkfolioResponse;
+      if (!response.ok) throw new Error(body.error ?? "Could not read this Stonkfolio.");
+      return body;
+    },
+    refetchInterval: 20_000,
+  });
+
+  const trades = useWalletTrades(wallet);
+  const positions = useMemo(
+    () => new Map(trades.positions.map((position) => [position.mint, position])),
+    [trades.positions],
+  );
+
+  const holdings = useMemo(() => {
+    const all = query.data?.holdings ?? [];
+    return split === "all" ? all : all.filter((row) => row.asset.kind === split);
+  }, [query.data?.holdings, split]);
+
+  const sol = (query.data?.solLamports ?? 0) / 1_000_000_000;
+
+  return (
+    <section className="mt-5">
+      <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-faint">
+        Stonkfolio value
+      </div>
+      <div className="tabular-nums mt-0.5 text-[30px] font-extrabold leading-none tracking-[-0.035em]">
+        {query.isLoading ? "—" : compactMoney(query.data?.totalUsd ?? 0)}
+      </div>
+      <div className="tabular-nums mt-1.5 flex items-center gap-2 text-[12px] font-bold text-faint">
+        <span>{sol.toFixed(3)} SOL</span>
+        {query.data && query.data.otherCount > 0 ? (
+          <span>· {query.data.otherCount} not priced here</span>
+        ) : null}
+        <span className="ml-auto font-mono font-semibold">{shortPubkey(wallet, 4, 4)}</span>
+      </div>
+      {isSelf ? (
+        <p className="mt-1.5 text-[11.5px] leading-snug text-faint">
+          Others see this. Hide it from the gear on your Stonkfolio.
+        </p>
+      ) : null}
+
+      <FilterRail
+        label="Split holdings"
+        options={SPLITS}
+        value={split}
+        onChange={setSplit}
+        className="mb-1 mt-4"
+      />
+
+      {query.isLoading ? (
+        <ul>
+          {Array.from({length: 3}).map((_unused, index) => (
+            <li key={index} className="flex items-center gap-3 py-3.5">
+              <div className="h-10 w-10 animate-pulse rounded-full bg-wash" />
+              <div className="flex-1">
+                <div className="h-3.5 w-20 animate-pulse rounded bg-wash" />
+                <div className="mt-2 h-3 w-14 animate-pulse rounded bg-wash" />
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : query.error ? (
+        <p className="py-8 text-center text-[13px] text-muted">{(query.error as Error).message}</p>
+      ) : holdings.length === 0 ? (
+        <p className="py-8 text-center text-[13px] text-muted">
+          {split === "stock"
+            ? `@${handle} holds no tokenized stocks.`
+            : split === "stonk"
+              ? `@${handle} holds no stonks.`
+              : `@${handle} holds nothing Trador can price yet.`}
+        </p>
+      ) : (
+        <ul className="-mx-[22px]">
+          {holdings.map((holding) => (
+            <li key={`${holding.asset.kind}:${holding.asset.id}`}>
+              <HoldingRow holding={holding} position={positions.get(holding.asset.mint)} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

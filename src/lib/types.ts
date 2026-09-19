@@ -225,7 +225,10 @@ export interface Profile {
   displayName: string;
   pfpUrl: string | null;
   bio: string | null;
+  /** Null when the person keeps their Stonkfolio private. */
   wallet: string | null;
+  /** Whether their Stonkfolio shows on their profile. */
+  portfolioPublic: boolean;
   followers: number;
   following: number;
   isFollowing: boolean | null;
