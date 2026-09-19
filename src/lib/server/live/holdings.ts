@@ -60,7 +60,11 @@ export interface Stonkfolio {
 }
 
 export async function stonkfolioFor(wallet: Pubkey): Promise<Stonkfolio> {
-  const {value, stale} = await cached(`holdings:${wallet}`, 20_000, async () => {
+  /*
+   * Eight seconds, down from twenty. The balance is now priced live, and a long
+   * cache in front of a live price is the same lag moved one layer up.
+   */
+  const {value, stale} = await cached(`holdings:${wallet}`, 8_000, async () => {
     // Both token programs. Every verified stock is Token-2022, and coins are
     // classic SPL — querying only one would silently hide half the portfolio.
     const [classic, token2022, balance] = await Promise.all([
@@ -207,5 +211,56 @@ export async function universeFor(mints: readonly string[]): Promise<Map<string,
     if (!universe.has(stonk.mint)) universe.set(stonk.mint, stonk);
   }
 
+  await repriceHeld(universe, mints);
+
   return universe;
+}
+
+/**
+ * Current prices for the coins this wallet actually holds.
+ *
+ * The store's `last_price` is refreshed by the indexer on a rotation through the
+ * whole universe — several thousand coins at a thousand a pass — so the price
+ * of any one coin is, on average, eight minutes old and can be seventeen. Fine
+ * for a feed of thousands; wrong for someone's own balance, which is the one
+ * number they watch move. A coin went up and the Stonkfolio said nothing for
+ * minutes.
+ *
+ * A wallet holds a handful of coins, so asking Jupiter for exactly those is one
+ * batched call. The store still supplies identity — name, art, launchpad — and
+ * this only replaces the figures that go stale. A failure leaves the store's
+ * prices in place: a slightly old balance beats a blank one.
+ */
+async function repriceHeld(
+  universe: Map<string, Asset>,
+  mints: readonly string[],
+): Promise<void> {
+  const held = mints.filter((mint) => universe.get(mint)?.kind === "stonk");
+  if (held.length === 0) return;
+
+  try {
+    const {jupTokens} = await import("./jupTokens");
+    const live = await jupTokens(held as Pubkey[]);
+    const at = new Date().toISOString();
+
+    for (const mint of held) {
+      const asset = universe.get(mint);
+      const token = live.get(mint);
+      if (!asset || asset.kind !== "stonk" || !token || token.usdPrice === null) continue;
+
+      universe.set(mint, {
+        ...asset,
+        // The provenance is unchanged — a curve coin is still curve-priced —
+        // only the reading is newer.
+        price: {...asset.price, usd: token.usdPrice, status: "priced", at},
+        changePct: token.priceChange24h ?? asset.changePct,
+        marketCapUsd:
+          token.circSupply !== null
+            ? token.usdPrice * token.circSupply
+            : (token.marketCapUsd ?? asset.marketCapUsd),
+      });
+    }
+  } catch {
+    // The store's prices stand.
+  }
 }

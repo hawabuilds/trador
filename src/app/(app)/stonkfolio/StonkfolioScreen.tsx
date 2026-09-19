@@ -11,7 +11,7 @@ import {FilterRail, type FilterOption} from "@/components/FilterRail";
 import {Avatar} from "@/components/ui/Avatar";
 import {Button} from "@/components/ui/Button";
 import {PairTicker, VerifiedTick} from "@/components/ui/Badges";
-import {CopyIcon, SettingsIcon, WalletIcon} from "@/components/ui/Icons";
+import {CopyIcon, WalletIcon} from "@/components/ui/Icons";
 import {ConnectionsSheet} from "@/components/ConnectionsSheet";
 import {EditProfileSheet} from "@/components/EditProfileSheet";
 import {SettingsMenu} from "@/components/SettingsMenu";
@@ -67,7 +67,6 @@ export function StonkfolioScreen() {
   const [view, setView] = useState<View>("holdings");
   const [split, setSplit] = useState<Split>("all");
   const [copied, setCopied] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [range, setRange] = useState<BalanceRange>("1w");
   const [scrubbed, setScrubbed] = useState<BalancePoint | null>(null);
   const [editOpen, setEditOpen] = useState(false);
@@ -87,7 +86,13 @@ export function StonkfolioScreen() {
       if (!response.ok) throw new Error(body.error ?? "Could not read your wallet.");
       return body;
     },
-    refetchInterval: 30_000,
+    /*
+     * Ten seconds, down from thirty, and refetched on focus. This is the number
+     * people come back to the app to look at; opening it should show now, not
+     * whatever it was when the tab was last visible.
+     */
+    refetchInterval: 10_000,
+    refetchOnWindowFocus: true,
   });
 
   const history = useBalanceHistory(wallet, range, query.data?.totalUsd ?? null);
@@ -184,14 +189,7 @@ export function StonkfolioScreen() {
             The gear sits in the header rather than in the tab bar: settings are
             about this account, and the Stonkfolio is the only screen that is.
           */}
-          <button
-            type="button"
-            onClick={() => setSettingsOpen(true)}
-            aria-label="Settings"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted transition-colors hover:bg-[var(--overlay-wash)] hover:text-ink"
-          >
-            <SettingsIcon className="h-[19px] w-[19px]" />
-          </button>
+          <SettingsMenu />
         </div>
 
         {/*
@@ -364,7 +362,6 @@ export function StonkfolioScreen() {
         </ul>
       )}
 
-      <SettingsMenu open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <EditProfileSheet open={editOpen} onClose={() => setEditOpen(false)} />
 
       <ConnectionsSheet
