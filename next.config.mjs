@@ -24,7 +24,10 @@ const nextConfig = {
       "pg",
       "web-push",
       "@coral-xyz/anchor",
-      "@nirholas/pump-sdk",
+      // Not "@nirholas/pump-sdk": its ES build imports named exports from a
+      // CommonJS dependency, which Node refuses at runtime. Bundled, webpack
+      // does that interop itself. It is still server-only — nothing in the
+      // browser imports it.
       "@raydium-io/raydium-sdk-v2",
       "@solana/web3.js",
       "@solana/spl-token",
