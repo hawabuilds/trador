@@ -449,7 +449,12 @@ export function AssetPage({
             )}
           </>
         ) : panel === "comments" ? (
-          <CommentsPanel kind={asset.kind} assetId={asset.id} symbol={symbol} />
+          <CommentsPanel
+            kind={asset.kind}
+            assetId={asset.id}
+            symbol={symbol}
+            imageUrl={asset.kind === "stonk" ? asset.imageUrl : null}
+          />
         ) : asset.kind === "stonk" ? (
           <InfoPanel stonk={asset} />
         ) : (

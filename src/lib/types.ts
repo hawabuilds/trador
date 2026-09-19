@@ -183,6 +183,23 @@ export interface AssetComment {
   author: CommentAuthor;
   body: string;
   createdAt: string;
+  /** How many people liked it. Absent on a comment that only exists locally. */
+  likes?: number;
+  /** Whether the caller liked it. Null when nobody is signed in. */
+  liked?: boolean | null;
+  /**
+   * The author's position in this asset, from their own wallet's trades. Null
+   * when they never bought it here, or their history has not been read yet.
+   */
+  position?: CommentPositionView | null;
+}
+
+/** A commenter's stake in the coin, as shown beside their comment. */
+export interface CommentPositionView {
+  boughtUsd: number;
+  status: "holding" | "sold";
+  /** Total return on what they put in, or null when it cannot be stated. */
+  gainPct: number | null;
 }
 
 export interface CommentThread {

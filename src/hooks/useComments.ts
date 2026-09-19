@@ -58,11 +58,17 @@ export function useComments(kind: AssetKind, assetId: string) {
   const remote = useQuery({
     queryKey: ["comments", kind, assetId],
     queryFn: async () => {
-      const res = await fetch(`/api/asset/${kind}/${assetId}/comments`);
+      // With a token, so the server can say which of these the caller liked.
+      const token = await session.getAccessToken();
+      const res = await fetch(`/api/asset/${kind}/${assetId}/comments`, {
+        headers: token ? {authorization: `Bearer ${token}`} : undefined,
+      });
       if (!res.ok) throw new Error("Could not load comments.");
       return (await res.json()) as {comments: AssetComment[]; localOnly: boolean};
     },
     retry: false,
+    // Comments are a conversation: new ones should arrive without a reload.
+    refetchInterval: 20_000,
   });
 
   const readLocal = useCallback(
@@ -117,9 +123,55 @@ export function useComments(kind: AssetKind, assetId: string) {
     [assetId, authenticated, handle, displayName, pfpUrl, kind, queryClient, remote.data?.localOnly, session],
   );
 
+  /*
+   * Like or unlike, reflected immediately and settled on the server's count.
+   *
+   * Optimistic because a heart that waits a round trip to fill reads as a tap
+   * that did not register, and gets tapped again — which would unlike it.
+   */
+  const toggleLike = useCallback(
+    (commentId: string) => {
+      if (!authenticated || remote.data?.localOnly !== false) return;
+      const key = ["comments", kind, assetId];
+      const current = queryClient.getQueryData<{comments: AssetComment[]; localOnly: boolean}>(key);
+      const target = current?.comments.find((comment) => comment.id === commentId);
+      if (!current || !target) return;
+
+      const nextLiked = !target.liked;
+      const patch = (likes: number, liked: boolean) =>
+        queryClient.setQueryData(key, {
+          ...current,
+          comments: current.comments.map((comment) =>
+            comment.id === commentId ? {...comment, likes, liked} : comment,
+          ),
+        });
+
+      patch(Math.max(0, (target.likes ?? 0) + (nextLiked ? 1 : -1)), nextLiked);
+
+      void session.getAccessToken().then(async (token) => {
+        if (!token) return;
+        try {
+          const res = await fetch(`/api/comments/${commentId}/like`, {
+            method: "POST",
+            headers: {"content-type": "application/json", authorization: `Bearer ${token}`},
+            body: JSON.stringify({liked: nextLiked}),
+          });
+          if (!res.ok) throw new Error();
+          const settled = (await res.json()) as {likes: number; liked: boolean};
+          patch(settled.likes, settled.liked);
+        } catch {
+          // Put it back rather than leave a count the server does not agree with.
+          patch(target.likes ?? 0, Boolean(target.liked));
+        }
+      });
+    },
+    [assetId, authenticated, kind, queryClient, remote.data?.localOnly, session],
+  );
+
   return {
     comments,
     threads,
+    toggleLike,
     isLoading: remote.isLoading,
     error: remote.error ? (remote.error as Error).message : null,
     retry: () => void remote.refetch(),
