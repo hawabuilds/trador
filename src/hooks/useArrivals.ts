@@ -17,8 +17,20 @@ export function useArrivals(
   ids: string[],
   /** How long a row stays marked. Should outlast the animation, not the poll. */
   holdMs = 1200,
+  /**
+   * What the list *is*, as opposed to what is in it.
+   *
+   * When this changes the whole list is replaced — a different sort, tab or
+   * filter — and every row in it is new to this hook. Without a reset each of
+   * them played the arrival animation at once, so switching a filter made the
+   * entire feed flash and slide, which read as the page glitching. A change of
+   * key rebaselines silently; only coins that genuinely arrive afterwards, on a
+   * poll of the same list, animate.
+   */
+  resetKey = "",
 ): Set<string> {
   const seen = useRef<Set<string> | null>(null);
+  const lastReset = useRef(resetKey);
   const [arrivals, setArrivals] = useState<Set<string>>(new Set());
 
   // Joined so the effect compares contents rather than array identity: the
@@ -29,8 +41,10 @@ export function useArrivals(
   useEffect(() => {
     if (ids.length === 0) return;
 
-    if (seen.current === null) {
+    if (seen.current === null || lastReset.current !== resetKey) {
+      lastReset.current = resetKey;
       seen.current = new Set(ids);
+      setArrivals(new Set());
       return;
     }
 
@@ -45,7 +59,7 @@ export function useArrivals(
     const timer = setTimeout(() => setArrivals(new Set()), holdMs);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, holdMs]);
+  }, [key, holdMs, resetKey]);
 
   return arrivals;
 }

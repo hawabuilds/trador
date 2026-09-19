@@ -162,6 +162,12 @@ export function useFeed({
     stocks: query.data?.stocks ?? initial.stocks,
     graduating: query.data?.graduating ?? initial.graduating ?? [],
     isFetching: query.isFetching,
+    /**
+     * The rows on screen belong to the *previous* sort or filter, kept so the
+     * list does not blank while the new one loads. The screen must not present
+     * them as the answer to the chip that is now selected.
+     */
+    isPlaceholder: query.isPlaceholderData,
     error: query.error ? (query.error as Error).message : null,
     /** Whether another page exists, and how to ask for it. */
     hasMore: Boolean(nextCursor),

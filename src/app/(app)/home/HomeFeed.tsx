@@ -159,17 +159,19 @@ export function HomeFeed({
   }, [tab, stonkSort, quote, params, pathname, router]);
 
   /*
-   * URL back to state, for a back or forward press.
+   * No URL-to-state effect, deliberately.
    *
-   * The router re-renders this component with new `params` rather than
-   * remounting it, so the `useState` initialisers above do not run again and
-   * the selection would otherwise stay on whatever was last clicked.
+   * There was one, and it made fast filter switching glitch: a chip tap sets
+   * state, the effect above schedules a `replace`, and before that lands this
+   * effect fired with the *previous* URL and set the state straight back — so a
+   * quick second tap was reverted and the chips visibly bounced. The URL is
+   * written from state and never read back while mounted.
+   *
+   * Nothing is lost by that. Returning from a coin page remounts this screen,
+   * and the `useState` initialisers read the URL then; and because every write
+   * is a `replace`, there are no history entries within this page for a back
+   * press to step through.
    */
-  useEffect(() => {
-    setTab(readParam(params.get("tab"), HOME_TABS, "stonks"));
-    setStonkSort(readParam(params.get("sort"), STONK_SORT_VALUES, "trending"));
-    setQuote(params.get("quote") ?? "all");
-  }, [params]);
 
   /*
    * The feed keeps moving after first paint.
@@ -338,7 +340,14 @@ export function HomeFeed({
    * Ids present on first load are recorded but not marked, so opening the tab
    * does not animate the whole list.
    */
-  const arrivals = useArrivals(showing.map((asset) => `${asset.kind}:${asset.id}`));
+  const arrivals = useArrivals(
+    showing.map((asset) => `${asset.kind}:${asset.id}`),
+    1200,
+    // Which list this is. Includes whether the rows are still the previous
+    // list's placeholder, so the baseline is taken again when the real rows
+    // for the new chip arrive — otherwise that swap would animate every row.
+    `${tab}|${stonkSort}|${stockSort}|${sector}|${quote}|${watchFilter}|${feed.isPlaceholder}`,
+  );
 
   return (
     <div>
@@ -430,7 +439,19 @@ export function HomeFeed({
         )
       ) : showing.length > 0 ? (
         <>
-          <AssetList assets={showing} arrivals={arrivals} now={now} />
+          {/*
+            Dimmed while these are the previous chip's rows. They stay on screen
+            so the list never blanks, but at full strength they posed as the
+            answer to the chip just tapped — a Trending coin appearing under
+            Rewards for half a second, then vanishing.
+          */}
+          <div
+            className="transition-opacity duration-150"
+            style={{opacity: tab === "stonks" && feed.isPlaceholder ? 0.45 : 1}}
+            aria-busy={tab === "stonks" && feed.isPlaceholder}
+          >
+            <AssetList assets={showing} arrivals={arrivals} now={now} />
+          </div>
           {/*
             Only the Stonks tab pages. Stocks come from the registry — eighty-two
             rows that all arrive at once — and the watchlist is whatever one
