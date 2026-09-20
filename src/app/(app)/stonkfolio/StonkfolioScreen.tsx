@@ -1,41 +1,43 @@
 "use client";
 
-import {useMemo, useRef, useState} from "react";
+import {useEffect, useMemo, useRef, useState} from "react";
 import Link from "next/link";
-import {useQuery} from "@tanstack/react-query";
+import {useQuery, useQueryClient} from "@tanstack/react-query";
 
+import {AllocationChart} from "@/components/AllocationChart";
 import {StickyPageHeader} from "@/components/AppShell";
 import {BalanceChart, type BalancePoint} from "@/components/BalanceChart";
-import {assetHref} from "@/components/AssetRow";
+import {DepositSheet} from "@/components/DepositSheet";
+import {EditTargetsSheet} from "@/components/EditTargetsSheet";
+import {ReceiveSheet} from "@/components/ReceiveSheet";
+import {RebalanceSheet} from "@/components/RebalanceSheet";
+import {SendSheet} from "@/components/SendSheet";
+import {WalletActionsRow} from "@/components/WalletActionsRow";
 import {FilterRail, type FilterOption} from "@/components/FilterRail";
 import {Avatar} from "@/components/ui/Avatar";
 import {Button} from "@/components/ui/Button";
-import {PairTicker, VerifiedTick} from "@/components/ui/Badges";
 import {CopyIcon, WalletIcon} from "@/components/ui/Icons";
 import {ConnectionsSheet} from "@/components/ConnectionsSheet";
 import {EditProfileSheet} from "@/components/EditProfileSheet";
 import {SettingsMenu} from "@/components/SettingsMenu";
 import {SocialRow} from "@/components/SocialRow";
 import {PriceDelta} from "@/components/ui/PriceDelta";
-import {WalletTradeList} from "@/components/WalletTradeList";
 import {HoldingRow} from "@/components/HoldingRow";
 import {useBalanceHistory, type BalanceRange} from "@/hooks/useBalanceHistory";
 import {useMe} from "@/hooks/useMe";
 import {useUser} from "@/hooks/useUser";
 import {useWalletTrades} from "@/hooks/useWalletTrades";
+import {drift, rebalanceScore, targetsValid} from "@/lib/allocation";
 import {cn} from "@/lib/cn";
-import {holdingProfit, signedMoney, type Position} from "@/lib/walletTrades";
-import {compact, compactMoney, stamp, units} from "@/lib/format";
-import {formatPriceUsd} from "@/lib/priceState";
+import {
+  LOCAL_STORE_EVENT,
+  readPieTargets,
+  readSlippageBps,
+  writePieTargets,
+} from "@/lib/localStore";
+import {compact, compactMoney, stamp} from "@/lib/format";
 import {shortPubkey} from "@/lib/pubkey";
 import type {Holding} from "@/lib/types";
-
-type View = "holdings" | "history";
-
-const VIEWS: FilterOption<View>[] = [
-  {value: "holdings", label: "Holdings"},
-  {value: "history", label: "History"},
-];
 
 type Split = "all" | "stonk" | "stock";
 
@@ -44,6 +46,15 @@ const SPLITS: FilterOption<Split>[] = [
   {value: "stonk", label: "Stonks"},
   {value: "stock", label: "Stocks"},
 ];
+
+type ChartMode = "trend" | "pie";
+
+const CHART_MODES: FilterOption<ChartMode>[] = [
+  {value: "trend", label: "Trend"},
+  {value: "pie", label: "Pie"},
+];
+
+const REBALANCE_THRESHOLD = 2;
 
 interface StonkfolioResponse {
   holdings: Holding[];
@@ -65,18 +76,25 @@ interface StonkfolioResponse {
  */
 export function StonkfolioScreen() {
   const {authenticated, wallet, displayName, handle, pfpUrl, isDemo, login} = useUser();
-  const [view, setView] = useState<View>("holdings");
   const [split, setSplit] = useState<Split>("all");
   const [copied, setCopied] = useState(false);
   const [range, setRange] = useState<BalanceRange>("1w");
   const [scrubbed, setScrubbed] = useState<BalancePoint | null>(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [chartMode, setChartMode] = useState<ChartMode>("trend");
+  const [targets, setTargets] = useState<Record<string, number>>({});
+  const [editTargetsOpen, setEditTargetsOpen] = useState(false);
+  const [rebalanceOpen, setRebalanceOpen] = useState(false);
+  const [depositOpen, setDepositOpen] = useState(false);
+  const [sendOpen, setSendOpen] = useState(false);
+  const [receiveOpen, setReceiveOpen] = useState(false);
   const [connections, setConnections] = useState<"followers" | "following" | null>(null);
 
   const followersRef = useRef<HTMLButtonElement>(null);
   const followingRef = useRef<HTMLButtonElement>(null);
 
   const me = useMe();
+  const queryClient = useQueryClient();
 
   const query = useQuery({
     queryKey: ["stonkfolio", wallet],
@@ -98,6 +116,22 @@ export function StonkfolioScreen() {
 
   const history = useBalanceHistory(wallet, range, query.data?.totalUsd ?? null);
 
+  useEffect(() => {
+    if (!wallet) {
+      setTargets({});
+      return;
+    }
+    setTargets(readPieTargets(wallet));
+    const refresh = () => setTargets(readPieTargets(wallet));
+    window.addEventListener(LOCAL_STORE_EVENT, refresh);
+    return () => window.removeEventListener(LOCAL_STORE_EVENT, refresh);
+  }, [wallet]);
+
+  const allHoldings = query.data?.holdings ?? [];
+  const driftRows = useMemo(() => drift(allHoldings, targets), [allHoldings, targets]);
+  const allocationScore = rebalanceScore(driftRows);
+  const hasTargets = targetsValid(targets);
+
   const holdings = useMemo(() => {
     const all = query.data?.holdings ?? [];
     return split === "all" ? all : all.filter((row) => row.asset.kind === split);
@@ -105,7 +139,7 @@ export function StonkfolioScreen() {
 
   const sol = (query.data?.solLamports ?? 0) / 1_000_000_000;
 
-  // Loaded for both views: history lists it, holdings take their cost from it.
+  // Cost basis for the gain line on each holding row.
   const trades = useWalletTrades(wallet);
   const positions = useMemo(
     () => new Map(trades.positions.map((position) => [position.mint, position])),
@@ -244,13 +278,6 @@ export function StonkfolioScreen() {
 
         <div className="mt-4">
           <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-faint">
-            {/*
-              "Stonkfolio value" — the screen is the Stonkfolio, so the number
-              on it is the Stonkfolio's. It briefly read "Trador value", which
-              sounded like some app-specific figure rather than the wallet's
-              worth, and then "Portfolio value", which named a screen that does
-              not exist here.
-            */}
             {scrubbed ? "Value at" : "Stonkfolio value"}
           </div>
           <div className="tabular-nums mt-0.5 text-[30px] font-extrabold leading-none tracking-[-0.035em]">
@@ -288,22 +315,56 @@ export function StonkfolioScreen() {
           </div>
         </div>
 
-        <BalanceSection
-          points={history.points}
-          ready={history.ready}
-          loading={history.isLoading}
-          range={range}
-          onRange={setRange}
-          onScrub={setScrubbed}
-        />
+        {wallet ? (
+          <WalletActionsRow
+            onDeposit={() => setDepositOpen(true)}
+            onSend={() => setSendOpen(true)}
+            onReceive={() => setReceiveOpen(true)}
+            disabled={isDemo}
+          />
+        ) : null}
 
-        <div className="space-y-2.5 py-3.5">
-          <FilterRail label="Holdings or history" options={VIEWS} value={view} onChange={setView} />
-          {view === "holdings" ? (
-            <FilterRail label="Split holdings" options={SPLITS} value={split} onChange={setSplit} />
+        <div className="mt-3 flex items-center gap-2">
+          <FilterRail
+            label="Chart view"
+            options={CHART_MODES}
+            value={chartMode}
+            onChange={setChartMode}
+            className="mb-0 min-w-0 flex-1 !mx-0 !px-0"
+          />
+          {chartMode === "trend" && history.ready ? (
+            <RangePills value={range} onChange={setRange} />
+          ) : chartMode === "pie" ? (
+            <button
+              type="button"
+              onClick={() => setEditTargetsOpen(true)}
+              className="shrink-0 rounded-full bg-[var(--overlay-wash)] px-3 py-1.5 text-[12px] font-extrabold text-ink transition-colors hover:bg-[var(--overlay-wash-hover)]"
+            >
+              Edit targets
+            </button>
           ) : null}
         </div>
       </StickyPageHeader>
+
+      <ChartSection
+        mode={chartMode}
+        points={history.points}
+        ready={history.ready}
+        loading={history.isLoading}
+        onScrub={setScrubbed}
+        holdings={allHoldings}
+        targets={targets}
+        driftRows={driftRows}
+        allocationScore={allocationScore}
+        hasTargets={hasTargets}
+        onRebalance={() => setRebalanceOpen(true)}
+      />
+
+      {chartMode === "trend" ? (
+        <div className="pb-3.5 pt-1">
+          <FilterRail label="Split holdings" options={SPLITS} value={split} onChange={setSplit} />
+        </div>
+      ) : null}
 
       {isDemo ? (
         <p className="mb-3 rounded-2xl bg-[var(--segment-track)] px-3 py-2 text-[11.5px] font-medium leading-[1.45] text-faint shadow-inset-soft">
@@ -311,59 +372,93 @@ export function StonkfolioScreen() {
         </p>
       ) : null}
 
-      {view === "history" ? (
-        <WalletTradeList
-          trades={trades.trades}
-          assets={trades.assets}
-          isLoading={trades.isLoading}
-          error={trades.error}
-          notice={trades.notice}
-          hasMore={trades.hasMore}
-          loadingMore={trades.loadingMore}
-          onLoadMore={trades.loadMore}
-          onRetry={trades.retry}
-        />
-      ) : query.isLoading ? (
-        <ul>
-          {Array.from({length: 5}).map((_unused, index) => (
-            <li key={index} className="flex items-center gap-3 py-3.5">
-              <div className="h-10 w-10 animate-pulse rounded-full bg-wash" />
-              <div className="flex-1">
-                <div className="h-3.5 w-20 animate-pulse rounded bg-wash" />
-                <div className="mt-2 h-3 w-14 animate-pulse rounded bg-wash" />
-              </div>
-              <div className="h-8 w-16 animate-pulse rounded bg-wash" />
-            </li>
-          ))}
-        </ul>
-      ) : query.error ? (
-        <p className="py-10 text-center text-[13.5px] text-muted">
-          {(query.error as Error).message}
-        </p>
-      ) : holdings.length === 0 ? (
-        <div className="px-6 py-12 text-center">
-          <p className="text-[14px] font-bold">Nothing here yet</p>
-          <p className="mx-auto mt-1.5 max-w-[32ch] text-[13px] leading-[1.5] text-muted">
-            Buy a coin priced in a tokenized stock and it shows up here.
+      {chartMode === "trend" ? (
+        query.isLoading ? (
+          <ul>
+            {Array.from({length: 5}).map((_unused, index) => (
+              <li key={index} className="flex items-center gap-3 py-3.5">
+                <div className="h-10 w-10 animate-pulse rounded-full bg-wash" />
+                <div className="flex-1">
+                  <div className="h-3.5 w-20 animate-pulse rounded bg-wash" />
+                  <div className="mt-2 h-3 w-14 animate-pulse rounded bg-wash" />
+                </div>
+                <div className="h-8 w-16 animate-pulse rounded bg-wash" />
+              </li>
+            ))}
+          </ul>
+        ) : query.error ? (
+          <p className="py-10 text-center text-[13.5px] text-muted">
+            {(query.error as Error).message}
           </p>
-          <Link
-            href="/home"
-            className="mt-4 inline-flex h-10 items-center rounded-full bg-brand-500 px-5 text-[13.5px] font-extrabold text-white shadow-brand"
-          >
-            Browse the feed
-          </Link>
-        </div>
-      ) : (
-        <ul className="-mx-[22px]">
-          {holdings.map((holding) => (
-            <li key={`${holding.asset.kind}:${holding.asset.id}`}>
-              <HoldingRow holding={holding} position={positions.get(holding.asset.mint)} />
-            </li>
-          ))}
-        </ul>
-      )}
+        ) : holdings.length === 0 ? (
+          <div className="px-6 py-12 text-center">
+            <p className="text-[14px] font-bold">Nothing here yet</p>
+            <p className="mx-auto mt-1.5 max-w-[32ch] text-[13px] leading-[1.5] text-muted">
+              Buy a coin priced in a tokenized stock and it shows up here.
+            </p>
+            <Link
+              href="/home"
+              className="mt-4 inline-flex h-10 items-center rounded-full bg-brand-500 px-5 text-[13.5px] font-extrabold text-white shadow-brand"
+            >
+              Browse the feed
+            </Link>
+          </div>
+        ) : (
+          <ul className="-mx-[22px]">
+            {holdings.map((holding) => (
+              <li key={`${holding.asset.kind}:${holding.asset.id}`}>
+                <HoldingRow
+                  holding={holding}
+                  position={positions.get(holding.asset.mint)}
+                />
+              </li>
+            ))}
+          </ul>
+        )
+      ) : null}
 
       <EditProfileSheet open={editOpen} onClose={() => setEditOpen(false)} />
+
+      {wallet ? (
+        <>
+          <EditTargetsSheet
+            open={editTargetsOpen}
+            onClose={() => setEditTargetsOpen(false)}
+            holdings={allHoldings}
+            initialTargets={targets}
+            onSave={(next) => {
+              writePieTargets(wallet, next);
+              setTargets(next);
+            }}
+          />
+          <RebalanceSheet
+            open={rebalanceOpen}
+            onClose={() => setRebalanceOpen(false)}
+            holdings={allHoldings}
+            targets={targets}
+            wallet={wallet}
+            slippageBps={readSlippageBps()}
+            isDemo={isDemo}
+          />
+          <DepositSheet
+            open={depositOpen}
+            onClose={() => setDepositOpen(false)}
+            wallet={wallet}
+          />
+          <SendSheet
+            open={sendOpen}
+            onClose={() => setSendOpen(false)}
+            wallet={wallet}
+            solLamports={query.data?.solLamports ?? 0}
+            onSent={() => void queryClient.invalidateQueries({queryKey: ["stonkfolio", wallet]})}
+          />
+          <ReceiveSheet
+            open={receiveOpen}
+            onClose={() => setReceiveOpen(false)}
+            wallet={wallet}
+          />
+        </>
+      ) : null}
 
       <ConnectionsSheet
         open={connections === "followers"}
@@ -394,72 +489,110 @@ const RANGES: FilterOption<BalanceRange>[] = [
   {value: "all", label: "All"},
 ];
 
-/**
- * The balance line, or an honest explanation of why there isn't one.
- *
- * Three states, and the distinction between the last two is the point:
- *
- *   - **Points** — draw them.
- *   - **Not ready** — no store is configured, so there will never be history.
- *     Saying "your history starts now" here would be a promise the deployment
- *     cannot keep.
- *   - **Ready but empty** — this wallet has simply not been seen for long
- *     enough yet. That is a wait, and it ends.
- *
- * What it never does is draw a line back to zero from the first point. Nothing
- * on chain records what a wallet was worth before the app first looked, and a
- * fabricated history on a balance chart is the one lie a user cannot detect.
- */
-function BalanceSection({
+/** Smaller than FilterRail — sits beside Trend/Pie without dominating the row. */
+function RangePills({
+  value,
+  onChange,
+}: {
+  value: BalanceRange;
+  onChange: (next: BalanceRange) => void;
+}) {
+  return (
+    <div role="group" aria-label="Chart range" className="flex shrink-0 gap-0.5">
+      {RANGES.map((option) => {
+        const active = option.value === value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onChange(option.value)}
+            className={cn(
+              "rounded-full px-2 py-0.5 text-[10.5px] font-extrabold leading-none transition-colors",
+              active
+                ? "bg-[var(--bg-input)] text-ink shadow-tab-active"
+                : "bg-[var(--overlay-wash)] font-semibold text-faint hover:text-muted",
+            )}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Trend line or allocation pie — controls live in the sticky header above. */
+function ChartSection({
+  mode,
   points,
   ready,
   loading,
-  range,
-  onRange,
   onScrub,
+  holdings,
+  targets,
+  driftRows,
+  allocationScore,
+  hasTargets,
+  onRebalance,
 }: {
+  mode: ChartMode;
   points: readonly BalancePoint[];
   ready: boolean;
-  /** The first read is still in flight, so "no history" is not yet a fact. */
   loading: boolean;
-  range: BalanceRange;
-  onRange: (next: BalanceRange) => void;
   onScrub: (point: BalancePoint | null) => void;
+  holdings: readonly Holding[];
+  targets: Record<string, number>;
+  driftRows: ReturnType<typeof drift>;
+  allocationScore: number;
+  hasTargets: boolean;
+  onRebalance: () => void;
 }) {
-  if (!ready) return null;
-
   return (
     <div className="mt-3">
-      {points.length >= 2 ? (
-        <BalanceChart points={points} onScrub={onScrub} className="-mx-[22px]" />
-      ) : loading ? (
-        /*
-          Loading is a fourth state, and it was being drawn as the third.
-          "Your balance chart starts from the first time Trador sees this
-          wallet" is an explanation for a wallet with no history — printing it
-          while the history is still being fetched told everyone their chart was
-          empty, a beat before the chart appeared. An empty frame says the same
-          thing as a spinner and does not have to be taken back.
-        */
-        <div className="h-[132px] rounded-2xl bg-[var(--segment-track)] shadow-inset-soft" />
-      ) : (
-        <div className="grid h-[132px] place-items-center rounded-2xl bg-[var(--segment-track)] px-6 text-center shadow-inset-soft">
-          <p className="max-w-[34ch] text-[12px] leading-[1.5] text-faint">
-            Your balance chart starts from the first time Trador sees this
-            wallet. Check back shortly — there is no way to know what it was
-            worth before then.
-          </p>
-        </div>
-      )}
-
-      <div className="pt-3">
-        <FilterRail
-          label="Chart range"
-          options={RANGES}
-          value={range}
-          onChange={onRange}
-        />
-      </div>
+      {mode === "pie" ? (
+        <>
+          <AllocationChart
+            holdings={holdings}
+            targets={targets}
+            driftRows={driftRows}
+            targetsActive={hasTargets}
+            showTargetsHint
+            className="-mx-[22px]"
+          />
+          {hasTargets && allocationScore >= REBALANCE_THRESHOLD ? (
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={onRebalance}
+                className="rounded-full bg-brand-500 px-3.5 py-2 text-[13px] font-extrabold text-white shadow-brand transition-colors hover:bg-brand-600"
+              >
+                Rebalance
+              </button>
+            </div>
+          ) : hasTargets ? (
+            <p className="mt-3 text-[12px] font-semibold text-faint">
+              Within {REBALANCE_THRESHOLD}% of targets
+            </p>
+          ) : null}
+        </>
+      ) : ready ? (
+        <>
+          {points.length >= 2 ? (
+            <BalanceChart points={points} onScrub={onScrub} className="-mx-[22px]" />
+          ) : loading ? (
+            <div className="h-[132px] rounded-2xl bg-[var(--segment-track)] shadow-inset-soft" />
+          ) : (
+            <div className="grid h-[132px] place-items-center rounded-2xl bg-[var(--segment-track)] px-6 text-center shadow-inset-soft">
+              <p className="max-w-[34ch] text-[12px] leading-[1.5] text-faint">
+                Your balance chart starts from the first time Trador sees this
+                wallet. Check back shortly — there is no way to know what it was
+                worth before then.
+              </p>
+            </div>
+          )}
+        </>
+      ) : null}
     </div>
   );
 }

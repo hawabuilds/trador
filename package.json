@@ -32,6 +32,7 @@
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",
+    "@moonpay/moonpay-js": "^0.7.6",
     "@nirholas/pump-sdk": "^2.0.0",
     "@privy-io/react-auth": "^3.37.1",
     "@privy-io/server-auth": "^1.32.5",
@@ -48,6 +49,7 @@
     "lightweight-charts": "^5.2.1",
     "next": "14.2.35",
     "pg": "^8.23.0",
+    "qrcode.react": "^4.2.0",
     "react": "^18",
     "react-dom": "^18",
     "sharp": "^0.35.4",

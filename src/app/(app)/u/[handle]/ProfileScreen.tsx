@@ -6,6 +6,7 @@ import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 
 import {APP_SCROLL_PAD_TOP} from "@/components/AppShell";
 import {ConnectionsSheet} from "@/components/ConnectionsSheet";
+import {AllocationChart} from "@/components/AllocationChart";
 import {FilterRail, type FilterOption} from "@/components/FilterRail";
 import {HoldingRow} from "@/components/HoldingRow";
 import {useWalletTrades} from "@/hooks/useWalletTrades";
@@ -237,8 +238,16 @@ interface StonkfolioResponse {
  * the same reads as your own Stonkfolio: value from the chain, gains from the
  * wallet's own trade history.
  */
+type ChartMode = "list" | "pie";
+
+const CHART_MODES: FilterOption<ChartMode>[] = [
+  {value: "list", label: "List"},
+  {value: "pie", label: "Pie"},
+];
+
 function PublicStonkfolio({wallet, handle, isSelf}: {wallet: string; handle: string; isSelf: boolean}) {
   const [split, setSplit] = useState<Split>("all");
+  const [chartMode, setChartMode] = useState<ChartMode>("list");
 
   const query = useQuery({
     queryKey: ["stonkfolio", wallet],
@@ -285,15 +294,20 @@ function PublicStonkfolio({wallet, handle, isSelf}: {wallet: string; handle: str
         </p>
       ) : null}
 
-      <FilterRail
-        label="Split holdings"
-        options={SPLITS}
-        value={split}
-        onChange={setSplit}
-        className="mb-1 mt-4"
-      />
+      <div className="mt-4 space-y-2.5">
+        <FilterRail label="Chart mode" options={CHART_MODES} value={chartMode} onChange={setChartMode} />
+        {chartMode === "list" ? (
+          <FilterRail label="Split holdings" options={SPLITS} value={split} onChange={setSplit} />
+        ) : null}
+      </div>
 
-      {query.isLoading ? (
+      {chartMode === "pie" ? (
+        query.isLoading ? (
+          <div className="mt-3 h-[168px] animate-pulse rounded-2xl bg-wash" />
+        ) : (
+          <AllocationChart holdings={query.data?.holdings ?? []} targets={{}} className="mt-3 -mx-[22px]" />
+        )
+      ) : query.isLoading ? (
         <ul>
           {Array.from({length: 3}).map((_unused, index) => (
             <li key={index} className="flex items-center gap-3 py-3.5">

@@ -4,8 +4,20 @@
     {
       "name": "trador",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 3000
+    },
+    {
+      "name": "trador-demo",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "-e",
+        "process.env.NEXT_PUBLIC_PRIVY_APP_ID='';require('child_process').spawn('npx next dev -p 3002',{stdio:'inherit',shell:true,env:process.env}).on('exit',c=>process.exit(c))"
+      ],
+      "port": 3002
     }
   ]
 }
