@@ -42,6 +42,11 @@ export interface ProfilePatch {
   bio?: string | null;
   wallet?: string | null;
   socials?: Partial<SocialLinks> | null;
+  /**
+   * The handle whose shared link brought this person here. Only ever applied
+   * when the row is created — see `upsertMe`.
+   */
+  referredBy?: string | null;
 }
 
 /**
@@ -61,8 +66,24 @@ export async function upsertMe(userId: string, patch: ProfilePatch): Promise<voi
   if (hasAdminPg) {
     await withClient((client) =>
       client.query(
-        `insert into public.users (id, handle, display_name, pfp_url, bio, wallet)
-         values ($1, $2, $3, $4, $5, $6)
+        /*
+         * Referral attribution lives in the insert values and nowhere else.
+         *
+         * The insert branch runs only when this person has no row yet — the
+         * moment they are new. The update list below does not mention
+         * `referred_by` or `referred_at`, so an existing user is never
+         * attributed by opening someone's link, and a referral is never
+         * reassigned later. `r.id <> $1` makes self-referral impossible, and an
+         * unknown handle simply finds nobody.
+         */
+        `insert into public.users (id, handle, display_name, pfp_url, bio, wallet, referred_by, referred_at)
+         select $1, $2, $3, $4, $5, $6, ref.id, case when ref.id is null then null else now() end
+           from (select 1) as one
+           left join lateral (
+             select r.id from public.users r
+              where $7::text is not null and lower(r.handle) = lower($7::text) and r.id <> $1
+              limit 1
+           ) as ref on true
          on conflict (id) do update set
            handle       = coalesce(excluded.handle, public.users.handle),
            display_name = coalesce(excluded.display_name, public.users.display_name),
@@ -77,6 +98,7 @@ export async function upsertMe(userId: string, patch: ProfilePatch): Promise<voi
           patch.pfpUrl ?? null,
           patch.bio ?? null,
           patch.wallet ?? null,
+          normalizeHandle(patch.referredBy) ?? null,
         ],
       ),
     );

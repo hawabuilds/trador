@@ -15,6 +15,7 @@ import {CopyIcon, WalletIcon} from "@/components/ui/Icons";
 import {ConnectionsSheet} from "@/components/ConnectionsSheet";
 import {EditProfileSheet} from "@/components/EditProfileSheet";
 import {SettingsMenu} from "@/components/SettingsMenu";
+import {ShareProfileButton} from "@/components/ShareProfileButton";
 import {SocialRow} from "@/components/SocialRow";
 import {PriceDelta} from "@/components/ui/PriceDelta";
 import {WalletTradeList} from "@/components/WalletTradeList";
@@ -225,13 +226,21 @@ export function StonkfolioScreen() {
             following
           </button>
 
-          <button
-            type="button"
-            onClick={() => setEditOpen(true)}
-            className="ml-auto rounded-full bg-[var(--overlay-wash)] px-3 py-1.5 text-[12px] font-extrabold text-ink transition-colors hover:bg-[var(--overlay-wash-hover)]"
-          >
-            Edit profile
-          </button>
+          {/*
+            Share and Edit together at the end of the row: both are about this
+            profile, and Share is the one that grows the app — every sign-up
+            through the link is credited to whoever shared it.
+          */}
+          <div className="ml-auto flex items-center gap-1.5">
+            {handle ? <ShareProfileButton handle={handle} displayName={displayName} /> : null}
+            <button
+              type="button"
+              onClick={() => setEditOpen(true)}
+              className="shrink-0 whitespace-nowrap rounded-full bg-[var(--overlay-wash)] px-3 py-1.5 text-[12px] font-extrabold text-ink transition-colors hover:bg-[var(--overlay-wash-hover)]"
+            >
+              Edit profile
+            </button>
+          </div>
         </div>
 
         {me.bio ? (

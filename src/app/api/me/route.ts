@@ -24,6 +24,8 @@ export async function PUT(request: Request) {
     wallet?: string | null;
     /** Show the Stonkfolio on the public profile. Absent leaves it unchanged. */
     portfolioPublic?: boolean;
+    /** Whose shared link this person arrived through. Used only for a new account. */
+    referredBy?: string | null;
   };
 
   try {
@@ -35,6 +37,7 @@ export async function PUT(request: Request) {
       pfpUrl: body.pfpUrl ?? null,
       bio: clip(body.bio, 160),
       wallet: body.wallet ?? null,
+      referredBy: typeof body.referredBy === "string" ? body.referredBy.slice(0, 40) : null,
     });
     if (typeof body.portfolioPublic === "boolean") {
       await setPortfolioPublic(caller.userId, body.portfolioPublic);

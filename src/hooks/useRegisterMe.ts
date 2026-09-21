@@ -2,6 +2,7 @@
 
 import {useEffect, useRef} from "react";
 
+import {clearReferral, readReferral} from "@/lib/referral";
 import {useSession} from "@/lib/session";
 
 /**
@@ -47,7 +48,11 @@ export function useRegisterMe(): void {
         const token = await session.getAccessToken();
         if (!token) return;
 
-        await fetch("/api/me", {
+        // Whose shared link brought them here. The server only applies it if
+        // this call is what creates the account, so sending it is always safe.
+        const referredBy = readReferral();
+
+        const response = await fetch("/api/me", {
           method: "PUT",
           headers: {
             "content-type": "application/json",
@@ -58,8 +63,10 @@ export function useRegisterMe(): void {
             displayName: session.user?.displayName ?? null,
             pfpUrl: session.user?.pfpUrl ?? null,
             wallet,
+            referredBy,
           }),
         });
+        if (response.ok && referredBy) clearReferral();
       } catch {
         // Silent by design. See the note above.
       }

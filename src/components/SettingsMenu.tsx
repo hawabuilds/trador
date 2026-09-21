@@ -1,6 +1,8 @@
 "use client";
 
 import {useEffect, useRef, useState} from "react";
+import {useRouter} from "next/navigation";
+import {useQuery} from "@tanstack/react-query";
 
 import {accountUrl} from "@/config/explorer";
 import {useMe} from "@/hooks/useMe";
@@ -20,6 +22,7 @@ import {
   LogoutIcon,
   SettingsIcon,
   UserIcon,
+  UsersIcon,
   WalletIcon,
 } from "./ui/Icons";
 
@@ -51,8 +54,22 @@ export function SettingsMenu() {
   const [copied, setCopied] = useState<string | null>(null);
 
   const {wallet, handle, displayName, isDemo, logout} = useUser();
-  const {wallets, setActiveWallet, exportWallet, importWallet} = useSession();
+  const {wallets, setActiveWallet, exportWallet, importWallet, getAccessToken} = useSession();
   const me = useMe();
+  const router = useRouter();
+
+  // Only the admin gets the Referrals row; the server decides who that is.
+  const admin = useQuery({
+    queryKey: ["admin-me"],
+    enabled: !isDemo && Boolean(wallet),
+    staleTime: 600_000,
+    queryFn: async (): Promise<boolean> => {
+      const token = await getAccessToken();
+      if (!token) return false;
+      const response = await fetch("/api/admin/me", {headers: {authorization: `Bearer ${token}`}});
+      return response.ok ? Boolean(((await response.json()) as {admin?: boolean}).admin) : false;
+    },
+  });
   const [privacyError, setPrivacyError] = useState<string | null>(null);
 
   // Escape or a click anywhere else closes it, as a menu should.
@@ -194,6 +211,13 @@ export function SettingsMenu() {
             icon={<BellIcon className="h-4 w-4" />}
             label="Notifications"
           />
+          {admin.data ? (
+            <MenuRow
+              onClick={then(() => router.push("/admin/referrals"))}
+              icon={<UsersIcon className="h-4 w-4" />}
+              label="Referrals"
+            />
+          ) : null}
           {/*
             A switch rather than a row that opens something, so the menu stays
             open and the change is visible where it was made. HODL's default:

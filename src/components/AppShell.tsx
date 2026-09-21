@@ -5,6 +5,7 @@ import {useRouter} from "next/navigation";
 
 import {useUser} from "@/hooks/useUser";
 import {useRegisterMe} from "@/hooks/useRegisterMe";
+import {saveReferral} from "@/lib/referral";
 import {isPrivyOAuthReturn} from "@/lib/session";
 
 import {cn} from "@/lib/cn";
@@ -86,6 +87,18 @@ export function AppShell({children}: {children: ReactNode}) {
   useEffect(() => {
     if (!ready || authenticated) return;
     if (isPrivyOAuthReturn()) return;
+    /*
+     * A signed-out visitor on someone's profile arrived through a shared
+     * link: that person is their inviter. Remember them before the redirect,
+     * or the sign-up page has no idea who sent them.
+     */
+    const inviter = /^\/u\/([^/?#]+)/.exec(window.location.pathname)?.[1];
+    if (inviter) {
+      const handle = decodeURIComponent(inviter);
+      saveReferral(handle);
+      router.replace(`/?ref=${encodeURIComponent(handle)}`);
+      return;
+    }
     router.replace("/");
   }, [ready, authenticated, router]);
 

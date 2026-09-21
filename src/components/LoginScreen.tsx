@@ -7,7 +7,9 @@ import {useRouter} from "next/navigation";
 import {APP_NAME} from "@/config/app";
 import {TradorMark} from "@/components/ui/TradorMark";
 import {useUser} from "@/hooks/useUser";
+import {readReferral, saveReferral, visitorId} from "@/lib/referral";
 import {readSignedInHint} from "@/lib/signedInHint";
+import {Avatar} from "./ui/Avatar";
 import {Button} from "./ui/Button";
 import {AppleIcon, ArrowRightIcon, XIcon} from "./ui/Icons";
 import {Modal} from "./ui/Modal";
@@ -88,6 +90,8 @@ export function LoginScreen() {
         on Solana.
       </p>
 
+      <InvitedBy />
+
       <div className="mt-11 flex flex-col gap-2.5">
         {isDemo ? (
           /*
@@ -144,6 +148,66 @@ export function LoginScreen() {
           to pay.
         </p>
       </Modal>
+    </div>
+  );
+}
+
+interface Inviter {
+  handle: string;
+  displayName: string;
+  pfpUrl: string | null;
+}
+
+/**
+ * "Invited by …", when someone arrived through a shared profile link.
+ *
+ * The handle comes from `?ref=` or from the browser's memory of a link opened
+ * earlier, and is only shown once it resolves to a real account — a made-up
+ * handle in a URL shows nothing rather than a name nobody has. The open is
+ * counted here too, once per visitor.
+ */
+function InvitedBy() {
+  const [inviter, setInviter] = useState<Inviter | null>(null);
+
+  useEffect(() => {
+    saveReferral(new URLSearchParams(window.location.search).get("ref"));
+    const handle = readReferral();
+    if (!handle) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch(`/api/profile/${encodeURIComponent(handle)}`);
+        if (!response.ok) return;
+        const body = (await response.json()) as {profile?: Inviter};
+        if (!body.profile || cancelled) return;
+        setInviter(body.profile);
+        void fetch("/api/referrals/visit", {
+          method: "POST",
+          headers: {"content-type": "application/json"},
+          body: JSON.stringify({handle: body.profile.handle, visitor: visitorId()}),
+        }).catch(() => undefined);
+      } catch {
+        // No card is the right fallback for any failure here.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!inviter) return null;
+
+  return (
+    <div className="mt-8 flex items-center gap-3 rounded-2xl bg-[var(--segment-track)] px-3.5 py-3 shadow-inset-soft">
+      <Avatar name={inviter.displayName} src={inviter.pfpUrl} seed={inviter.handle} size={36} />
+      <div className="min-w-0">
+        <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-faint">Invited by</div>
+        <div className="truncate text-[14.5px] font-extrabold text-ink">
+          {inviter.displayName}{" "}
+          <span className="font-semibold text-faint">@{inviter.handle}</span>
+        </div>
+      </div>
     </div>
   );
 }
