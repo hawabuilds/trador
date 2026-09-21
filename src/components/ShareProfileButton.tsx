@@ -7,6 +7,9 @@ import {cn} from "@/lib/cn";
 import {profilePath, shareUrl} from "@/lib/routes";
 import {CheckIcon, CopyIcon, ShareIcon, XIcon} from "./ui/Icons";
 
+/** Baked in at build time, so it is the same on the server and in the browser. */
+const CONFIGURED_ORIGIN = Boolean(process.env.NEXT_PUBLIC_APP_URL);
+
 /**
  * Share your profile — which is also your invite link.
  *
@@ -25,14 +28,22 @@ export function ShareProfileButton({handle, displayName}: {handle: string; displ
   const [copied, setCopied] = useState(false);
 
   /*
-   * The address the app is actually being used on. The configured origin can
-   * be a domain that was never registered, and a share link that goes nowhere
-   * is worse than none. Read after mount, so the server's HTML and the first
-   * client render agree.
+   * Always the app's real domain when one is configured — www.trador.one —
+   * whichever address this person happens to have the app open on. Building
+   * it from the page's own origin handed out the Vercel address to everyone
+   * using the app there, including anyone who installed it from that address.
+   *
+   * The page's origin is only the fallback for a deployment with no domain
+   * set, where the code's default domain may not exist at all. Read after
+   * mount, so the server's HTML and the first client render agree.
    */
   const [origin, setOrigin] = useState<string | null>(null);
   useEffect(() => setOrigin(window.location.origin), []);
-  const url = origin ? `${origin}${profilePath(handle)}` : shareUrl(profilePath(handle));
+  const url = CONFIGURED_ORIGIN
+    ? shareUrl(profilePath(handle))
+    : origin
+      ? `${origin}${profilePath(handle)}`
+      : shareUrl(profilePath(handle));
   const text = `${displayName ?? `@${handle}`} is on ${APP_NAME} — ${APP_TAGLINE.toLowerCase()}. Join me:`;
 
   // A click anywhere else, or Escape, closes the menu.
