@@ -410,3 +410,29 @@ export function readSellPayout(): SellPayout {
 export function writeSellPayout(payout: SellPayout): void {
   write("sell-payout", payout);
 }
+
+// ---------------------------------------------------------------------------
+// Stonkfolio pie targets
+// ---------------------------------------------------------------------------
+
+/** Per-wallet target allocation weights, mint → percent. Keys are verbatim base58. */
+export function readPieTargets(wallet: string): Record<string, number> {
+  const all = read<Record<string, Record<string, number>>>("pie-targets", {});
+  const row = all[wallet];
+  if (!row || typeof row !== "object") return {};
+  const out: Record<string, number> = {};
+  for (const [mint, weight] of Object.entries(row)) {
+    const value = Number(weight);
+    if (Number.isFinite(value) && value >= 0) out[mint] = value;
+  }
+  return out;
+}
+
+export function writePieTargets(
+  wallet: string,
+  targets: Record<string, number>,
+): void {
+  const all = read<Record<string, Record<string, number>>>("pie-targets", {});
+  write("pie-targets", {...all, [wallet]: targets});
+  announce();
+}

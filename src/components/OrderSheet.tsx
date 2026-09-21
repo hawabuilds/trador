@@ -88,10 +88,13 @@ export function OrderSheet({
   asset,
   side,
   onClose,
+  onReceive,
 }: {
   asset: Asset | null;
   side: "buy" | "sell";
   onClose: () => void;
+  /** Opens receive flow when the wallet needs SOL for fees or a SOL-funded buy. */
+  onReceive?: () => void;
 }) {
   const session = useSession();
   const queryClient = useQueryClient();
@@ -211,6 +214,33 @@ export function OrderSheet({
   const shortOnFees =
     lamports !== null && !(buying && payWith.symbol === "SOL") && lamports < MIN_FEE_LAMPORTS;
 
+  const insufficientSol = useMemo(() => {
+    if (!open || lamports === null || entered <= 0) return null;
+    const balance = fromBaseUnits(lamports, 9);
+
+    if (buying && payWith.symbol === "SOL") {
+      const spendable = spendableLamports(lamports);
+      if (overBalance || spendable <= 0n) {
+        return {
+          balance,
+          detail:
+            spendable > 0n
+              ? `${fromBaseUnits(spendable, 9)} SOL available after fees`
+              : undefined,
+        };
+      }
+    }
+
+    if (shortOnFees) {
+      return {
+        balance,
+        detail: "About 0.003 SOL is needed for network fees",
+      };
+    }
+
+    return null;
+  }, [open, lamports, entered, buying, payWith.symbol, overBalance, shortOnFees]);
+
   const undersized =
     entered > 0 && !solSized && Number.isFinite(amountUsd) && tooSmall(amountUsd);
 
@@ -280,15 +310,15 @@ export function OrderSheet({
           ? "Could not read your balance, so this trade cannot be checked. Try again in a moment."
           : availableRaw === null
             ? "Checking your balance…"
-            : overBalance
-              ? overBalanceMessage({
-                  buying,
-                  solFunded: buying && payWith.symbol === "SOL",
-                  available: available ?? 0,
-                  symbol: fundingSymbol,
-                })
-              : shortOnFees
-                ? "You need a little SOL for network fees — about 0.003 SOL."
+            : insufficientSol
+              ? null
+              : overBalance
+                ? overBalanceMessage({
+                    buying,
+                    solFunded: buying && payWith.symbol === "SOL",
+                    available: available ?? 0,
+                    symbol: fundingSymbol,
+                  })
                 : undersized
                   ? "Minimum trade is $1."
                   : !buying && (priceUsd === null || priceUsd <= 0)
@@ -380,6 +410,7 @@ export function OrderSheet({
 
   const confirmDisabled =
     blockReason !== null ||
+    insufficientSol !== null ||
     quote === null ||
     status !== null ||
     entered <= 0 ||
@@ -639,7 +670,26 @@ export function OrderSheet({
             </p>
           ) : null}
 
-          {blockReason && !error ? (
+          {insufficientSol && !error ? (
+            <div className="mt-3 rounded-2xl bg-[var(--segment-track)] px-3.5 py-3 shadow-inset-soft">
+              <p className="text-[12.5px] font-extrabold text-ink">Not enough SOL</p>
+              <p className="mt-1 text-[12.5px] font-semibold text-muted">
+                You have {insufficientSol.balance} SOL
+                {insufficientSol.detail ? ` · ${insufficientSol.detail}` : ""}
+              </p>
+              {onReceive ? (
+                <button
+                  type="button"
+                  onClick={onReceive}
+                  className="mt-2.5 w-full rounded-full bg-[var(--overlay-wash)] py-2 text-[12px] font-extrabold text-ink transition-colors hover:bg-[var(--overlay-wash-hover)]"
+                >
+                  Receive
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+
+          {blockReason && !error && !insufficientSol ? (
             <p className="mt-3 text-[12.5px] font-semibold text-muted">
               {blockReason}
             </p>

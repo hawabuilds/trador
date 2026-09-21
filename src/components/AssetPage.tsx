@@ -62,6 +62,10 @@ const OrderSheet = dynamic(
   () => import("./OrderSheet").then((m) => ({default: m.OrderSheet})),
   {ssr: false},
 );
+const ReceiveSheet = dynamic(
+  () => import("./ReceiveSheet").then((m) => ({default: m.ReceiveSheet})),
+  {ssr: false},
+);
 const PriceChart = dynamic(
   () => import("./PriceChart").then((m) => ({default: m.PriceChart})),
   {
@@ -117,6 +121,7 @@ export function AssetPage({
   const [panel, setPanel] = useState<PanelKey>("trades");
   const [scrubbed, setScrubbed] = useState<ChartPoint | null>(null);
   const [orderSide, setOrderSide] = useState<"buy" | "sell" | null>(null);
+  const [receiveOpen, setReceiveOpen] = useState(false);
   const [chartStyle, setChartStyle] = useState<ChartStyle>("line");
   useEffect(() => setChartStyle(readChartStyle()), []);
 
@@ -479,7 +484,16 @@ export function AssetPage({
         asset={orderSide ? asset : null}
         side={orderSide ?? "buy"}
         onClose={() => setOrderSide(null)}
+        onReceive={wallet ? () => setReceiveOpen(true) : undefined}
       />
+
+      {wallet ? (
+        <ReceiveSheet
+          open={receiveOpen}
+          onClose={() => setReceiveOpen(false)}
+          wallet={wallet}
+        />
+      ) : null}
     </div>
   );
 }

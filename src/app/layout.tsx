@@ -1,5 +1,6 @@
 import type {Metadata, Viewport} from "next";
 import {Inter, JetBrains_Mono} from "next/font/google";
+import {Analytics} from "@vercel/analytics/next";
 
 import {Providers} from "@/components/providers/Providers";
 import {OVERLAY_ROOT_ID} from "@/components/ui/OverlayPortal";
@@ -89,6 +90,7 @@ export default function RootLayout({
             <div id={OVERLAY_ROOT_ID} />
           </div>
         </Providers>
+        <Analytics />
       </body>
     </html>
   );
