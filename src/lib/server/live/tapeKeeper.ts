@@ -9,8 +9,8 @@
  * coin, one parse call. And it is the only process doing it, so each fill is
  * parsed once rather than once per server that happens to be asked.
  *
- * The busiest coins are refreshed every round and the rest every third, which
- * keeps the whole set inside the RPC plan's rate limit.
+ * The busiest coins are refreshed every round and the rest a slice at a time,
+ * which keeps every round short and the whole set inside the RPC rate limit.
  */
 
 import {defaultChartTimeframe} from "@/lib/chartTimeframe";
@@ -28,7 +28,7 @@ interface HotCoin {
   mint: Pubkey;
   kind: "stonk" | "stock";
   listedAt: string | null;
-  /** Refreshed every round rather than every third. */
+  /** Refreshed every round rather than a slice at a time. */
   busy: boolean;
 }
 
@@ -69,9 +69,12 @@ const candlesAt = new Map<string, number>();
 /** The hot set is re-read from the feed this often, not every round. */
 const HOT_SET_TTL_MS = 60_000;
 
+/** Coins outside the busy set refreshed per round, rotating through the rest. */
+const TAIL_PER_ROUND = 12;
+
 let hotSet: HotCoin[] = [];
 let hotSetAt = 0;
-let round = 0;
+let tailCursor = 0;
 
 async function readHotSet(): Promise<HotCoin[]> {
   if (Date.now() - hotSetAt < HOT_SET_TTL_MS && hotSet.length > 0) return hotSet;
@@ -170,8 +173,23 @@ export interface KeepResult {
 /** One round: refresh what is due, then write it in one batch. */
 export async function keepTapes(): Promise<KeepResult> {
   const coins = await readHotSet();
-  round += 1;
-  const due = coins.filter((coin) => coin.busy || round % 3 === 0);
+
+  /*
+   * The busiest coins every round, and a slice of the rest each time.
+   *
+   * Sweeping every coin on one round in three read well but kept badly: with a
+   * deep cold read per coin that round took over a minute, and the coins
+   * people actually open went stale while it ran. A fixed slice keeps every
+   * round short, and the tail still comes round every couple of minutes.
+   */
+  const busy = coins.filter((coin) => coin.busy);
+  const rest = coins.filter((coin) => !coin.busy);
+  const slice: HotCoin[] = [];
+  for (let i = 0; i < Math.min(TAIL_PER_ROUND, rest.length); i++) {
+    slice.push(rest[(tailCursor + i) % rest.length]);
+  }
+  tailCursor = rest.length > 0 ? (tailCursor + slice.length) % rest.length : 0;
+  const due = [...busy, ...slice];
 
   const writes: CoinTapeWrite[] = [];
   let failed = 0;
