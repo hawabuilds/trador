@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 
+import {usePrefetchAssetPage} from "@/hooks/useAsset";
 import {cn} from "@/lib/cn";
 import {
   formatMarketCapUsd,
@@ -48,11 +49,13 @@ export function AssetRow({
   const stock = asset.kind === "stock";
   const symbol = stock ? asset.ticker : asset.symbol;
   const shownPrice = asset.price.usd;
+  const prefetchPage = usePrefetchAssetPage(asset);
 
   return (
     <Link
       href={assetHref(asset)}
       prefetch
+      {...prefetchPage}
       className={cn(
         "flex items-center gap-3 px-[22px] py-[13px] transition-colors duration-150 hover:bg-[var(--overlay-wash)]",
         fresh && "trade-in",

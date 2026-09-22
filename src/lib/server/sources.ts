@@ -22,6 +22,7 @@ import type {
 } from "@/lib/types";
 import {hasDatabase} from "./db";
 import {snapshotStock, snapshotStocks, snapshotStonk, snapshotStonks} from "./snapshot";
+import {cached} from "./live/cache";
 import {chainTradesFor} from "./live/chainTape";
 import {candlesFor, deepestPoolFor, tradesFor} from "./live/gecko";
 import {findStonk, listStonks, rowToStonk, searchStonks} from "./live/universeStore";
@@ -208,7 +209,10 @@ export async function fetchAssetBundle(kind: string, id: string, timeframe: Time
 async function fromStore(mint: Pubkey): Promise<Stonk | null> {
   if (!hasDatabase) return null;
   try {
-    const found = await findStonk(mint);
+    // Held for 30s. The chart, the trades and the header each ask for the same
+    // coin every few seconds, and the database is two round trips away; the
+    // pool figures layered on top are what move, and those refresh separately.
+    const {value: found} = await cached(`store-stonk:${mint}`, 30_000, () => findStonk(mint));
     return found ? rowToStonk(found.row, found.stat) : null;
   } catch {
     // A store that errors must not take the asset page down with it.

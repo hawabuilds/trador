@@ -5,6 +5,7 @@ import Link from "next/link";
 import {assetHref} from "@/components/AssetRow";
 import {Avatar} from "@/components/ui/Avatar";
 import {PairTicker, VerifiedTick} from "@/components/ui/Badges";
+import {usePrefetchAssetPage} from "@/hooks/useAsset";
 import {cn} from "@/lib/cn";
 import {compactMoney, units} from "@/lib/format";
 import {formatPriceUsd} from "@/lib/priceState";
@@ -22,10 +23,12 @@ export function HoldingRow({holding, position}: {holding: Holding; position?: Po
   const stock = asset.kind === "stock";
   const symbol = stock ? asset.ticker : asset.symbol;
   const profit = holdingProfit(holding.amount, holding.valueUsd, position);
+  const prefetchPage = usePrefetchAssetPage(asset);
 
   return (
     <Link
       href={assetHref(asset)}
+      {...prefetchPage}
       className="flex items-center gap-3 px-[22px] py-[13px] transition-colors hover:bg-[var(--overlay-wash)]"
     >
       {stock ? (

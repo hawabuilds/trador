@@ -26,7 +26,7 @@ import type {Trade} from "@/lib/types";
 import type {Pubkey} from "@/lib/pubkey";
 import {cached, peek} from "./cache";
 import {
-  addressPage,
+  PARSE_BATCH,
   heliusKey,
   parseTransactions,
   signaturesFor,
@@ -40,7 +40,7 @@ export type {ParsedTx} from "./helius";
 /** Enough history to fill recent candles; the chart covers the rest. */
 export const TAPE_MAX = 300;
 const PAGE = 100;
-/** Pages fetched when there is nothing cached to extend. */
+/** Pages of signatures read when there is nothing cached to extend. */
 const COLD_PAGES = 3;
 const TTL_MS = 8_000;
 
@@ -105,9 +105,6 @@ export function mergeTape(newer: readonly Trade[], older: readonly Trade[]): Tra
     .sort((left, right) => Date.parse(right.at) - Date.parse(left.at))
     .slice(0, TAPE_MAX);
 }
-
-const page = (pool: Pubkey, key: string, before?: string) =>
-  addressPage(pool, key, PAGE, before);
 
 /**
  * Signatures touching the pool since one we already have, newest first.
@@ -177,17 +174,18 @@ export async function chainTradesFor(
       }
     }
 
-    // Cold, or too much happened to extend safely: start over.
-    let fills: Trade[] = [];
-    let head: string | null = null;
-    let cursor: string | undefined;
-    for (let i = 0; i < COLD_PAGES && fills.length < TAPE_MAX; i++) {
-      const batch = await page(pool, key, cursor);
-      if (batch.length === 0) break;
-      head ??= batch[0].signature;
-      fills = fills.concat(toFills(batch));
-      cursor = batch.at(-1)?.signature;
+    // Cold, or too much happened to extend safely: start over. One signature
+    // list, then every parse batch at once: three sequential parsed pages took
+    // two seconds, and this is the first thing an opened coin waits on.
+    const rows = await signaturesFor(pool, {limit: COLD_PAGES * PAGE});
+    const head = rows[0]?.signature ?? null;
+    const succeeded = rows.filter((row) => !row.err).map((row) => row.signature);
+    const batches: string[][] = [];
+    for (let i = 0; i < succeeded.length; i += PARSE_BATCH) {
+      batches.push(succeeded.slice(i, i + PARSE_BATCH));
     }
+    const parsed = await Promise.all(batches.map((batch) => parseTransactions(batch, key)));
+    const fills = toFills(parsed.flat());
     return {trades: mergeTape(fills, []), head};
   });
 
