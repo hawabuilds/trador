@@ -1,5 +1,5 @@
 import type {Metadata, Viewport} from "next";
-import {Inter, JetBrains_Mono} from "next/font/google";
+import {Inter, JetBrains_Mono, Montserrat} from "next/font/google";
 import {Analytics} from "@vercel/analytics/next";
 
 import {Providers} from "@/components/providers/Providers";
@@ -19,6 +19,14 @@ const display = Inter({
   subsets: ["latin"],
   weight: ["300", "400", "500", "700"],
   variable: "--font-display",
+  display: "swap",
+});
+
+/** Montserrat Bold, one weight, for the TRADOR wordmark only. */
+const wordmark = Montserrat({
+  subsets: ["latin"],
+  weight: ["700"],
+  variable: "--font-wordmark",
   display: "swap",
 });
 
@@ -78,7 +86,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`dark ${display.variable} ${mono.variable}`}
+      className={`dark ${display.variable} ${mono.variable} ${wordmark.variable}`}
       style={{colorScheme: "dark"}}
       data-theme="dark"
     >

@@ -16,8 +16,8 @@ import {GraduatingList} from "@/components/GraduatingList";
 import {useFeed} from "@/hooks/useFeed";
 import {useWatchlistAssets} from "@/hooks/useWatchlist";
 import {RocketIcon, StarIcon} from "@/components/ui/Icons";
-import {APP_NAME} from "@/config/app";
 import {TradorMark} from "@/components/ui/TradorMark";
+import {TradorWordmark} from "@/components/ui/TradorWordmark";
 import {formatUtc} from "@/lib/priceFormat";
 import {SECTORS, type SectorId} from "@/lib/sectors";
 import type {
@@ -361,9 +361,9 @@ export function HomeFeed({
     <div>
       <StickyPageHeader>
         <div className="mb-4 flex items-center justify-between">
-          <span className="flex items-center gap-2 text-[22px] font-extrabold tracking-[-0.035em] text-ink">
+          <span className="flex items-center gap-2.5 text-ink">
             <TradorMark size={26} className="text-brand-500" />
-            {APP_NAME}
+            <TradorWordmark className="text-[19px]" />
           </span>
 
           {/*

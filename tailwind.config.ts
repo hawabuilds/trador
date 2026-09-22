@@ -73,6 +73,7 @@ const config: Config = {
       },
       fontFamily: {
         sans: ["var(--font-display)", "Inter", "system-ui", "sans-serif"],
+        wordmark: ["var(--font-wordmark)", "Montserrat", "system-ui", "sans-serif"],
         mono: [
           "var(--font-mono)",
           "ui-monospace",
