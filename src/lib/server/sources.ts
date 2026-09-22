@@ -222,6 +222,13 @@ function within<T>(work: Promise<T>, ms: number): Promise<T | null> {
 const PAGE_DATA_BUDGET_MS = 1_500;
 
 /**
+ * Trades rendered into the page. The feed prefetches every row on screen, and
+ * a full 300-fill tape made each of those 100-250KB; the page opens on the
+ * newest, and its first poll a few seconds later brings the rest.
+ */
+const PAGE_TRADES = 60;
+
+/**
  * A coin page's header, chart and trades, read for the server render.
  *
  * The feed prefetches every row's page while it is on screen, so this is
@@ -258,7 +265,12 @@ export async function fetchAssetPageData(
         : null,
     trades:
       trades && !trades.error
-        ? {...trades.data, stale: trades.stale, error: null}
+        ? {
+            ...trades.data,
+            trades: trades.data.trades.slice(0, PAGE_TRADES),
+            stale: trades.stale,
+            error: null,
+          }
         : null,
   };
 }
