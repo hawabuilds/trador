@@ -26,7 +26,6 @@ import type {Trade} from "@/lib/types";
 import type {Pubkey} from "@/lib/pubkey";
 import {cached, peek} from "./cache";
 import {
-  PARSE_BATCH,
   heliusKey,
   parseTransactions,
   signaturesFor,
@@ -42,6 +41,12 @@ export const TAPE_MAX = 300;
 const PAGE = 100;
 /** Pages of signatures read when there is nothing cached to extend. */
 const COLD_PAGES = 3;
+/**
+ * Signatures per parse call on a cold load. Helius takes as long for 100 as the
+ * response is large (1.4s), so smaller batches side by side finish sooner; 50
+ * is where it stopped helping, since 25 at a time runs into its rate limit.
+ */
+const COLD_BATCH = 50;
 const TTL_MS = 8_000;
 
 /**
@@ -181,8 +186,8 @@ export async function chainTradesFor(
     const head = rows[0]?.signature ?? null;
     const succeeded = rows.filter((row) => !row.err).map((row) => row.signature);
     const batches: string[][] = [];
-    for (let i = 0; i < succeeded.length; i += PARSE_BATCH) {
-      batches.push(succeeded.slice(i, i + PARSE_BATCH));
+    for (let i = 0; i < succeeded.length; i += COLD_BATCH) {
+      batches.push(succeeded.slice(i, i + COLD_BATCH));
     }
     const parsed = await Promise.all(batches.map((batch) => parseTransactions(batch, key)));
     const fills = toFills(parsed.flat());
