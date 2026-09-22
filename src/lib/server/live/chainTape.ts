@@ -33,6 +33,7 @@ import {
   type ParsedTx,
 } from "./helius";
 import {jupTokens} from "./jupTokens";
+import {rawRpc, rawTransactions} from "./rawTransactions";
 
 export type {ParsedTx} from "./helius";
 
@@ -138,6 +139,28 @@ interface TapeState {
 }
 
 /**
+ * Transactions in the shape `fillFromTx` reads: raw from the node when one is
+ * configured, since that is about three times faster and not rate limited the
+ * way Helius's parser is, and Helius's parser when the node fails or is absent.
+ */
+async function decode(signatures: string[], key: string | null): Promise<ParsedTx[]> {
+  if (signatures.length === 0) return [];
+  if (rawRpc()) {
+    try {
+      return await rawTransactions(signatures);
+    } catch (error) {
+      if (!key) throw error;
+    }
+  }
+  if (!key) throw new Error("No way to read transactions is configured.");
+  const batches: string[][] = [];
+  for (let i = 0; i < signatures.length; i += COLD_BATCH) {
+    batches.push(signatures.slice(i, i + COLD_BATCH));
+  }
+  return (await Promise.all(batches.map((batch) => parseTransactions(batch, key)))).flat();
+}
+
+/**
  * The pool's recent fills, or null when this cannot be answered from chain
  * (no key, or no USD price for the pool's other side) and the caller should
  * fall back.
@@ -152,7 +175,7 @@ export async function chainTradesFor(
   otherMint: Pubkey,
 ): Promise<{trades: Trade[]; stale: boolean} | null> {
   const key = heliusKey();
-  if (!key) return null;
+  if (!key && !rawRpc()) return null;
 
   const otherUsd = (await jupTokens([otherMint])).get(otherMint)?.usdPrice ?? null;
   if (otherUsd === null || !(otherUsd > 0)) return null;
@@ -173,24 +196,19 @@ export async function chainTradesFor(
       // extending cannot leave a hole. A full page might not have.
       if (!fresh.full) {
         const added = fresh.succeeded.length
-          ? toFills(await parseTransactions(fresh.succeeded, key))
+          ? toFills(await decode(fresh.succeeded, key))
           : [];
         return {trades: mergeTape(added, previous.trades), head: fresh.newest};
       }
     }
 
     // Cold, or too much happened to extend safely: start over. One signature
-    // list, then every parse batch at once: three sequential parsed pages took
+    // list, then every transaction at once: three sequential parsed pages took
     // two seconds, and this is the first thing an opened coin waits on.
     const rows = await signaturesFor(pool, {limit: COLD_PAGES * PAGE});
     const head = rows[0]?.signature ?? null;
     const succeeded = rows.filter((row) => !row.err).map((row) => row.signature);
-    const batches: string[][] = [];
-    for (let i = 0; i < succeeded.length; i += COLD_BATCH) {
-      batches.push(succeeded.slice(i, i + COLD_BATCH));
-    }
-    const parsed = await Promise.all(batches.map((batch) => parseTransactions(batch, key)));
-    const fills = toFills(parsed.flat());
+    const fills = toFills(await decode(succeeded, key));
     return {trades: mergeTape(fills, []), head};
   });
 

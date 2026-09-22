@@ -1,10 +1,19 @@
 "use client";
 
-import {useRef} from "react";
+import {useRef, useState} from "react";
 import {useQuery, useQueryClient, type QueryClient} from "@tanstack/react-query";
 
 import {defaultChartTimeframe} from "@/lib/chartTimeframe";
-import type {Asset, AssetKind, ChartPoint, NewsItem, Timeframe, Trade} from "@/lib/types";
+import {preloadAssetPageCode} from "@/lib/preloadAssetPageCode";
+import type {
+  Asset,
+  AssetKind,
+  AssetResponse,
+  ChartResponse,
+  NewsItem,
+  Timeframe,
+  TradesResponse,
+} from "@/lib/types";
 
 async function get<T>(url: string): Promise<T> {
   const response = await fetch(url);
@@ -14,17 +23,6 @@ async function get<T>(url: string): Promise<T> {
   }
   return (await response.json()) as T;
 }
-
-type AssetResponse = {asset: Asset; stale: boolean};
-type ChartResponse = {points: ChartPoint[]; timeframe: Timeframe; stale: boolean; error: string | null};
-type TradesResponse = {
-  trades: Trade[];
-  pollMs: number;
-  /** `chain` is every fill; `provider` may be partial. */
-  source?: "chain" | "provider";
-  stale: boolean;
-  error: string | null;
-};
 
 /*
  * The three requests behind a coin page, defined once so the page and the feed
@@ -56,6 +54,7 @@ const tradesQuery = (kind: string, id: string) => ({
  * the same query rather than a near miss.
  */
 export function prefetchAssetPage(client: QueryClient, asset: Asset): void {
+  preloadAssetPageCode();
   const kind: AssetKind = asset.kind;
   const id = asset.id;
 
@@ -86,7 +85,33 @@ export function usePrefetchAssetPage(asset: Asset) {
   return {onPointerEnter: start, onTouchStart: start, onFocus: start};
 }
 
-export function useAsset(kind: string, id: string) {
+/**
+ * Data the server rendered into the page, and when it read it. Used only when
+ * the browser holds nothing for that query yet; `at` makes it count as old, so
+ * it is shown at once and then refreshed rather than trusted for a full poll.
+ */
+export interface Seed<T> {
+  data: T | null;
+  at: number;
+}
+
+/**
+ * Put a seed into the cache before the query first reads it — but only when it
+ * is newer than what the cache holds. The cache may already have this coin
+ * from a hovered row or from the device's saved copy, and the newer of the
+ * two should win either way. Once, on the first render.
+ */
+function useSeed<T>(key: readonly unknown[], seed?: Seed<T>): void {
+  const client = useQueryClient();
+  useState(() => {
+    if (!seed?.data) return;
+    const held = client.getQueryState(key)?.dataUpdatedAt ?? 0;
+    if (seed.at > held) client.setQueryData(key, seed.data, {updatedAt: seed.at});
+  });
+}
+
+export function useAsset(kind: string, id: string, seed?: Seed<AssetResponse>) {
+  useSeed(assetQuery(kind, id).queryKey, seed);
   const query = useQuery({
     ...assetQuery(kind, id),
     refetchInterval: 15_000,
@@ -100,7 +125,14 @@ export function useAsset(kind: string, id: string) {
   };
 }
 
-export function useChart(kind: string, id: string, timeframe: Timeframe) {
+export function useChart(
+  kind: string,
+  id: string,
+  timeframe: Timeframe,
+  seed?: Seed<ChartResponse>,
+) {
+  // Only when the server read the timeframe this is asking for.
+  useSeed(chartQuery(kind, id, timeframe).queryKey, seed?.data?.timeframe === timeframe ? seed : undefined);
   const query = useQuery({
     ...chartQuery(kind, id, timeframe),
     refetchInterval: 30_000,
@@ -119,7 +151,13 @@ export function useChart(kind: string, id: string, timeframe: Timeframe) {
   };
 }
 
-export function useTrades(kind: string, id: string, enabled = true) {
+export function useTrades(
+  kind: string,
+  id: string,
+  enabled = true,
+  seed?: Seed<TradesResponse>,
+) {
+  useSeed(tradesQuery(kind, id).queryKey, seed);
   const query = useQuery({
     ...tradesQuery(kind, id),
     enabled,

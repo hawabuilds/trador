@@ -1,9 +1,11 @@
 "use client";
 
+import {useEffect} from "react";
 import Link from "next/link";
 
 import {usePrefetchAssetPage} from "@/hooks/useAsset";
 import {cn} from "@/lib/cn";
+import {preloadAssetPageCode} from "@/lib/preloadAssetPageCode";
 import {
   formatMarketCapUsd,
   formatPriceUsd,
@@ -195,6 +197,13 @@ export function AssetList({
   arrivals?: ReadonlySet<string>;
   now?: number;
 }) {
+  // A list of coins is where coin pages are opened from, so fetch their chart
+  // and trades code once the list has drawn and the browser is idle.
+  useEffect(() => {
+    const idle = window.requestIdleCallback ?? ((run: () => void) => window.setTimeout(run, 1_000));
+    idle(() => preloadAssetPageCode());
+  }, []);
+
   return (
     <ul className="-mx-[22px]">
       {assets.map((asset) => {

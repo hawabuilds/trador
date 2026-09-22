@@ -106,24 +106,36 @@ export async function signaturesFor(
   address: Pubkey,
   options: {until?: string; before?: string; limit: number},
 ): Promise<SignatureRow[]> {
-  // Helius, not SOLANA_RPC_URL: it answers these pages about twice as fast,
-  // and the transactions they list are parsed by Helius anyway.
-  const rpc = process.env.HELIUS_RPC_URL || process.env.SOLANA_RPC_URL;
-  if (!rpc) throw new Error("No RPC is configured.");
-  const response = await fetch(rpc, {
-    method: "POST",
-    headers: {"content-type": "application/json"},
-    cache: "no-store",
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "getSignaturesForAddress",
-      params: [address, {...options, commitment: "confirmed"}],
-    }),
-  });
-  const body = (await response.json()) as {result?: SignatureRow[]; error?: {message: string}};
-  if (!response.ok || body.error || !body.result) {
-    throw new Error(body.error?.message ?? `Signature list returned ${response.status}.`);
+  // Helius first: it answers these pages about twice as fast, and the
+  // transactions they list are parsed by Helius anyway. The other node only
+  // when Helius refuses, since a refused list is a tape that stops updating.
+  const rpcs = [process.env.HELIUS_RPC_URL, process.env.SOLANA_RPC_URL].filter(
+    (url, index, all): url is string => Boolean(url) && all.indexOf(url) === index,
+  );
+  if (rpcs.length === 0) throw new Error("No RPC is configured.");
+
+  let lastError = "Signature list failed.";
+  for (const rpc of rpcs) {
+    const response = await fetch(rpc, {
+      method: "POST",
+      headers: {"content-type": "application/json"},
+      cache: "no-store",
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "getSignaturesForAddress",
+        params: [address, {...options, commitment: "confirmed"}],
+      }),
+    });
+    if (response.status === 429) {
+      lastError = "Signature list was rate limited.";
+      continue;
+    }
+    const body = (await response.json()) as {result?: SignatureRow[]; error?: {message: string}};
+    if (!response.ok || body.error || !body.result) {
+      throw new Error(body.error?.message ?? `Signature list returned ${response.status}.`);
+    }
+    return body.result;
   }
-  return body.result;
+  throw new Error(lastError);
 }

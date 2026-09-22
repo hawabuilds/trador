@@ -133,6 +133,44 @@ export type Timeframe = (typeof TIMEFRAMES)[number];
 export const STOCK_TIMEFRAMES = ["5m", "1h", "1D"] as const;
 export type StockTimeframe = (typeof STOCK_TIMEFRAMES)[number];
 
+/** What `/api/asset/[kind]/[id]` answers. */
+export interface AssetResponse {
+  asset: Asset;
+  stale: boolean;
+}
+
+/** What `/api/asset/[kind]/[id]/chart` answers. */
+export interface ChartResponse {
+  points: ChartPoint[];
+  timeframe: Timeframe;
+  stale: boolean;
+  error: string | null;
+}
+
+/** What `/api/asset/[kind]/[id]/trades` answers. */
+export interface TradesResponse {
+  trades: Trade[];
+  pollMs: number;
+  /** `chain` is every fill; `provider` may be partial. */
+  source?: "chain" | "provider";
+  stale: boolean;
+  error: string | null;
+}
+
+/**
+ * A coin page's data, rendered into the page on the server.
+ *
+ * Each part is null when it was not ready in time, and the browser then asks
+ * for that part itself. `at` is when it was read, so a page that sat in the
+ * router's prefetch cache is refreshed as soon as it is opened.
+ */
+export interface AssetPageInitial {
+  at: number;
+  asset: AssetResponse | null;
+  chart: ChartResponse | null;
+  trades: TradesResponse | null;
+}
+
 /** Active pill / header: show the bucket that was actually drawn. */
 export function timeframeLabel(
   requested: Timeframe,

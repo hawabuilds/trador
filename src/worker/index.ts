@@ -15,6 +15,7 @@
  */
 
 import {indexAll} from "@/lib/server/live/launchIndexer";
+import {keepTapes} from "@/lib/server/live/tapeKeeper";
 import {
   readIndexerState,
   storeReady,
@@ -23,6 +24,13 @@ import {
 
 /** How often to sweep. A reconciler is idempotent, so this is a cost dial. */
 const INTERVAL_MS = Number(process.env.INDEX_INTERVAL_MS ?? 90_000);
+
+/**
+ * How often to refresh the kept tapes. A round of the busiest coins takes a few
+ * seconds itself, so this is the gap between rounds rather than their period.
+ * `KEEP_TAPES=0` turns it off.
+ */
+const TAPE_INTERVAL_MS = Number(process.env.TAPE_INTERVAL_MS ?? 3_000);
 
 /** Backoff ceiling, so a provider outage does not become a retry storm. */
 const MAX_BACKOFF_MS = 15 * 60_000;
@@ -84,6 +92,9 @@ async function main(): Promise<void> {
 
   log(`starting, sweeping every ${INTERVAL_MS}ms`);
 
+  // Its own loop: a sweep takes a minute or more, and the tapes cannot wait on it.
+  if (process.env.KEEP_TAPES !== "0") void tapeLoop();
+
   const existing = await readIndexerState("live-tip");
   if (existing?.heartbeat_at) {
     const age = Date.now() - Date.parse(existing.heartbeat_at);
@@ -117,6 +128,41 @@ async function main(): Promise<void> {
   }
 
   log("stopped");
+}
+
+/**
+ * Keep the feed's tapes current, alongside the sweep. Logs a summary about
+ * once a minute rather than every round, which would be every few seconds.
+ */
+async function tapeLoop(): Promise<void> {
+  log(`keeping tapes, ${TAPE_INTERVAL_MS}ms between rounds`);
+  let failures = 0;
+  let rounds = 0;
+  let lastLog = 0;
+
+  while (running) {
+    const started = Date.now();
+    try {
+      const result = await keepTapes();
+      failures = 0;
+      rounds += 1;
+      if (Date.now() - lastLog > 60_000) {
+        log(
+          `tapes: ${rounds} rounds, last wrote ${result.written}/${result.coins} in ` +
+            `${Date.now() - started}ms` +
+            (result.failed ? `, ${result.failed} failed — ${result.firstError}` : ""),
+        );
+        lastLog = Date.now();
+        rounds = 0;
+      }
+      await sleep(TAPE_INTERVAL_MS);
+    } catch (error) {
+      failures += 1;
+      const backoff = Math.min(TAPE_INTERVAL_MS * 2 ** Math.min(failures, 6), MAX_BACKOFF_MS);
+      log(`tapes failed (${failures} in a row): ${(error as Error).message}. Backing off ${Math.round(backoff / 1000)}s.`);
+      await sleep(backoff);
+    }
+  }
 }
 
 function sleep(ms: number): Promise<void> {

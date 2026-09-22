@@ -2,7 +2,7 @@ import {notFound} from "next/navigation";
 
 import {AssetPage} from "@/components/AssetPage";
 import {asPubkey} from "@/lib/pubkey";
-import {stonkFor} from "@/lib/server/sources";
+import {fetchAssetPageData, stonkFor} from "@/lib/server/sources";
 
 /**
  * Rendered per request, because membership is a live question.
@@ -43,7 +43,13 @@ export default async function StonkPage({
    * `stonkFor` already swallows store errors and falls through to the
    * snapshot, so reaching this line means both sources came back empty.
    */
-  if (!(await stonkFor(mint))) notFound();
+  const stonk = await stonkFor(mint);
+  if (!stonk) notFound();
 
-  return <AssetPage kind="stonk" id={mint} requestedTimeframe={searchParams.tf ?? null} />;
+  const requested = searchParams.tf ?? null;
+  const initial = await fetchAssetPageData("stonk", mint, requested, stonk.listedAt);
+
+  return (
+    <AssetPage kind="stonk" id={mint} requestedTimeframe={requested} initial={initial} />
+  );
 }

@@ -11,8 +11,10 @@
 import {cache} from "react";
 
 import {asPubkey, type Pubkey} from "@/lib/pubkey";
+import {defaultChartTimeframe} from "@/lib/chartTimeframe";
 import type {
   Asset,
+  AssetPageInitial,
   ChartPoint,
   FeedPage,
   Stock,
@@ -24,6 +26,7 @@ import {hasDatabase} from "./db";
 import {snapshotStock, snapshotStocks, snapshotStonk, snapshotStonks} from "./snapshot";
 import {cached} from "./live/cache";
 import {chainTradesFor} from "./live/chainTape";
+import {freshCandles, freshTrades, readCoinTape} from "./live/coinTapes";
 import {candlesFor, deepestPoolFor, tradesFor} from "./live/gecko";
 import {findStonk, listStonks, rowToStonk, searchStonks} from "./live/universeStore";
 
@@ -116,6 +119,10 @@ export async function fetchChart(
     };
   }
 
+  // The worker's copy first: fresh, it is one store read instead of a provider.
+  const kept = freshCandles(await readCoinTape(asset.mint), timeframe);
+  if (kept) return {data: {points: kept, timeframe}, stale: false, error: null};
+
   try {
     const pool = await poolForAsset(asset);
     if (!pool) {
@@ -156,6 +163,13 @@ export async function fetchTrades(
     return {data: empty, stale: false, error: "Not listed here."};
   }
 
+  // The worker's copy first. It refreshes every few seconds, so the client
+  // polls a little faster than it would a provider-backed tape.
+  const kept = freshTrades(await readCoinTape(asset.mint));
+  if (kept) {
+    return {data: {trades: kept, pollMs: 4_000, source: "chain"}, stale: false, error: null};
+  }
+
   try {
     const pool = await deepestPoolFor(asset.mint);
     if (!pool) {
@@ -194,6 +208,59 @@ export async function fetchTrades(
   } catch (error) {
     return {data: empty, stale: true, error: (error as Error).message};
   }
+}
+
+/** Resolves to null instead of waiting past `ms`, or instead of throwing. */
+function within<T>(work: Promise<T>, ms: number): Promise<T | null> {
+  return Promise.race([
+    work.catch(() => null),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+  ]);
+}
+
+/** How long a coin page will wait on its data before rendering without it. */
+const PAGE_DATA_BUDGET_MS = 1_500;
+
+/**
+ * A coin page's header, chart and trades, read for the server render.
+ *
+ * The feed prefetches every row's page while it is on screen, so this is
+ * usually done before anyone taps, and the tap then shows a finished page.
+ * Anything slower than the budget is left out, not waited for: the browser
+ * asks for it itself, exactly as it did before, and the work carries on in the
+ * background to warm the caches that request will hit.
+ *
+ * `listedAt` picks the chart's timeframe the same way the page will, so the
+ * series read here is the one the page shows rather than a near miss.
+ */
+export async function fetchAssetPageData(
+  kind: "stonk" | "stock",
+  id: string,
+  requested: string | null,
+  listedAt: string | null,
+): Promise<AssetPageInitial> {
+  const at = Date.now();
+  const timeframe = defaultChartTimeframe({kind, listedAt, requested});
+
+  const [asset, chart, trades] = await Promise.all([
+    within(fetchAsset(kind, id), PAGE_DATA_BUDGET_MS),
+    within(fetchChart(kind, id, timeframe), PAGE_DATA_BUDGET_MS),
+    within(fetchTrades(kind, id), PAGE_DATA_BUDGET_MS),
+  ]);
+
+  return {
+    at,
+    asset: asset?.data ? {asset: asset.data, stale: asset.stale} : null,
+    // Failures are left for the browser to retry rather than rendered in.
+    chart:
+      chart && !chart.error
+        ? {...chart.data, stale: chart.stale, error: null}
+        : null,
+    trades:
+      trades && !trades.error
+        ? {...trades.data, stale: trades.stale, error: null}
+        : null,
+  };
 }
 
 /** Everything the chart page needs, in one request. */

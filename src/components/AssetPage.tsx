@@ -23,7 +23,14 @@ import {readChartStyle, writeChartStyle} from "@/lib/localStore";
 import {formatLiquidityUsd, formatMarketCapAt, formatPriceUsd} from "@/lib/priceState";
 import {SECTOR_LABEL} from "@/lib/sectors";
 import {ISSUERS} from "@/lib/stocks/registry";
-import type {AssetKind, ChartPoint, ChartStyle, Timeframe, Trade} from "@/lib/types";
+import type {
+  AssetKind,
+  AssetPageInitial,
+  ChartPoint,
+  ChartStyle,
+  Timeframe,
+  Trade,
+} from "@/lib/types";
 import {STOCK_TIMEFRAMES, TIMEFRAMES, timeframeLabel} from "@/lib/types";
 import {AssetSkeleton} from "./AssetPageSkeleton";
 import {FilterRail, type FilterOption} from "./FilterRail";
@@ -94,14 +101,18 @@ export function AssetPage({
   kind,
   id,
   requestedTimeframe,
+  initial,
 }: {
   kind: AssetKind;
   id: string;
   /** `?tf=` from the chart URL. Clicks from the New sort send `1m`. */
   requestedTimeframe?: string | null;
+  /** What the server already read, so the page opens drawn rather than loading. */
+  initial?: AssetPageInitial | null;
 }) {
   const router = useRouter();
-  const {asset, isLoading, error} = useAsset(kind, id);
+  const at = initial?.at ?? 0;
+  const {asset, isLoading, error} = useAsset(kind, id, {data: initial?.asset ?? null, at});
 
   const listedAt = asset?.kind === "stonk" ? asset.listedAt : null;
   const autoTimeframe = defaultChartTimeframe({kind, listedAt, requested: requestedTimeframe});
@@ -125,8 +136,8 @@ export function AssetPage({
   const [chartStyle, setChartStyle] = useState<ChartStyle>("line");
   useEffect(() => setChartStyle(readChartStyle()), []);
 
-  const chart = useChart(kind, id, timeframe);
-  const trades = useTrades(kind, id, true);
+  const chart = useChart(kind, id, timeframe, {data: initial?.chart ?? null, at});
+  const trades = useTrades(kind, id, true, {data: initial?.trades ?? null, at});
 
   /*
    * Your own trades in this asset, from the same wallet history the Stonkfolio
