@@ -109,7 +109,11 @@ export async function signaturesFor(
   // Helius first: it answers these pages about twice as fast, and the
   // transactions they list are parsed by Helius anyway. The other node only
   // when Helius refuses, since a refused list is a tape that stops updating.
-  const rpcs = [process.env.HELIUS_RPC_URL, process.env.SOLANA_RPC_URL].filter(
+  const rpcs = [
+    process.env.HELIUS_RPC_URL,
+    process.env.RAW_TX_RPC_URL,
+    process.env.SOLANA_RPC_URL,
+  ].filter(
     (url, index, all): url is string => Boolean(url) && all.indexOf(url) === index,
   );
   if (rpcs.length === 0) throw new Error("No RPC is configured.");

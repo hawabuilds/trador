@@ -109,8 +109,14 @@ async function batch(rpc: string, signatures: string[]): Promise<ParsedTx[]> {
   return out;
 }
 
-/** The node to read raw transactions from, or null when none is configured. */
-export const rawRpc = (): string | null => process.env.SOLANA_RPC_URL || null;
+/**
+ * The node to read raw transactions from, or null when none is configured.
+ *
+ * Its own setting first, so the worker can read transactions from one node
+ * without also moving its launch sweeps, which read `SOLANA_RPC_URL`.
+ */
+export const rawRpc = (): string | null =>
+  process.env.RAW_TX_RPC_URL || process.env.SOLANA_RPC_URL || null;
 
 /** Read and reduce transactions, every batch at once. */
 export async function rawTransactions(signatures: string[]): Promise<ParsedTx[]> {
