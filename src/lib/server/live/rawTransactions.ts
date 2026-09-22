@@ -109,6 +109,16 @@ async function batch(rpc: string, signatures: string[]): Promise<ParsedTx[]> {
   return out;
 }
 
+export interface RawRead {
+  transactions: ParsedTx[];
+  /**
+   * Signatures the node did not return: refused inside the batch, or not yet
+   * visible to it. Never dropped quietly — a tape extended past a hole keeps
+   * that hole for good, since later rounds only read what is newer.
+   */
+  missing: string[];
+}
+
 /**
  * The node to read raw transactions from, or null when none is configured.
  *
@@ -118,11 +128,13 @@ async function batch(rpc: string, signatures: string[]): Promise<ParsedTx[]> {
 export const rawRpc = (): string | null =>
   process.env.RAW_TX_RPC_URL || process.env.SOLANA_RPC_URL || null;
 
-/** Read and reduce transactions, every batch at once. */
-export async function rawTransactions(signatures: string[]): Promise<ParsedTx[]> {
+/** Read and reduce transactions, every batch at once, and say which are missing. */
+export async function rawTransactions(signatures: string[]): Promise<RawRead> {
   const rpc = rawRpc();
   if (!rpc) throw new Error("No RPC is configured for raw transactions.");
   const batches: string[][] = [];
   for (let i = 0; i < signatures.length; i += BATCH) batches.push(signatures.slice(i, i + BATCH));
-  return (await Promise.all(batches.map((signatures) => batch(rpc, signatures)))).flat();
+  const transactions = (await Promise.all(batches.map((signatures) => batch(rpc, signatures)))).flat();
+  const read = new Set(transactions.map((tx) => tx.signature));
+  return {transactions, missing: signatures.filter((signature) => !read.has(signature))};
 }

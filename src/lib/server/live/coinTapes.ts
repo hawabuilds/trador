@@ -30,8 +30,13 @@ export interface CoinTape {
 /** A kept tape older than this is not served; the providers are read instead. */
 export const TAPE_FRESH_MS = 30_000;
 
-/** A kept chart older than this is not served. Candles move slowly. */
-export const CANDLES_FRESH_MS = 90_000;
+/**
+ * A kept chart older than this is not served. The worker refreshes a chart
+ * every ten minutes to stay inside the CoinGecko plan, and that is enough: the
+ * page redraws the candles its trade tape covers, so what is on screen is
+ * current even when the stored series is not.
+ */
+export const CANDLES_FRESH_MS = 15 * 60_000;
 
 /**
  * One coin's kept tape, or null. Held for a second in memory, so the header,

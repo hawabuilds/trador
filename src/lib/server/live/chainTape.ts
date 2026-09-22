@@ -145,19 +145,31 @@ interface TapeState {
  */
 async function decode(signatures: string[], key: string | null): Promise<ParsedTx[]> {
   if (signatures.length === 0) return [];
+
+  let read: ParsedTx[] = [];
+  let missing = signatures;
   if (rawRpc()) {
     try {
-      return await rawTransactions(signatures);
+      ({transactions: read, missing} = await rawTransactions(signatures));
     } catch (error) {
       if (!key) throw error;
     }
   }
-  if (!key) throw new Error("No way to read transactions is configured.");
+  if (missing.length === 0) return read;
+
+  // Whatever the node did not return goes to Helius. And if that cannot be
+  // had either, fail the read: the caller keeps its last good tape and tries
+  // again next time, where a partial read would leave a hole it never fills.
+  if (!key) throw new Error(`${missing.length} transactions could not be read.`);
   const batches: string[][] = [];
-  for (let i = 0; i < signatures.length; i += COLD_BATCH) {
-    batches.push(signatures.slice(i, i + COLD_BATCH));
+  for (let i = 0; i < missing.length; i += COLD_BATCH) {
+    batches.push(missing.slice(i, i + COLD_BATCH));
   }
-  return (await Promise.all(batches.map((batch) => parseTransactions(batch, key)))).flat();
+  const parsed = (await Promise.all(batches.map((batch) => parseTransactions(batch, key)))).flat();
+  if (parsed.length < missing.length) {
+    throw new Error(`${missing.length - parsed.length} transactions could not be read.`);
+  }
+  return read.concat(parsed);
 }
 
 /**

@@ -41,8 +41,22 @@ const BUSY_STOCKS = 10;
 /** Coins read at once. The RPC plan refuses bursts much wider than this. */
 const CONCURRENCY = 3;
 
-/** Candles are refreshed every this many rounds; they move far slower than trades. */
-const CANDLE_EVERY = 4;
+/*
+ * CoinGecko is metered monthly (500k calls on the Analyst plan, shared with
+ * the app), and the first version of this spent that in days: pools for every
+ * coin every two minutes, candles every few rounds. So:
+ *
+ * - A pool's address is re-read every six hours. It almost never changes, and
+ *   the tape only needs the address and the other side's mint.
+ * - Candles are kept for the busiest coins only, every ten minutes each. The
+ *   page redraws the recent candles from the trade tape, so a chart that old
+ *   still ends on the latest trade.
+ *
+ * About 6k calls a day between them.
+ */
+const POOL_TTL_MS = 6 * 60 * 60_000;
+const CANDLE_EVERY_MS = 10 * 60_000;
+const candlesAt = new Map<string, number>();
 
 /** The hot set is re-read from the feed this often, not every round. */
 const HOT_SET_TTL_MS = 60_000;
@@ -98,8 +112,8 @@ async function readHotSet(): Promise<HotCoin[]> {
  * provider on one side still lets the other be written; the first error is
  * reported only when nothing could be.
  */
-async function keepOne(coin: HotCoin, withCandles: boolean): Promise<CoinTapeWrite | null> {
-  const pool = await deepestPoolFor(coin.mint);
+async function keepOne(coin: HotCoin): Promise<CoinTapeWrite | null> {
+  const pool = await deepestPoolFor(coin.mint, POOL_TTL_MS);
   if (!pool) return null;
 
   const write: CoinTapeWrite = {mint: coin.mint, pool: pool.address};
@@ -116,7 +130,10 @@ async function keepOne(coin: HotCoin, withCandles: boolean): Promise<CoinTapeWri
     }
   }
 
-  if (withCandles) {
+  if (coin.busy && Date.now() - (candlesAt.get(coin.mint) ?? 0) >= CANDLE_EVERY_MS) {
+    // Marked before the call, so a failing coin waits its turn rather than
+    // being retried every round.
+    candlesAt.set(coin.mint, Date.now());
     try {
       const timeframe: Timeframe = defaultChartTimeframe({kind: coin.kind, listedAt: coin.listedAt});
       const {points, stale} = await candlesFor(pool.address, coin.mint, timeframe);
@@ -145,7 +162,6 @@ export async function keepTapes(): Promise<KeepResult> {
   const coins = await readHotSet();
   round += 1;
   const due = coins.filter((coin) => coin.busy || round % 3 === 0);
-  const withCandles = round % CANDLE_EVERY === 1;
 
   const writes: CoinTapeWrite[] = [];
   let failed = 0;
@@ -153,7 +169,7 @@ export async function keepTapes(): Promise<KeepResult> {
 
   for (let i = 0; i < due.length; i += CONCURRENCY) {
     const settled = await Promise.allSettled(
-      due.slice(i, i + CONCURRENCY).map((coin) => keepOne(coin, withCandles)),
+      due.slice(i, i + CONCURRENCY).map((coin) => keepOne(coin)),
     );
     for (const result of settled) {
       if (result.status === "fulfilled") {

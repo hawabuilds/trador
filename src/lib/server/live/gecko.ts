@@ -88,8 +88,12 @@ const num = (value: unknown): number | null => {
  * Depth rather than recency: a coin often has several pools and the thin ones
  * produce a jagged chart from a handful of fills.
  */
-export async function deepestPoolFor(mint: Pubkey): Promise<PoolInfo | null> {
-  const {value} = await cached(`pools:${mint}`, 120_000, async () => {
+export async function deepestPoolFor(
+  mint: Pubkey,
+  /** How long an answer is held. The worker holds it far longer; see `tapeKeeper`. */
+  ttlMs = 120_000,
+): Promise<PoolInfo | null> {
+  const {value} = await cached(`pools:${mint}`, ttlMs, async () => {
     const body = await gecko<{data?: Record<string, unknown>[]}>(
       `/networks/${NETWORK}/tokens/${mint}/pools`,
     );
