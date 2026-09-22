@@ -21,12 +21,22 @@ import {asPubkey, type Pubkey} from "@/lib/pubkey";
 import {STEP_MS, fillCandles} from "@/lib/fillCandles";
 import {cached} from "./cache";
 
-const BASE = "https://api.geckoterminal.com/api/v2";
 const NETWORK = "solana";
 
 /** A paid key raises the rate limit; everything works without one. */
 const API_KEY = process.env.COINGECKO_API_KEY ?? "";
 const PRO = Boolean(API_KEY) && process.env.COINGECKO_API_PLAN !== "demo";
+
+/**
+ * The same onchain paths on three hosts. A key only counts on CoinGecko's own
+ * hosts: sent to GeckoTerminal it is ignored, and the shared keyless limit
+ * still applies.
+ */
+const BASE = !API_KEY
+  ? "https://api.geckoterminal.com/api/v2"
+  : PRO
+    ? "https://pro-api.coingecko.com/api/v3/onchain"
+    : "https://api.coingecko.com/api/v3/onchain";
 
 async function gecko<T>(path: string): Promise<T> {
   const headers: Record<string, string> = {accept: "application/json"};
