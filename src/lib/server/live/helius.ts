@@ -106,13 +106,20 @@ export async function signaturesFor(
   address: Pubkey,
   options: {until?: string; before?: string; limit: number},
 ): Promise<SignatureRow[]> {
-  // Helius first: it answers these pages about twice as fast, and the
-  // transactions they list are parsed by Helius anyway. The other node only
-  // when Helius refuses, since a refused list is a tape that stops updating.
+  /*
+   * The plain node first, Helius second.
+   *
+   * Helius answers these about twice as fast (0.09s against 0.19s), and that
+   * is how this was ordered — but its rate limit counts these lists against
+   * everything else, and the worker asks for one per coin per round. It began
+   * refusing a third of them, which is a tape that stops updating; the other
+   * node took forty at once without refusing any. Helius is the fallback,
+   * which is what this ordering is for.
+   */
   const rpcs = [
-    process.env.HELIUS_RPC_URL,
     process.env.RAW_TX_RPC_URL,
     process.env.SOLANA_RPC_URL,
+    process.env.HELIUS_RPC_URL,
   ].filter(
     (url, index, all): url is string => Boolean(url) && all.indexOf(url) === index,
   );

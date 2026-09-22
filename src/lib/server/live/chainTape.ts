@@ -27,6 +27,7 @@ import type {Pubkey} from "@/lib/pubkey";
 import {cached, peek} from "./cache";
 import {
   heliusKey,
+  type SignatureRow,
   parseTransactions,
   signaturesFor,
   uiAmount,
@@ -121,9 +122,10 @@ export function mergeTape(newer: readonly Trade[], older: readonly Trade[]): Tra
 async function signaturesSince(
   pool: Pubkey,
   until: string,
-): Promise<{newest: string | null; succeeded: string[]; full: boolean}> {
+): Promise<{rows: SignatureRow[]; newest: string | null; succeeded: string[]; full: boolean}> {
   const rows = await signaturesFor(pool, {until, limit: PAGE});
   return {
+    rows,
     newest: rows[0]?.signature ?? null,
     succeeded: rows.filter((row) => !row.err).map((row) => row.signature),
     // Counted before dropping failures: a page of 100 with a few failed
@@ -139,37 +141,76 @@ interface TapeState {
 }
 
 /**
- * Transactions in the shape `fillFromTx` reads: raw from the node when one is
- * configured, since that is about three times faster and not rate limited the
- * way Helius's parser is, and Helius's parser when the node fails or is absent.
+ * Transactions in the shape `fillFromTx` reads, keyed by signature.
+ *
+ * Raw from the node when one is configured, since that is about three times
+ * faster and not rate limited the way Helius's parser is, and Helius's parser
+ * when the node has none of it or is not configured.
+ *
+ * What the node does not return is left out rather than chased. The newest
+ * signatures are often a second or two ahead of what a node will serve, and
+ * asking Helius for each of those gaps every round is what made it start
+ * refusing. The caller handles the gap instead, by taking only the unbroken
+ * run of transactions it did read.
  */
-async function decode(signatures: string[], key: string | null): Promise<ParsedTx[]> {
-  if (signatures.length === 0) return [];
+async function decode(signatures: string[], key: string | null): Promise<Map<string, ParsedTx>> {
+  const read = new Map<string, ParsedTx>();
+  if (signatures.length === 0) return read;
 
-  let read: ParsedTx[] = [];
   let missing = signatures;
   if (rawRpc()) {
     try {
-      ({transactions: read, missing} = await rawTransactions(signatures));
+      const raw = await rawTransactions(signatures);
+      for (const tx of raw.transactions) read.set(tx.signature, tx);
+      missing = raw.missing;
     } catch (error) {
       if (!key) throw error;
     }
   }
-  if (missing.length === 0) return read;
 
-  // Whatever the node did not return goes to Helius. And if that cannot be
-  // had either, fail the read: the caller keeps its last good tape and tries
-  // again next time, where a partial read would leave a hole it never fills.
-  if (!key) throw new Error(`${missing.length} transactions could not be read.`);
-  const batches: string[][] = [];
-  for (let i = 0; i < missing.length; i += COLD_BATCH) {
-    batches.push(missing.slice(i, i + COLD_BATCH));
+  // Helius only when the node answered nothing at all — it is not configured,
+  // or the call failed outright. Filling in ones and twos is what it refuses.
+  if (read.size === 0 && missing.length > 0) {
+    if (!key) throw new Error("No way to read transactions is configured.");
+    const batches: string[][] = [];
+    for (let i = 0; i < missing.length; i += COLD_BATCH) {
+      batches.push(missing.slice(i, i + COLD_BATCH));
+    }
+    const parsed = (await Promise.all(batches.map((batch) => parseTransactions(batch, key)))).flat();
+    for (const tx of parsed) read.set(tx.signature, tx);
   }
-  const parsed = (await Promise.all(batches.map((batch) => parseTransactions(batch, key)))).flat();
-  if (parsed.length < missing.length) {
-    throw new Error(`${missing.length - parsed.length} transactions could not be read.`);
+
+  if (read.size === 0) throw new Error(`${signatures.length} transactions could not be read.`);
+  return read;
+}
+
+/**
+ * The newest unbroken run of a signature list, and the signature to mark as
+ * read up to.
+ *
+ * A node is often a second or two behind the newest signatures, so a read can
+ * come back with a gap. Fills are taken from the newest end down to that gap,
+ * and the mark is set to the signature *below* it — not the newest one read.
+ * A tape only ever extends forwards, from everything newer than its mark, so a
+ * mark above the gap would skip those transactions for good, while one below
+ * it means the next round reads them.
+ */
+function unbrokenRun(
+  rows: readonly SignatureRow[],
+  read: Map<string, ParsedTx>,
+): {transactions: ParsedTx[]; head: string | null} {
+  const transactions: ParsedTx[] = [];
+  for (const [index, row] of rows.entries()) {
+    // A failed transaction is nothing to read and cannot hide a fill.
+    if (row.err) continue;
+    const tx = read.get(row.signature);
+    if (!tx) {
+      // The gap: mark the row below it, so this one is read next time.
+      return {transactions, head: rows[index + 1]?.signature ?? null};
+    }
+    transactions.push(tx);
   }
-  return read.concat(parsed);
+  return {transactions, head: rows[0]?.signature ?? null};
 }
 
 /**
@@ -214,10 +255,11 @@ export async function chainTradesFor(
       // Less than a page means the list reached back to what we hold, so
       // extending cannot leave a hole. A full page might not have.
       if (!fresh.full) {
-        const added = fresh.succeeded.length
-          ? toFills(await decode(fresh.succeeded, key))
-          : [];
-        return {trades: mergeTape(added, previous.trades), head: fresh.newest};
+        const run = unbrokenRun(fresh.rows, await decode(fresh.succeeded, key));
+        return {
+          trades: mergeTape(toFills(run.transactions), previous.trades),
+          head: run.head ?? previous.head,
+        };
       }
     }
 
@@ -225,10 +267,9 @@ export async function chainTradesFor(
     // list, then every transaction at once: three sequential parsed pages took
     // two seconds, and this is the first thing an opened coin waits on.
     const rows = await signaturesFor(pool, {limit: coldLimit});
-    const head = rows[0]?.signature ?? null;
     const succeeded = rows.filter((row) => !row.err).map((row) => row.signature);
-    const fills = toFills(await decode(succeeded, key));
-    return {trades: mergeTape(fills, []), head};
+    const run = unbrokenRun(rows, await decode(succeeded, key));
+    return {trades: mergeTape(toFills(run.transactions), []), head: run.head};
   });
 
   return {trades: value.trades, stale};
