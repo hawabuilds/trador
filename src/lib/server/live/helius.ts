@@ -106,7 +106,9 @@ export async function signaturesFor(
   address: Pubkey,
   options: {until?: string; before?: string; limit: number},
 ): Promise<SignatureRow[]> {
-  const rpc = process.env.SOLANA_RPC_URL || process.env.HELIUS_RPC_URL;
+  // Helius, not SOLANA_RPC_URL: it answers these pages about twice as fast,
+  // and the transactions they list are parsed by Helius anyway.
+  const rpc = process.env.HELIUS_RPC_URL || process.env.SOLANA_RPC_URL;
   if (!rpc) throw new Error("No RPC is configured.");
   const response = await fetch(rpc, {
     method: "POST",
