@@ -37,11 +37,11 @@ const BATCH = 50;
 
 /**
  * Batches in flight. A thousand signatures is twenty batches, and sending them
- * all at once had the node refusing some — which failed the whole read and
- * sent it to Helius, whose limit is far tighter. Six is what it took without
- * refusing.
+ * all at once had the node refusing some, which failed the whole read. Four at
+ * a time, alongside the few cold reads a round allows, stays inside what the
+ * node serves.
  */
-const IN_FLIGHT = 6;
+const IN_FLIGHT = 4;
 
 /** A refused batch is retried once, after this long. */
 const RETRY_AFTER_MS = 400;

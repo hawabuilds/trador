@@ -17,7 +17,7 @@ import {defaultChartTimeframe} from "@/lib/chartTimeframe";
 import {asPubkey, type Pubkey} from "@/lib/pubkey";
 import type {Timeframe} from "@/lib/types";
 import {snapshotStocks} from "../snapshot";
-import {chainTradesFor} from "./chainTape";
+import {chainTradesFor, hasChainTape} from "./chainTape";
 import {writeCoinTapes, type CoinTapeWrite} from "./coinTapes";
 import {candlesFor, deepestPoolFor} from "./gecko";
 import {NEW_FEED_MIN_MCAP_USD} from "@/config/feed";
@@ -63,6 +63,16 @@ const POOL_TTL_MS = 6 * 60 * 60_000;
  * were fills and the rest were routing and cranks.
  */
 const COLD_LIMIT = 1_000;
+
+/**
+ * Coins per round allowed to build a tape from nothing.
+ *
+ * A deep read is a thousand transactions, and on a restart every coin needs
+ * one. Doing them all in the first round spent the node's per-second budget in
+ * one burst and failed the lot; a few per round warms the busy set up over a
+ * minute or so and costs nothing after that, since a held tape only extends.
+ */
+const COLD_PER_ROUND = 4;
 const CANDLE_EVERY_MS = 10 * 60_000;
 const candlesAt = new Map<string, number>();
 
@@ -123,7 +133,7 @@ async function readHotSet(): Promise<HotCoin[]> {
  * provider on one side still lets the other be written; the first error is
  * reported only when nothing could be.
  */
-async function keepOne(coin: HotCoin): Promise<CoinTapeWrite | null> {
+async function keepOne(coin: HotCoin, coldBudget: {left: number}): Promise<CoinTapeWrite | null> {
   const pool = await deepestPoolFor(coin.mint, POOL_TTL_MS);
   if (!pool) return null;
 
@@ -131,6 +141,12 @@ async function keepOne(coin: HotCoin): Promise<CoinTapeWrite | null> {
   const errors: unknown[] = [];
 
   if (pool.otherMint) {
+    if (!hasChainTape(pool.address, coin.mint)) {
+      // Nothing held for this coin: this read is the deep one. Only a few of
+      // those per round, so the rest wait their turn rather than bursting.
+      if (coldBudget.left <= 0) return null;
+      coldBudget.left -= 1;
+    }
     try {
       const tape = await chainTradesFor(pool.address, coin.mint, pool.otherMint, COLD_LIMIT);
       // A stale tape is the last good one after a failed refresh; not worth
@@ -191,13 +207,14 @@ export async function keepTapes(): Promise<KeepResult> {
   tailCursor = rest.length > 0 ? (tailCursor + slice.length) % rest.length : 0;
   const due = [...busy, ...slice];
 
+  const coldBudget = {left: COLD_PER_ROUND};
   const writes: CoinTapeWrite[] = [];
   let failed = 0;
   let firstError: string | null = null;
 
   for (let i = 0; i < due.length; i += CONCURRENCY) {
     const settled = await Promise.allSettled(
-      due.slice(i, i + CONCURRENCY).map((coin) => keepOne(coin)),
+      due.slice(i, i + CONCURRENCY).map((coin) => keepOne(coin, coldBudget)),
     );
     for (const result of settled) {
       if (result.status === "fulfilled") {

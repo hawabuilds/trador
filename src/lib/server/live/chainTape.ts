@@ -168,9 +168,11 @@ async function decode(signatures: string[], key: string | null): Promise<Map<str
     }
   }
 
-  // Helius only when the node answered nothing at all — it is not configured,
-  // or the call failed outright. Filling in ones and twos is what it refuses.
+  // Helius only when there is no node to read from. Falling back to it when a
+  // node read came up empty just moved a burst it had refused onto a limit ten
+  // times tighter, and turned one slow round into a failed one.
   if (read.size === 0 && missing.length > 0) {
+    if (rawRpc()) throw new Error(`${missing.length} transactions could not be read.`);
     if (!key) throw new Error("No way to read transactions is configured.");
     const batches: string[][] = [];
     for (let i = 0; i < missing.length; i += COLD_BATCH) {
@@ -211,6 +213,11 @@ function unbrokenRun(
     transactions.push(tx);
   }
   return {transactions, head: rows[0]?.signature ?? null};
+}
+
+/** Whether a tape for this pool is already held, so a read would only extend it. */
+export function hasChainTape(pool: Pubkey, mint: Pubkey): boolean {
+  return peek<TapeState>(`chain-tape:${pool}:${mint}`) !== null;
 }
 
 /**
