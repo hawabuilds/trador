@@ -20,7 +20,9 @@ import {snapshotStocks} from "../snapshot";
 import {chainTradesFor} from "./chainTape";
 import {writeCoinTapes, type CoinTapeWrite} from "./coinTapes";
 import {candlesFor, deepestPoolFor} from "./gecko";
-import {listStonks} from "./universeStore";
+import {NEW_FEED_MIN_MCAP_USD} from "@/config/feed";
+import {hasAdminPg, pgFeedHead} from "../adminPg";
+import {listStonks, type StonkRow} from "./universeStore";
 
 interface HotCoin {
   mint: Pubkey;
@@ -52,10 +54,13 @@ let round = 0;
 async function readHotSet(): Promise<HotCoin[]> {
   if (Date.now() - hotSetAt < HOT_SET_TTL_MS && hotSet.length > 0) return hotSet;
 
-  const [trending, newest] = await Promise.all([
-    listStonks({sort: "trending", limit: TRENDING}),
-    listStonks({sort: "new", limit: NEWEST}),
-  ]);
+  // The worker holds only the database URL, so it reads the feed directly;
+  // anywhere else, through the same query the feed uses.
+  const head = (sort: "trending" | "new", limit: number): Promise<StonkRow[]> =>
+    hasAdminPg
+      ? pgFeedHead(sort, limit, NEW_FEED_MIN_MCAP_USD)
+      : listStonks({sort, limit}).then((page) => page.rows);
+  const [trending, newest] = await Promise.all([head("trending", TRENDING), head("new", NEWEST)]);
 
   const coins = new Map<string, HotCoin>();
   const add = (mint: string | null | undefined, coin: Omit<HotCoin, "mint">) => {
@@ -65,14 +70,14 @@ async function readHotSet(): Promise<HotCoin[]> {
     coins.set(key, {mint: key, ...coin, busy: coin.busy || Boolean(held?.busy)});
   };
 
-  trending.rows.forEach((row, rank) =>
+  trending.forEach((row, rank) =>
     add(row.mint, {
       kind: "stonk",
       listedAt: row.graduated_at ?? row.listed_at,
       busy: rank < BUSY_TRENDING,
     }),
   );
-  newest.rows.forEach((row, rank) =>
+  newest.forEach((row, rank) =>
     add(row.mint, {
       kind: "stonk",
       listedAt: row.graduated_at ?? row.listed_at,

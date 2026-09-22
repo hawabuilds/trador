@@ -414,6 +414,35 @@ export async function pgListStonks(limit = 200): Promise<StonkRow[]> {
 }
 
 /**
+ * The top of the Trending or New feed, for the worker's tape keeper.
+ *
+ * The same view, filters and order as `listStonks`, which reads through
+ * PostgREST — a client the worker does not have, since it holds only the
+ * database URL. Kept to the two sorts the keeper needs; the feed itself still
+ * reads `listStonks`.
+ */
+export async function pgFeedHead(
+  sort: "trending" | "new",
+  limit: number,
+  newMinMcapUsd: number,
+): Promise<StonkRow[]> {
+  const column = sort === "new" ? "graduated_at" : "vol_24h";
+  return withClient(async (client) => {
+    const {rows} = await client.query(
+      `select * from public.stonk_feed
+        where status = 'listed'
+          and launchpad is not null
+          and (eligible is null or eligible is true)
+          ${sort === "new" ? "and (last_mcap >= $2 or last_mcap is null)" : ""}
+        order by ${column} desc nulls last, mint desc
+        limit $1`,
+      sort === "new" ? [limit, newMinMcapUsd] : [limit],
+    );
+    return rows as StonkRow[];
+  });
+}
+
+/**
  * Launches still on the curve, nearest to graduating first.
  *
  * Separate from `pgListStonks` rather than a flag on it, because the two
