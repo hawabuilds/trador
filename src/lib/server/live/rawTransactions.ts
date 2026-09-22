@@ -35,6 +35,17 @@ interface RawTransaction {
 /** Signatures per JSON-RPC batch. */
 const BATCH = 50;
 
+/**
+ * Batches in flight. A thousand signatures is twenty batches, and sending them
+ * all at once had the node refusing some — which failed the whole read and
+ * sent it to Helius, whose limit is far tighter. Six is what it took without
+ * refusing.
+ */
+const IN_FLIGHT = 6;
+
+/** A refused batch is retried once, after this long. */
+const RETRY_AFTER_MS = 400;
+
 /** Token balance changes, one per token account that moved. */
 function balanceChanges(meta: NonNullable<RawTransaction["meta"]>): TokenBalanceChange[] {
   const byAccount = new Map<number, {mint: string; owner: string; decimals: number; pre: bigint; post: bigint}>();
@@ -78,6 +89,14 @@ function toParsed(raw: RawTransaction, signature: string): ParsedTx | null {
   };
 }
 
+class RateLimited extends Error {
+  constructor() {
+    super("The node rate limited a transaction batch.");
+  }
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 async function batch(rpc: string, signatures: string[]): Promise<ParsedTx[]> {
   const response = await fetch(rpc, {
     method: "POST",
@@ -95,6 +114,7 @@ async function batch(rpc: string, signatures: string[]): Promise<ParsedTx[]> {
       })),
     ),
   });
+  if (response.status === 429) throw new RateLimited();
   if (!response.ok) throw new Error(`Transaction batch returned ${response.status}.`);
   const body = (await response.json()) as {id: number; result?: RawTransaction | null}[];
   if (!Array.isArray(body)) throw new Error("Transaction batch returned an unexpected body.");
@@ -134,7 +154,25 @@ export async function rawTransactions(signatures: string[]): Promise<RawRead> {
   if (!rpc) throw new Error("No RPC is configured for raw transactions.");
   const batches: string[][] = [];
   for (let i = 0; i < signatures.length; i += BATCH) batches.push(signatures.slice(i, i + BATCH));
-  const transactions = (await Promise.all(batches.map((signatures) => batch(rpc, signatures)))).flat();
+
+  const transactions: ParsedTx[] = [];
+  for (let i = 0; i < batches.length; i += IN_FLIGHT) {
+    const settled = await Promise.all(
+      batches.slice(i, i + IN_FLIGHT).map(async (signatures) => {
+        try {
+          return await batch(rpc, signatures);
+        } catch (error) {
+          if (!(error instanceof RateLimited)) throw error;
+          await sleep(RETRY_AFTER_MS);
+          // Once. Whatever is still refused is left to the caller, which takes
+          // the run it did read and comes back for the rest.
+          return batch(rpc, signatures).catch(() => []);
+        }
+      }),
+    );
+    for (const read of settled) transactions.push(...read);
+  }
+
   const read = new Set(transactions.map((tx) => tx.signature));
   return {transactions, missing: signatures.filter((signature) => !read.has(signature))};
 }
