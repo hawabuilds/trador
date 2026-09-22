@@ -180,7 +180,10 @@ export async function fetchTrades(
     if (pool.otherMint) {
       try {
         const chain = await chainTradesFor(pool.address, asset.mint, pool.otherMint);
-        if (chain) {
+        // An empty tape falls through: the window a page reads reaches back
+        // only minutes on a pool busy with routing, and "no trades yet" about
+        // a coin that is trading is worse than the provider's partial view.
+        if (chain && chain.trades.length > 0) {
           return {
             data: {trades: chain.trades, pollMs: 6_000, source: "chain"},
             stale: chain.stale,

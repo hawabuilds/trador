@@ -185,6 +185,13 @@ export async function chainTradesFor(
   pool: Pubkey,
   mint: Pubkey,
   otherMint: Pubkey,
+  /**
+   * Signatures read when there is nothing to extend. On a pool whose traffic
+   * is mostly cranks and routing, 300 can reach back only a couple of minutes,
+   * so the worker — which does this once per restart — reads far deeper than a
+   * page, which is paying for it while someone waits.
+   */
+  coldLimit = COLD_PAGES * PAGE,
 ): Promise<{trades: Trade[]; stale: boolean} | null> {
   const key = heliusKey();
   if (!key && !rawRpc()) return null;
@@ -217,7 +224,7 @@ export async function chainTradesFor(
     // Cold, or too much happened to extend safely: start over. One signature
     // list, then every transaction at once: three sequential parsed pages took
     // two seconds, and this is the first thing an opened coin waits on.
-    const rows = await signaturesFor(pool, {limit: COLD_PAGES * PAGE});
+    const rows = await signaturesFor(pool, {limit: coldLimit});
     const head = rows[0]?.signature ?? null;
     const succeeded = rows.filter((row) => !row.err).map((row) => row.signature);
     const fills = toFills(await decode(succeeded, key));

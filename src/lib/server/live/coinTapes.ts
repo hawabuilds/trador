@@ -64,9 +64,15 @@ export async function readCoinTape(mint: string): Promise<CoinTape | null> {
 const age = (iso: string | null | undefined) =>
   iso ? Date.now() - Date.parse(iso) : Number.POSITIVE_INFINITY;
 
-/** The kept trades, if they are fresh enough to serve. */
+/**
+ * The kept trades, if they are fresh enough to serve. An empty tape counts as
+ * nothing kept: the worker no longer writes one, and a row left empty by an
+ * earlier version should send the page to the providers rather than tell
+ * someone a trading coin has no trades.
+ */
 export function freshTrades(tape: CoinTape | null): Trade[] | null {
-  return tape && age(tape.trades_at) < TAPE_FRESH_MS ? tape.trades : null;
+  if (!tape || !(tape.trades?.length > 0)) return null;
+  return age(tape.trades_at) < TAPE_FRESH_MS ? tape.trades : null;
 }
 
 /** The kept candles for a timeframe, if fresh enough to serve. */

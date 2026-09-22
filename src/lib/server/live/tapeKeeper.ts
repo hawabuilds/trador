@@ -55,6 +55,14 @@ const CONCURRENCY = 3;
  * About 6k calls a day between them.
  */
 const POOL_TTL_MS = 6 * 60 * 60_000;
+
+/**
+ * Signatures read for a tape the worker has nothing to extend, once per coin
+ * per restart. A page reads 300, which on a busy pool reaches back only a few
+ * minutes: of 271 signatures on STONK's pool, spanning three minutes, twelve
+ * were fills and the rest were routing and cranks.
+ */
+const COLD_LIMIT = 1_000;
 const CANDLE_EVERY_MS = 10 * 60_000;
 const candlesAt = new Map<string, number>();
 
@@ -121,10 +129,12 @@ async function keepOne(coin: HotCoin): Promise<CoinTapeWrite | null> {
 
   if (pool.otherMint) {
     try {
-      const tape = await chainTradesFor(pool.address, coin.mint, pool.otherMint);
+      const tape = await chainTradesFor(pool.address, coin.mint, pool.otherMint, COLD_LIMIT);
       // A stale tape is the last good one after a failed refresh; not worth
-      // re-stamping as fresh.
-      if (tape && !tape.stale) write.trades = tape.trades;
+      // re-stamping as fresh. An empty one is not written at all: a page can
+      // read the provider's tape instead, which is better than being told a
+      // traded coin has no trades.
+      if (tape && !tape.stale && tape.trades.length > 0) write.trades = tape.trades;
     } catch (error) {
       errors.push(error);
     }
