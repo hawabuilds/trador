@@ -54,8 +54,8 @@ import {
 } from "./universeStore";
 
 const RPC_URL =
-  process.env.HELIUS_RPC_URL ||
   process.env.SOLANA_RPC_URL ||
+  process.env.HELIUS_RPC_URL ||
   "https://api.mainnet-beta.solana.com";
 
 let rpcCalls = 0;
@@ -86,7 +86,7 @@ const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Gap between pump sweep calls. Zero when a paid RPC removes the limit. */
-const PUMP_SWEEP_GAP_MS = process.env.HELIUS_RPC_URL ? 0 : 700;
+const PUMP_SWEEP_GAP_MS = process.env.SOLANA_RPC_URL || process.env.HELIUS_RPC_URL ? 0 : 700;
 
 /**
  * `rpc`, but it waits out a rate limit instead of failing the pass.

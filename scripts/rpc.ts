@@ -11,8 +11,8 @@ import {CLMM_MINTS_SLICE, CLMM_POOL, stonkfunClmmFilters} from "@/lib/launchpad/
 import {type Pubkey, readPubkeyAt} from "@/lib/pubkey";
 
 export const RPC_URL =
-  process.env.HELIUS_RPC_URL ||
   process.env.SOLANA_RPC_URL ||
+  process.env.HELIUS_RPC_URL ||
   "https://api.mainnet-beta.solana.com";
 
 export function redactedRpcUrl(): string {

@@ -38,8 +38,8 @@ import {buildSwap, quote} from "./jupiter";
 import type {Pubkey} from "@/lib/pubkey";
 
 export const RPC_URL =
-  process.env.HELIUS_RPC_URL ||
   process.env.SOLANA_RPC_URL ||
+  process.env.HELIUS_RPC_URL ||
   "https://api.mainnet-beta.solana.com";
 
 export const connection = () => new Connection(RPC_URL, "confirmed");

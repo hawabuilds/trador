@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
  *
  * Privy's Solana wallet hooks need an RPC endpoint to broadcast through, and
  * they run in the browser — so the endpoint has to be reachable from there.
- * Handing the browser the Helius URL would ship the API key to every visitor,
+ * Handing the browser the RPC URL would ship the API key to every visitor,
  * where it can be lifted from the bundle and spent against our quota. This
  * forwards instead: the page talks to its own origin, and the key stays here.
  *
@@ -46,7 +46,7 @@ const ALLOWED = new Set([
   "isBlockhashValid",
 ]);
 
-const UPSTREAM = process.env.HELIUS_RPC_URL ?? "";
+const UPSTREAM = process.env.SOLANA_RPC_URL || process.env.HELIUS_RPC_URL || "";
 
 export async function POST(request: Request) {
   if (!UPSTREAM) {

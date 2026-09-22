@@ -20,8 +20,8 @@ import type {Asset, Holding} from "@/lib/types";
 import {cached} from "./cache";
 
 const RPC_URL =
-  process.env.HELIUS_RPC_URL ||
   process.env.SOLANA_RPC_URL ||
+  process.env.HELIUS_RPC_URL ||
   "https://api.mainnet-beta.solana.com";
 
 interface ParsedTokenAccount {

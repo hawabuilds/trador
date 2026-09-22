@@ -10,8 +10,8 @@ import {assertPubkey} from "@/lib/pubkey";
 import {badRequest, json} from "@/lib/server/http";
 
 const RPC_URL =
-  process.env.HELIUS_RPC_URL ||
   process.env.SOLANA_RPC_URL ||
+  process.env.HELIUS_RPC_URL ||
   "https://api.mainnet-beta.solana.com";
 
 const MAX_LAMPORTS = BigInt(Number.MAX_SAFE_INTEGER);

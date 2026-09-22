@@ -7,8 +7,8 @@ import {stockForTicker} from "@/lib/stocks/registry";
 export const dynamic = "force-dynamic";
 
 const RPC_URL =
-  process.env.HELIUS_RPC_URL ||
   process.env.SOLANA_RPC_URL ||
+  process.env.HELIUS_RPC_URL ||
   "https://api.mainnet-beta.solana.com";
 
 async function rpc<T>(method: string, params: unknown[]): Promise<T> {

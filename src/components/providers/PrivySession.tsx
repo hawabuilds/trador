@@ -29,7 +29,7 @@ const CHAIN = "solana:mainnet" as const;
  * browser can reach — and with nothing configured there is no endpoint at all,
  * which is what made pressing Buy fail.
  *
- * The default is this app's own `/api/rpc`, which forwards to Helius with the
+ * The default is this app's own `/api/rpc`, which forwards to the configured RPC with the
  * key kept server-side. `NEXT_PUBLIC_SOLANA_RPC_URL` overrides it for a
  * deployment that would rather point straight at a domain-restricted key.
  *

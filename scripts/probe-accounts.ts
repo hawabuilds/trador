@@ -38,8 +38,8 @@ import {type Pubkey, encodeBase58, isPubkey, readPubkeyAt, shortPubkey} from "@/
 import {STOCK_MINTS, stockForMint} from "@/lib/stocks/registry";
 
 const RPC_URL =
-  process.env.HELIUS_RPC_URL ||
   process.env.SOLANA_RPC_URL ||
+  process.env.HELIUS_RPC_URL ||
   "https://api.mainnet-beta.solana.com";
 
 let rpcCalls = 0;
