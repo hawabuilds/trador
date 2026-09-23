@@ -2,7 +2,7 @@
 
 import {useEffect, useState} from "react";
 import Link from "next/link";
-import {usePathname} from "next/navigation";
+import {usePathname, useRouter} from "next/navigation";
 
 import {TABS, type TabKey} from "@/config/app";
 import {cn} from "@/lib/cn";
@@ -28,6 +28,7 @@ const ICONS: Record<TabKey, (props: {className?: string}) => JSX.Element> = {
  */
 export function TabBar() {
   const pathname = usePathname();
+  const router = useRouter();
 
   /**
    * Which tab to paint as current.
@@ -60,14 +61,19 @@ export function TabBar() {
           const active =
             current === tab.href || current.startsWith(`${tab.href}/`);
 
+          const prefetchRoute = tab.key === "home" || tab.key === "search";
+
           return (
             <Link
               key={tab.key}
               href={tab.href}
-              prefetch
+              prefetch={prefetchRoute}
               aria-label={tab.label}
               aria-current={active ? "page" : undefined}
-              onPointerDown={() => setPressed(tab.href)}
+              onPointerDown={() => {
+                setPressed(tab.href);
+                if (prefetchRoute) router.prefetch(tab.href);
+              }}
               className={cn(
                 "grid h-[46px] w-[48px] place-items-center rounded-full",
                 // Snap the highlight on rather than easing it: at 200ms the

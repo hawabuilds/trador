@@ -118,7 +118,7 @@ export async function signaturesFor(
    */
   const rpcs = [
     process.env.RAW_TX_RPC_URL,
-    process.env.SOLANA_RPC_URL,
+    "https://api.mainnet-beta.solana.com",
     process.env.HELIUS_RPC_URL,
   ].filter(
     (url, index, all): url is string => Boolean(url) && all.indexOf(url) === index,

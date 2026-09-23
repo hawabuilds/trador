@@ -7,9 +7,16 @@ import type {FeedPage, Stock, Stonk, StonkSort} from "@/lib/types";
 
 interface FeedResponse {
   stonks: FeedPage<Stonk>;
-  stocks: FeedPage<Stock>;
+  stocks: FeedPage<Stock> | null;
   /** Launches still on the curve, nearest to graduating first. */
-  graduating: Stonk[];
+  graduating: Stonk[] | null;
+}
+
+export interface FeedInclude {
+  /** Live-priced stock list — only when the Stocks tab is open. */
+  stocks: boolean;
+  /** Curve launches — only when the Graduating sort is selected. */
+  graduating: boolean;
 }
 
 /**
@@ -20,83 +27,66 @@ interface FeedResponse {
  * React Query adopts it rather than firing a request to fetch what it was just
  * handed.
  *
- * Polling rather than streaming, deliberately. A websocket would be the right
- * tool for a tape where every tick matters; a launch feed gains a coin every
- * few minutes, and a subscription per visitor is a connection to hold, a
- * reconnect path to get right and a serverless runtime that will not hold it
- * anyway. `useArrivals` covers the one thing polling loses — a row appearing
- * between two frames with nothing to draw the eye — by animating exactly the
- * rows that are new.
- *
- * `refetchOnWindowFocus` matters more than the interval here: the common shape
- * is a tab left open for an hour and then looked at, and that should not show
- * an hour-old feed for fifteen seconds before catching up.
- *
- * ## Paging
- *
- * The first page polls; the pages after it do not. That split is the whole
- * design. Re-fetching every loaded page on a fifteen-second timer would mean a
- * request whose cost grows the further somebody scrolls, and rows reshuffling
- * under a thumb that is halfway down the list. The rows near the top are the
- * ones that change; the ones forty deep are history, and history does not need
- * a poll.
- *
- * The consequence is that an older page can go stale while it is on screen. For
- * a list ordered by when a coin graduated that is fine — its position cannot
- * change, only its price, and the price is restated the moment the coin is
- * opened.
+ * Polls request only `stonks` by default. `include` adds stocks or graduating
+ * when those surfaces are visible, so a background refresh does not re-run
+ * Jupiter pricing or the graduating index on every tick.
  */
 export function useFeed({
   sort,
   quoteTicker,
+  include,
   initial,
 }: {
   sort: StonkSort;
   quoteTicker: string | null;
-  initial: Omit<FeedResponse, "graduating"> & {graduating?: Stonk[]};
+  include: FeedInclude;
+  initial: {
+    stonks: FeedPage<Stonk>;
+    stocks: FeedPage<Stock>;
+    graduating?: readonly Stonk[];
+  };
 }) {
+  const apiSort = sort === "graduating" ? "trending" : sort;
+
   const query = useQuery({
-    queryKey: ["feed", sort, quoteTicker ?? "all"],
+    queryKey: ["feed", apiSort, quoteTicker ?? "all", include.stocks, include.graduating],
     queryFn: async (): Promise<FeedResponse> => {
-      const params = new URLSearchParams({sort});
+      const params = new URLSearchParams({sort: apiSort});
       if (quoteTicker && quoteTicker !== "all") params.set("quote", quoteTicker);
+
+      const parts: string[] = [];
+      if (include.stocks) parts.push("stocks");
+      if (include.graduating) parts.push("graduating");
+      if (parts.length > 0) params.set("include", parts.join(","));
 
       const response = await fetch(`/api/feed?${params}`);
       if (!response.ok) throw new Error("Could not load the feed.");
       return (await response.json()) as FeedResponse;
     },
-    // Only the first view matches what the server rendered. A different sort or
-    // quote filter has to be fetched, so seeding those would show the wrong
-    // rows under the right chip.
-    initialData: sort === "trending" && !quoteTicker ? initial : undefined,
+    initialData:
+      apiSort === "trending" && !quoteTicker && !include.stocks && !include.graduating
+        ? {
+            stonks: initial.stonks,
+            stocks: null,
+            graduating: null,
+          }
+        : undefined,
     placeholderData: keepPreviousData,
-    staleTime: 10_000,
+    staleTime: 15_000,
     refetchInterval: 15_000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
-  /*
-   * Never empty while data exists.
-   *
-   * A failed poll keeps the last good page rather than blanking the feed: the
-   * rows on screen were true a moment ago, and a network blip is not a reason
-   * to tell someone the universe is empty.
-   */
   const firstPage = query.data?.stonks ?? initial.stonks;
+
+  const stocks = query.data?.stocks ?? initial.stocks;
+  const graduating = query.data?.graduating ?? initial.graduating ?? [];
 
   const [older, setOlder] = useState<readonly Stonk[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  /*
-   * Everything loaded past the first page is dropped when the list changes.
-   *
-   * A different sort is a different ordering, so a cursor taken against the old
-   * one points into a sequence that no longer exists — following it would
-   * append rows from the middle of another list. Same for the quote filter,
-   * which changes the set rather than the order.
-   */
-  const listKey = `${sort}|${quoteTicker ?? "all"}`;
+  const listKey = `${apiSort}|${quoteTicker ?? "all"}`;
   const lastKey = useRef(listKey);
   useEffect(() => {
     if (lastKey.current === listKey) return;
@@ -105,8 +95,6 @@ export function useFeed({
     setCursor(null);
   }, [listKey]);
 
-  // Before anything extra is loaded the next page follows the polled first
-  // page; afterwards it follows the last page actually fetched.
   const nextCursor = older.length === 0 ? firstPage.cursor : cursor;
 
   const loadMore = useCallback(async () => {
@@ -114,7 +102,7 @@ export function useFeed({
 
     setLoadingMore(true);
     try {
-      const params = new URLSearchParams({sort, cursor: nextCursor});
+      const params = new URLSearchParams({sort: apiSort, cursor: nextCursor});
       if (quoteTicker && quoteTicker !== "all") params.set("quote", quoteTicker);
 
       const response = await fetch(`/api/feed?${params}`);
@@ -122,9 +110,7 @@ export function useFeed({
 
       const body = (await response.json()) as FeedResponse;
       const key = lastKey.current;
-      // The sort could have changed while this was in flight; appending then
-      // would splice one ordering into another.
-      if (key !== `${sort}|${quoteTicker ?? "all"}`) return;
+      if (key !== `${apiSort}|${quoteTicker ?? "all"}`) return;
 
       setOlder((previous) => [...previous, ...body.stonks.items]);
       setCursor(body.stonks.cursor);
@@ -134,16 +120,8 @@ export function useFeed({
     } finally {
       setLoadingMore(false);
     }
-  }, [nextCursor, loadingMore, sort, quoteTicker]);
+  }, [nextCursor, loadingMore, apiSort, quoteTicker]);
 
-  /*
-   * One list, deduplicated by mint.
-   *
-   * The first page polls while the pages under it do not, so a coin that falls
-   * out of the first page between two polls can also be sitting in an older
-   * page — and React would then see two rows with the same key. First
-   * occurrence wins, which is the polled copy and therefore the fresher one.
-   */
   const items = useMemo<readonly Stonk[]>(() => {
     if (older.length === 0) return firstPage.items;
 
@@ -159,17 +137,11 @@ export function useFeed({
 
   return {
     stonks: {...firstPage, items},
-    stocks: query.data?.stocks ?? initial.stocks,
-    graduating: query.data?.graduating ?? initial.graduating ?? [],
+    stocks,
+    graduating,
     isFetching: query.isFetching,
-    /**
-     * The rows on screen belong to the *previous* sort or filter, kept so the
-     * list does not blank while the new one loads. The screen must not present
-     * them as the answer to the chip that is now selected.
-     */
     isPlaceholder: query.isPlaceholderData,
     error: query.error ? (query.error as Error).message : null,
-    /** Whether another page exists, and how to ask for it. */
     hasMore: Boolean(nextCursor),
     loadingMore,
     loadMore,

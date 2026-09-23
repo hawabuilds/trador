@@ -1,7 +1,7 @@
 "use client";
 
 import {useEffect, useMemo, useState} from "react";
-import {useQueryClient} from "@tanstack/react-query";
+import {useQuery, useQueryClient} from "@tanstack/react-query";
 
 import {FEE_BPS, feeFor, tooSmall} from "@/config/fees";
 import {balancesKey, useBalances} from "@/hooks/useBalances";
@@ -19,28 +19,18 @@ import {useSession} from "@/lib/session";
 import {cn} from "@/lib/cn";
 import {units} from "@/lib/format";
 import {formatPriceUsd} from "@/lib/priceState";
-import {
-  readSellPayout,
-  readSlippageBps,
-  writeSellPayout,
-  writeSlippageBps,
-} from "@/lib/localStore";
-import {USDC_MINT, WSOL_MINT} from "@/lib/programs";
+import {readSlippageBps, writeSlippageBps} from "@/lib/localStore";
+import {WSOL_MINT} from "@/lib/programs";
 import type {Asset} from "@/lib/types";
 import {Modal} from "./ui/Modal";
 import {SettingsIcon} from "./ui/Icons";
 
-/**
- * What a buy is funded with, and what a sell pays out in.
- *
- * Sells used to settle to USDC unconditionally, which surprised anyone who had
- * bought with SOL and expected SOL back. The same two choices now apply on both
- * sides; a SOL payout arrives as native SOL (the build unwraps it).
- */
-const PAY_WITH = [
-  {mint: WSOL_MINT, symbol: "SOL", decimals: 9},
-  {mint: USDC_MINT, symbol: "USDC", decimals: 6},
-] as const;
+/** Buys spend SOL; sells pay out SOL (native, unwrapped on build). */
+const SOL = {mint: WSOL_MINT, symbol: "SOL", decimals: 9} as const;
+
+type BuyAmountUnit = "sol" | "usd";
+type SellAmountUnit = "token" | "sol" | "usd";
+type AmountUnit = BuyAmountUnit | SellAmountUnit;
 
 const QUICK_USD = [10, 25, 100];
 const QUICK_SOL = [0.05, 0.25, 1];
@@ -100,8 +90,7 @@ export function OrderSheet({
   const queryClient = useQueryClient();
 
   const [activeSide, setActiveSide] = useState<"buy" | "sell">(side);
-  const [payWith, setPayWith] = useState<(typeof PAY_WITH)[number]>(PAY_WITH[1]);
-  const [receiveIn, setReceiveIn] = useState<(typeof PAY_WITH)[number]>(PAY_WITH[0]);
+  const [inputUnit, setInputUnit] = useState<AmountUnit>("usd");
   const [amount, setAmount] = useState("");
   const [slippageBps, setSlippageBps] = useState(100);
   const [configOpen, setConfigOpen] = useState(false);
@@ -119,8 +108,6 @@ export function OrderSheet({
   // once meant it for their trading, not for one ticket.
   useEffect(() => {
     setSlippageBps(readSlippageBps(100));
-    const payout = readSellPayout();
-    setReceiveIn(PAY_WITH.find((option) => option.symbol === payout) ?? PAY_WITH[0]);
   }, []);
 
   /*
@@ -132,6 +119,7 @@ export function OrderSheet({
    */
   useEffect(() => {
     setActiveSide(side);
+    setInputUnit(side === "buy" ? "usd" : "token");
     setAmount("");
     setQuote(null);
     setError(null);
@@ -144,17 +132,16 @@ export function OrderSheet({
   const canSign = session.signAndSend !== null && wallet !== null;
 
   /*
-   * What the wallet actually holds of this asset and of USDC, plus its SOL.
+   * What the wallet actually holds of this asset and its SOL.
    *
    * The ticket used to know none of this, so it could not offer a size as a
    * share of a position, had no "sell all", and would happily ask you to sign
    * a trade for more than you own — which then failed in simulation.
    */
-  const balanceMints = useMemo(() => (asset ? [asset.mint, USDC_MINT] : []), [asset]);
+  const balanceMints = useMemo(() => (asset ? [asset.mint] : []), [asset]);
   const balances = useBalances(wallet, balanceMints, open && wallet !== null);
   const held = asset ? balances.data?.tokens[asset.mint] : undefined;
   const heldRaw = balances.data ? BigInt(held?.amount ?? "0") : null;
-  const usdcRaw = balances.data ? BigInt(balances.data.tokens[USDC_MINT]?.amount ?? "0") : null;
   const lamports = balances.data ? BigInt(balances.data.lamports) : null;
 
   /**
@@ -172,55 +159,93 @@ export function OrderSheet({
   const typed = Number.parseFloat(amount);
   const entered = Number.isFinite(typed) && typed > 0 ? typed : 0;
 
-  /** Buying in SOL is sized in SOL; everything else is sized in dollars. */
-  const solSized = buying && payWith.symbol === "SOL";
+  const needsSolUsd =
+    open &&
+    (buying ? inputUnit === "usd" : inputUnit === "sol");
 
-  /** Dollar value of what was typed, when that is knowable. */
+  const solUsdQuery = useQuery({
+    queryKey: ["sol-usd"],
+    enabled: needsSolUsd,
+    staleTime: 30_000,
+    refetchInterval: needsSolUsd ? 60_000 : false,
+    queryFn: async (): Promise<number | null> => {
+      const response = await fetch("/api/sol-usd");
+      const body = (await response.json()) as {usd?: number | null; error?: string};
+      if (!response.ok) throw new Error(body.error ?? "Could not read SOL price.");
+      return body.usd ?? null;
+    },
+  });
+  const solUsd = solUsdQuery.data ?? null;
+
+  const usdSized = inputUnit === "usd";
+
+  /** Dollar value of the trade, when it can be derived. */
   const amountUsd = useMemo(() => {
-    if (buying) return solSized ? Number.NaN : entered;
-    if (priceUsd === null || priceUsd <= 0) return Number.NaN;
-    return entered * priceUsd;
-  }, [buying, solSized, entered, priceUsd]);
+    if (buying) {
+      if (inputUnit === "usd") return entered;
+      if (inputUnit === "sol" && solUsd !== null && solUsd > 0) return entered * solUsd;
+      return Number.NaN;
+    }
+    if (inputUnit === "usd") return entered;
+    if (inputUnit === "sol" && solUsd !== null && solUsd > 0) return entered * solUsd;
+    if (inputUnit === "token" && priceUsd !== null && priceUsd > 0) return entered * priceUsd;
+    return Number.NaN;
+  }, [buying, entered, inputUnit, priceUsd, solUsd]);
 
   /**
-   * The input amount in base units.
-   *
-   * A buy is sized in the funding token; a sell in units of the asset. Sizing a
-   * sell in dollars directly would need a price the ticket may not have, which
-   * is why an unpriced asset blocks rather than guesses.
+   * Base units sent to the router: SOL on a buy, the asset on a sell.
    */
   const amountRaw = useMemo(() => {
-    if (!asset) return null;
-    // Parsed from the text, not from the float: "sell all" writes the exact
-    // balance into the field, and it has to come back out unchanged.
-    const parsed = toBaseUnits(amount, buying ? payWith.decimals : assetDecimals);
+    if (!asset || entered <= 0) return null;
+
+    if (buying) {
+      if (inputUnit === "sol") {
+        const parsed = toBaseUnits(amount, SOL.decimals);
+        return parsed !== null && parsed > 0n ? parsed : null;
+      }
+      if (solUsd === null || solUsd <= 0) return null;
+      const solText = (entered / solUsd).toFixed(SOL.decimals);
+      const parsed = toBaseUnits(solText, SOL.decimals);
+      return parsed !== null && parsed > 0n ? parsed : null;
+    }
+
+    if (inputUnit === "token") {
+      const parsed = toBaseUnits(amount, assetDecimals);
+      return parsed !== null && parsed > 0n ? parsed : null;
+    }
+
+    if (priceUsd === null || priceUsd <= 0) return null;
+
+    let tokens: number;
+    if (inputUnit === "usd") tokens = entered / priceUsd;
+    else {
+      if (solUsd === null || solUsd <= 0) return null;
+      tokens = (entered * solUsd) / priceUsd;
+    }
+    const parsed = toBaseUnits(tokens.toFixed(assetDecimals), assetDecimals);
     return parsed !== null && parsed > 0n ? parsed : null;
-  }, [asset, amount, assetDecimals, buying, payWith.decimals]);
+  }, [asset, amount, assetDecimals, buying, entered, inputUnit, priceUsd, solUsd]);
 
   const amountBaseUnits = amountRaw === null ? null : amountRaw.toString();
 
   /** The most this side can spend, in the unit being typed. */
-  const availableRaw = buying
-    ? payWith.symbol === "SOL"
-      ? lamports === null
-        ? null
-        : spendableLamports(lamports)
-      : usdcRaw
-    : heldRaw;
-  const availableDecimals = buying ? payWith.decimals : assetDecimals;
+  const availableRaw = buying ? (lamports === null ? null : spendableLamports(lamports)) : heldRaw;
+  const availableDecimals = buying ? SOL.decimals : assetDecimals;
   const available =
     availableRaw === null ? null : Number(fromBaseUnits(availableRaw, availableDecimals));
-  const overBalance = amountRaw !== null && availableRaw !== null && amountRaw > availableRaw;
-  const shortOnFees =
-    lamports !== null && !(buying && payWith.symbol === "SOL") && lamports < MIN_FEE_LAMPORTS;
+  const overBalance =
+    amountRaw !== null &&
+    availableRaw !== null &&
+    (buying ? amountRaw > availableRaw : amountRaw > availableRaw);
+  const shortOnFees = lamports !== null && lamports < MIN_FEE_LAMPORTS && !buying;
 
   const insufficientSol = useMemo(() => {
     if (!open || lamports === null || entered <= 0) return null;
     const balance = fromBaseUnits(lamports, 9);
 
-    if (buying && payWith.symbol === "SOL") {
+    if (buying) {
       const spendable = spendableLamports(lamports);
-      if (overBalance || spendable <= 0n) {
+      if (overBalance || (amountRaw !== null && amountRaw > spendable) || spendable <= 0n) {
         return {
           balance,
           detail:
@@ -239,10 +264,10 @@ export function OrderSheet({
     }
 
     return null;
-  }, [open, lamports, entered, buying, payWith.symbol, overBalance, shortOnFees]);
+  }, [open, lamports, entered, buying, amountRaw, overBalance, shortOnFees]);
 
   const undersized =
-    entered > 0 && !solSized && Number.isFinite(amountUsd) && tooSmall(amountUsd);
+    entered > 0 && Number.isFinite(amountUsd) && tooSmall(amountUsd);
 
   const canQuote = open && amountBaseUnits !== null && !undersized;
 
@@ -252,8 +277,8 @@ export function OrderSheet({
       return;
     }
 
-    const inputMint = buying ? payWith.mint : asset.mint;
-    const outputMint = buying ? asset.mint : receiveIn.mint;
+    const inputMint = buying ? SOL.mint : asset.mint;
+    const outputMint = buying ? asset.mint : SOL.mint;
 
     let cancelled = false;
     setQuoting(true);
@@ -284,14 +309,16 @@ export function OrderSheet({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [canQuote, asset, buying, payWith, receiveIn, amountBaseUnits, slippageBps]);
+  }, [canQuote, asset, buying, amountBaseUnits, slippageBps]);
 
   const fee = feeFor(Number.isFinite(amountUsd) ? amountUsd : 0);
   const impactPct = quote ? Math.abs(quote.priceImpactPct * 100) : 0;
   const impactBlocks = impactPct >= 50;
   const impactWarns = impactPct >= 15 && !impactBlocks;
 
-  const fundingSymbol = buying ? payWith.symbol : symbol;
+  const fundingSymbol = buying ? SOL.symbol : symbol;
+  const execSol =
+    buying && amountRaw !== null ? Number(fromBaseUnits(amountRaw, SOL.decimals)) : null;
 
   /*
    * Checked in this order because each one is the more useful thing to say:
@@ -315,14 +342,21 @@ export function OrderSheet({
               : overBalance
                 ? overBalanceMessage({
                     buying,
-                    solFunded: buying && payWith.symbol === "SOL",
                     available: available ?? 0,
                     symbol: fundingSymbol,
                   })
                 : undersized
                   ? "Minimum trade is $1."
-                  : !buying && (priceUsd === null || priceUsd <= 0)
-                    ? "No price for this asset, so a sell cannot be sized."
+                  : needsSolUsd && solUsdQuery.isLoading
+                    ? "Checking SOL price…"
+                    : needsSolUsd && solUsdQuery.isError
+                      ? "Could not read SOL price. Try again in a moment."
+                      : needsSolUsd && (solUsd === null || solUsd <= 0)
+                        ? "SOL price unavailable — try SOL sizing or wait a moment."
+                        : !buying &&
+                            inputUnit !== "token" &&
+                            (priceUsd === null || priceUsd <= 0)
+                          ? "No price for this asset, so this size cannot be converted."
                     : impactBlocks
                       ? `Price impact is ${impactPct.toFixed(1)}% — too high to place.`
                       : null;
@@ -330,10 +364,9 @@ export function OrderSheet({
   /** What the confirm button receives, in the unit it will actually arrive in. */
   const estimatedOut = useMemo(() => {
     if (!quote || !asset) return null;
-    // Buys arrive in the asset; sells in whichever payout was chosen.
-    const decimals = buying ? assetDecimals : receiveIn.decimals;
+    const decimals = buying ? assetDecimals : SOL.decimals;
     return Number(quote.outAmount) / 10 ** decimals;
-  }, [quote, asset, assetDecimals, buying, receiveIn.decimals]);
+  }, [quote, asset, assetDecimals, buying]);
 
   async function confirm() {
     if (!asset || !quote || !wallet || !session.signAndSend) return;
@@ -416,7 +449,15 @@ export function OrderSheet({
     entered <= 0 ||
     signature !== null;
 
-  const unit = buying ? payWith.symbol : symbol;
+  const unit = buying
+    ? inputUnit === "usd"
+      ? "USD"
+      : SOL.symbol
+    : inputUnit === "token"
+      ? symbol
+      : inputUnit === "usd"
+        ? "USD"
+        : SOL.symbol;
 
   return (
     <Modal
@@ -474,6 +515,7 @@ export function OrderSheet({
                   aria-pressed={active}
                   onClick={() => {
                     setActiveSide(option);
+                    setInputUnit(option === "buy" ? "usd" : "token");
                     setAmount("");
                     setQuote(null);
                     setError(null);
@@ -498,40 +540,35 @@ export function OrderSheet({
           </div>
 
           <label htmlFor="order-amount" className="sr-only">
-            {buying ? `Amount in ${payWith.symbol}` : `Amount in ${symbol}`}
+            {buying
+              ? inputUnit === "usd"
+                ? "Amount in USD"
+                : "Amount in SOL"
+              : inputUnit === "token"
+                ? `Amount in ${symbol}`
+                : inputUnit === "usd"
+                  ? "Amount in USD"
+                  : "Amount in SOL"}
           </label>
           <div className="rounded-2xl bg-[var(--bg-input)] px-4 py-3.5 shadow-inset-soft transition-[box-shadow,background-color] focus-within:shadow-inset-focus">
             <div className="mb-1 flex items-center justify-between gap-2">
               <span className="text-[10px] font-bold uppercase tracking-[0.09em] text-faint">
                 Amount
               </span>
-              {buying ? (
-                <TokenToggle
-                  label="Pay with"
-                  value={payWith}
-                  onChange={(option) => {
-                    setPayWith(option);
-                    setAmount("");
-                    setQuote(null);
-                  }}
-                />
-              ) : (
-                // The amount stays in the coin; only the payout changes, so
-                // the typed number is kept.
-                <TokenToggle
-                  label="Receive"
-                  value={receiveIn}
-                  onChange={(option) => {
-                    setReceiveIn(option);
-                    writeSellPayout(option.symbol);
-                    setQuote(null);
-                  }}
-                />
-              )}
+              <AmountUnitToggle
+                buying={buying}
+                symbol={symbol}
+                value={inputUnit}
+                onChange={(next) => {
+                  setInputUnit(next);
+                  setAmount("");
+                  setQuote(null);
+                }}
+              />
             </div>
 
             <div className="flex items-baseline gap-1.5">
-              {buying && !solSized ? (
+              {usdSized ? (
                 <span className="text-[24px] font-extrabold text-faint">$</span>
               ) : null}
               <input
@@ -541,13 +578,9 @@ export function OrderSheet({
                 placeholder="0"
                 value={amount}
                 onChange={(event) => {
-                  // Digits and one decimal point, clamped to a sane number of
-                  // places for the unit being typed. Letting someone type nine
-                  // decimals of USDC produces a base-unit amount the router
-                  // rejects, several seconds later, with nothing to explain it.
                   const next = event.target.value.replace(/[^0-9.]/g, "");
                   const parts = next.split(".");
-                  const places = buying ? (solSized ? 6 : 2) : 6;
+                  const places = usdSized ? 2 : 6;
                   setAmount(
                     parts.length > 1
                       ? `${parts[0]}.${parts.slice(1).join("").slice(0, places)}`
@@ -558,49 +591,54 @@ export function OrderSheet({
                 }}
                 className="tabular-nums w-full min-w-0 border-none bg-transparent text-[30px] font-extrabold tracking-[-0.03em] text-ink outline-none placeholder:text-faint focus:outline-none focus-visible:outline-none"
               />
-              {!buying ? (
-                <span className="text-[15px] font-extrabold text-faint">{symbol}</span>
-              ) : solSized ? (
-                <span className="text-[15px] font-extrabold text-faint">SOL</span>
+              {!usdSized ? (
+                <span className="text-[15px] font-extrabold text-faint">
+                  {buying ? SOL.symbol : inputUnit === "token" ? symbol : SOL.symbol}
+                </span>
               ) : null}
             </div>
 
             <div className="tabular-nums mt-1 text-[12px] font-semibold text-faint">
               {quote && estimatedOut !== null
-                ? `≈ ${units(estimatedOut)} ${buying ? symbol : receiveIn.symbol}`
+                ? `≈ ${units(estimatedOut)} ${buying ? symbol : SOL.symbol}`
                 : quoting && entered > 0
                   ? "Finding route…"
-                  : `${formatPriceUsd(priceUsd)} per ${symbol}`}
+                  : buying && inputUnit === "usd" && execSol !== null && entered > 0
+                    ? `≈ ${units(execSol)} SOL · ${formatPriceUsd(priceUsd)} per ${symbol}`
+                    : `${formatPriceUsd(priceUsd)} per ${symbol}`}
             </div>
           </div>
 
           <div className="mt-2.5 flex gap-2">
             {buying
-              ? (solSized ? QUICK_SOL : QUICK_USD).map((value) => (
+              ? (inputUnit === "sol" ? QUICK_SOL : QUICK_USD).map((value) => (
                   <QuickButton
                     key={value}
-                    label={solSized ? `${value} SOL` : `$${value}`}
+                    label={inputUnit === "sol" ? `${value} SOL` : `$${value}`}
                     onClick={() => setAmount(String(value))}
                   />
                 ))
-              : SELL_STEPS.map((step) => (
-                  <QuickButton
-                    key={step}
-                    label={`${step}%`}
-                    // Disabled until there is a position to take a share of —
-                    // a "50%" that sizes off nothing is worse than one that
-                    // plainly waits.
-                    disabled={heldRaw === null || heldRaw <= 0n}
-                    onClick={() => {
-                      if (heldRaw === null) return;
-                      // Written as exact decimal text, so 100% comes back out
-                      // of the field as precisely the balance.
-                      setAmount(fromBaseUnits(shareOf(heldRaw, step), assetDecimals));
-                      setError(null);
-                      setSignature(null);
-                    }}
-                  />
-                ))}
+              : inputUnit === "token"
+                ? SELL_STEPS.map((step) => (
+                    <QuickButton
+                      key={step}
+                      label={`${step}%`}
+                      disabled={heldRaw === null || heldRaw <= 0n}
+                      onClick={() => {
+                        if (heldRaw === null) return;
+                        setAmount(fromBaseUnits(shareOf(heldRaw, step), assetDecimals));
+                        setError(null);
+                        setSignature(null);
+                      }}
+                    />
+                  ))
+                : (inputUnit === "sol" ? QUICK_SOL : QUICK_USD).map((value) => (
+                    <QuickButton
+                      key={value}
+                      label={inputUnit === "sol" ? `${value} SOL` : `$${value}`}
+                      onClick={() => setAmount(String(value))}
+                    />
+                  ))}
           </div>
 
           {wallet ? (
@@ -611,8 +649,8 @@ export function OrderSheet({
                   ? "Couldn't read balance"
                   : available === null
                     ? "…"
-                    : `${amountLabel(available)} ${fundingSymbol}`}
-                {buying && payWith.symbol === "SOL" && available !== null
+                    : `${amountLabel(available)} ${buying ? SOL.symbol : symbol}`}
+                {buying && available !== null
                   ? ` · ${Number(SOL_FEE_RESERVE_LAMPORTS) / 1e9} kept for fees`
                   : ""}
               </span>
@@ -620,11 +658,17 @@ export function OrderSheet({
           ) : null}
 
           <div className="mt-3.5 flex items-center justify-between gap-3 rounded-2xl bg-[var(--segment-track)] px-3.5 py-2.5 text-[12.5px] font-semibold shadow-inset-soft">
-            <span className="text-faint">
-              {buying ? "Paying with" : `Selling`}
-            </span>
+            <span className="text-faint">{buying ? "Paying with" : "Selling"}</span>
             <span className="tabular-nums truncate font-extrabold">
-              {entered > 0 ? `${units(entered)} ${unit}` : `— ${unit}`}
+              {buying
+                ? entered > 0
+                  ? execSol !== null
+                    ? `${units(execSol)} ${SOL.symbol}`
+                    : `${units(entered)} ${unit}`
+                  : `— ${SOL.symbol}`
+                : entered > 0
+                  ? `${units(entered)} ${unit}`
+                  : `— ${unit}`}
               {Number.isFinite(amountUsd) && amountUsd > 0
                 ? ` · $${amountUsd.toFixed(2)}`
                 : ""}
@@ -634,8 +678,8 @@ export function OrderSheet({
           {quote ? (
             <TicketBreakdown
               quote={quote}
-              receivedSymbol={buying ? symbol : receiveIn.symbol}
-              receivedDecimals={buying ? assetDecimals : receiveIn.decimals}
+              receivedSymbol={buying ? symbol : SOL.symbol}
+              receivedDecimals={buying ? assetDecimals : SOL.decimals}
               feeUsd={quote.platformFee ? fee.usd : 0}
               slippageBps={slippageBps}
               impactPct={impactPct}
@@ -727,12 +771,10 @@ function amountLabel(value: number): string {
 /** Why an amount is more than the wallet can cover, in the unit being typed. */
 function overBalanceMessage({
   buying,
-  solFunded,
   available,
   symbol,
 }: {
   buying: boolean;
-  solFunded: boolean;
   available: number;
   symbol: string;
 }): string {
@@ -741,10 +783,7 @@ function overBalanceMessage({
       ? `You don't hold any ${symbol} in this wallet.`
       : `You only hold ${amountLabel(available)} ${symbol}.`;
   }
-  if (solFunded) {
-    return `You can spend up to ${amountLabel(available)} SOL — a little is kept back for network fees.`;
-  }
-  return `You only have ${amountLabel(available)} ${symbol}.`;
+  return `You can spend up to ${amountLabel(available)} SOL — a little is kept back for network fees.`;
 }
 
 /**
@@ -826,46 +865,54 @@ function Line({
   );
 }
 
-/** SOL or USDC: what a buy spends, or what a sell pays out. */
-function TokenToggle({
-  label,
+/** SOL/USD on buys; token/SOL/USD on sells. Execution is always SOL ↔ token. */
+function AmountUnitToggle({
+  buying,
+  symbol,
   value,
   onChange,
 }: {
-  label: string;
-  value: (typeof PAY_WITH)[number];
-  onChange: (option: (typeof PAY_WITH)[number]) => void;
+  buying: boolean;
+  symbol: string;
+  value: AmountUnit;
+  onChange: (unit: AmountUnit) => void;
 }) {
+  const options: {id: AmountUnit; label: string}[] = buying
+    ? [
+        {id: "sol", label: "SOL"},
+        {id: "usd", label: "USD"},
+      ]
+    : [
+        {id: "token", label: symbol.length > 6 ? `${symbol.slice(0, 5)}…` : symbol},
+        {id: "sol", label: "SOL"},
+        {id: "usd", label: "USD"},
+      ];
+
   return (
-    <div className="flex items-center gap-1.5">
-      <span className="text-[10px] font-bold uppercase tracking-[0.09em] text-faint">
-        {label}
-      </span>
-      <div
-        role="group"
-        aria-label={label}
-        className="flex gap-0.5 rounded-full bg-[var(--segment-track)] p-[2px]"
-      >
-        {PAY_WITH.map((option) => {
-          const active = option.mint === value.mint;
-          return (
-            <button
-              key={option.mint}
-              type="button"
-              aria-pressed={active}
-              onClick={() => onChange(option)}
-              className={cn(
-                "tabular-nums rounded-full px-2 py-1 text-[10.5px] font-extrabold transition-colors",
-                active
-                  ? "bg-[var(--bg-input)] text-ink shadow-tab-active"
-                  : "text-faint hover:text-muted",
-              )}
-            >
-              {option.symbol}
-            </button>
-          );
-        })}
-      </div>
+    <div
+      role="group"
+      aria-label="Amount unit"
+      className="flex gap-0.5 rounded-full bg-[var(--segment-track)] p-[2px]"
+    >
+      {options.map((option) => {
+        const active = option.id === value;
+        return (
+          <button
+            key={option.id}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onChange(option.id)}
+            className={cn(
+              "tabular-nums max-w-[4.5rem] truncate rounded-full px-2 py-1 text-[10.5px] font-extrabold transition-colors",
+              active
+                ? "bg-[var(--bg-input)] text-ink shadow-tab-active"
+                : "text-faint hover:text-muted",
+            )}
+          >
+            {option.label}
+          </button>
+        );
+      })}
     </div>
   );
 }

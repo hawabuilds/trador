@@ -30,6 +30,11 @@ export interface CoinTape {
 /** A kept tape older than this is not served; the providers are read instead. */
 export const TAPE_FRESH_MS = 30_000;
 
+/** In-process read cache for one page's chart + header (one store read between them). */
+export const TAPE_READ_MS = 5_000;
+/** Trades polls every few seconds; a long cache here freezes the tape on busy coins. */
+export const TAPE_READ_LIVE_MS = 1_000;
+
 /**
  * A kept chart older than this is not served. The worker refreshes a chart
  * every ten minutes to stay inside the CoinGecko plan, and that is enough: the
@@ -42,10 +47,14 @@ export const CANDLES_FRESH_MS = 15 * 60_000;
  * One coin's kept tape, or null. Held for a second in memory, so the header,
  * chart and trades of one page view cost one read between them.
  */
-export async function readCoinTape(mint: string): Promise<CoinTape | null> {
+export async function readCoinTape(
+  mint: string,
+  options: {live?: boolean} = {},
+): Promise<CoinTape | null> {
   if (!hasDatabase) return null;
+  const ttlMs = options.live ? TAPE_READ_LIVE_MS : TAPE_READ_MS;
   try {
-    const {value} = await cached(`coin-tape:${mint}`, 1_000, async () => {
+    const {value} = await cached(`coin-tape:${mint}`, ttlMs, async () => {
       const {data, error} = await db()
         .from("coin_tapes")
         .select("mint, pool, trades, trades_at, candles")

@@ -1,6 +1,6 @@
-import {fetchFeed, fetchGraduating, fetchStocks} from "@/lib/server/sources";
+import {feedStocksSnapshot, fetchFeed} from "@/lib/server/sources";
 
-import {HomeFeed} from "./HomeFeed";
+import {HomeSeed} from "@/components/keptAlive/HomeSearchKeptAlive";
 
 export const metadata = {title: "Home"};
 
@@ -26,28 +26,36 @@ export const metadata = {title: "Home"};
  */
 export const dynamic = "force-dynamic";
 
-export default async function HomePage() {
+const emptyStocks = (): ReturnType<typeof feedStocksSnapshot> => ({
+  items: [],
+  cursor: null,
+  source: "snapshot",
+  capturedAt: null,
+});
+
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: {tab?: string};
+}) {
   /*
-   * Both in parallel. The graduating read is a separate query against a
-   * different index, and serialising them would add its latency to a first
-   * paint that already waits on the feed.
+   * One store read for first paint. Graduating and live stock prices are loaded
+   * when someone opens those tabs — not on every cold open and not on every
+   * fifteen-second poll.
    */
-  const [feed, graduating, stocks] = await Promise.all([
-    fetchFeed("trending"),
-    fetchGraduating(),
-    fetchStocks(),
-  ]);
+  const feed = await fetchFeed("trending");
+  const onStocksTab = searchParams.tab === "stocks";
 
   return (
-    <HomeFeed
+    <HomeSeed
       stonks={{
         items: feed.items,
         cursor: feed.cursor,
         source: feed.source,
         capturedAt: feed.capturedAt,
       }}
-      stocks={stocks}
-      graduating={graduating}
+      stocks={onStocksTab ? feedStocksSnapshot() : emptyStocks()}
+      graduating={[]}
       now={Date.now()}
     />
   );

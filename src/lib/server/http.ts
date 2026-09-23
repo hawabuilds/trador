@@ -23,6 +23,15 @@ export function publicJson<T>(data: T, seconds: number) {
   });
 }
 
+/** Per-browser cache for wallet-scoped reads; never shared at the CDN. */
+export function privateCachedJson<T>(data: T, seconds: number) {
+  return NextResponse.json(data, {
+    headers: {
+      "cache-control": `private, max-age=${seconds}, stale-while-revalidate=${seconds * 4}`,
+    },
+  });
+}
+
 export function badRequest(message: string) {
   return json({error: message}, {status: 400});
 }

@@ -141,7 +141,7 @@ export function PullIndicator({pull, refreshing}: {pull: number; refreshing: boo
   return (
     <div
       aria-hidden="true"
-      className="pointer-events-none absolute inset-x-0 z-30 flex justify-center top-[calc(10px+env(safe-area-inset-top,0px))]"
+      className="phone-pull pointer-events-none absolute inset-x-0 z-30 flex justify-center top-[calc(10px+env(safe-area-inset-top,0px))]"
       style={{
         transform: `translateY(${pull * 0.6}px)`,
         opacity: refreshing ? 1 : progress,

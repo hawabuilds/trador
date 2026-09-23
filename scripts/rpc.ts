@@ -9,11 +9,10 @@
 import {LAUNCHPAD_POOL, RAYDIUM_LAUNCHPAD, STONKFUN_PLATFORMS} from "@/lib/programs";
 import {CLMM_MINTS_SLICE, CLMM_POOL, stonkfunClmmFilters} from "@/lib/launchpad/stonkfunClmm";
 import {type Pubkey, readPubkeyAt} from "@/lib/pubkey";
+import {indexerRpcUrl} from "@/lib/server/rpcUrl";
 
-export const RPC_URL =
-  process.env.SOLANA_RPC_URL ||
-  process.env.HELIUS_RPC_URL ||
-  "https://api.mainnet-beta.solana.com";
+/** Census scripts are indexer-scale; use the same URL priority as the worker. */
+export const RPC_URL = indexerRpcUrl();
 
 export function redactedRpcUrl(): string {
   return RPC_URL.replace(/api[-_]?key=[^&]+/i, "api-key=***");

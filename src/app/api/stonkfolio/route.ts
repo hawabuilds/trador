@@ -1,5 +1,5 @@
 import {asPubkey} from "@/lib/pubkey";
-import {badRequest, json} from "@/lib/server/http";
+import {badRequest, json, privateCachedJson} from "@/lib/server/http";
 import {stonkfolioFor} from "@/lib/server/live/holdings";
 import {recordSnapshot} from "@/lib/server/live/portfolioSnapshots";
 
@@ -29,10 +29,12 @@ export async function GET(request: Request) {
      * fresh timestamp onto an old number and flatten the line.
      */
     if (!stonkfolio.stale) {
-      await recordSnapshot(wallet, stonkfolio.totalUsd);
+      void recordSnapshot(wallet, stonkfolio.totalUsd).catch(() => {});
     }
 
-    return json(stonkfolio);
+    return stonkfolio.stale
+      ? json(stonkfolio)
+      : privateCachedJson(stonkfolio, 10);
   } catch (error) {
     return json({error: (error as Error).message}, {status: 502});
   }

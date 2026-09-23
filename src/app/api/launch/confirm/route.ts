@@ -3,13 +3,11 @@ import {requireCaller} from "@/lib/server/auth";
 import {badRequest, json} from "@/lib/server/http";
 import {PUMP_PROGRAM, RAYDIUM_LAUNCHPAD, STONKFUN_PLATFORMS} from "@/lib/programs";
 import {stockForTicker} from "@/lib/stocks/registry";
+import {serverRpcUrl} from "@/lib/server/rpcUrl";
 
 export const dynamic = "force-dynamic";
 
-const RPC_URL =
-  process.env.SOLANA_RPC_URL ||
-  process.env.HELIUS_RPC_URL ||
-  "https://api.mainnet-beta.solana.com";
+const RPC_URL = serverRpcUrl();
 
 async function rpc<T>(method: string, params: unknown[]): Promise<T> {
   const response = await fetch(RPC_URL, {

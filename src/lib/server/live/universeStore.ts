@@ -9,7 +9,7 @@
  */
 
 import {displayImageUrl} from "@/lib/imageUrl";
-import {NEW_FEED_MIN_MCAP_USD} from "@/config/feed";
+import {NEW_FEED_MIN_MCAP_USD, NEW_FEED_RECENCY_MS} from "@/config/feed";
 import {MIN_LIQUIDITY_USD} from "@/config/liquidity";
 import {type Pubkey, assertPubkey} from "@/lib/pubkey";
 import {applyThreeStateFilter, isTradeableFromLiquidity} from "@/lib/threeState";
@@ -266,8 +266,9 @@ export async function listStonks(query: FeedQuery): Promise<FeedPageRows> {
    * thing on the launchpad for being new.
    */
   if (query.sort === "new" && query.applyNewFloor !== false) {
+    const recencyCutoff = new Date(Date.now() - NEW_FEED_RECENCY_MS).toISOString();
     request = request.or(
-      `last_mcap.gte.${NEW_FEED_MIN_MCAP_USD},last_mcap.is.null`,
+      `last_mcap.gte.${NEW_FEED_MIN_MCAP_USD},last_mcap.is.null,graduated_at.gte.${recencyCutoff}`,
     );
   }
 
@@ -504,7 +505,17 @@ export async function upsertStonks(writes: StonkWrite[]): Promise<number> {
    * This is not hypothetical: the first real indexer run wrote 276 coins and
    * then failed to decorate a single one, with exactly that error.
    */
-  if (hasAdminPg) return pgUpsertStonks(writes);
+  if (hasAdminPg) {
+    try {
+      return await pgUpsertStonks(writes);
+    } catch (error) {
+      // A full row can go through PostgREST. A metadata-only pass cannot, so
+      // this fallback is only for when Postgres itself cannot be reached — a
+      // dead DATABASE_URL must not turn a launch that is already on chain into
+      // a 404. A constraint error still throws: falling back would hide it.
+      if (!hasDatabase || !pgUnreachable(error)) throw error;
+    }
+  }
 
   const {error} = await db()
     .from("stonks")
@@ -515,6 +526,13 @@ export async function upsertStonks(writes: StonkWrite[]): Promise<number> {
 
   if (error) throw new Error(`Upsert failed: ${error.message}`);
   return writes.length;
+}
+
+function pgUnreachable(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /ENOTFOUND|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EAI_AGAIN|ENETUNREACH|getaddrinfo|Connection terminated|timeout expired/i.test(
+    message,
+  );
 }
 
 /**

@@ -15,6 +15,7 @@ import {defaultChartTimeframe} from "@/lib/chartTimeframe";
 import type {
   Asset,
   AssetPageInitial,
+  AssetResponse,
   ChartPoint,
   FeedPage,
   Stock,
@@ -25,8 +26,13 @@ import type {
 import {hasDatabase} from "./db";
 import {snapshotStock, snapshotStocks, snapshotStonk, snapshotStonks} from "./snapshot";
 import {cached} from "./live/cache";
-import {chainTradesFor} from "./live/chainTape";
-import {freshCandles, freshTrades, readCoinTape} from "./live/coinTapes";
+import {chainTradesFor, mergeTape} from "./live/chainTape";
+import {
+  type CoinTape,
+  freshCandles,
+  freshTrades,
+  readCoinTape,
+} from "./live/coinTapes";
 import {candlesFor, deepestPoolFor, tradesFor} from "./live/gecko";
 import {findStonk, listStonks, rowToStonk, searchStonks} from "./live/universeStore";
 
@@ -59,43 +65,70 @@ export async function fetchAsset(
    * authoritative and the snapshot stops being consulted — which is why this
    * only falls through on a miss rather than merging the two.
    */
+  const core = await assetCore(kind, id);
+  if (!core) return {data: null, stale: false, error: "Not listed here."};
+  return decorateAsset(core);
+}
+
+/** Store or snapshot row, without a provider round trip. */
+async function assetCore(kind: string, id: string): Promise<Asset | null> {
+  if (kind === "stock") {
+    return snapshotStock(decodeURIComponent(id));
+  }
+
+  const mint = asPubkey(id);
+  if (!mint) return null;
+
   let stonk = await fromStore(mint);
   if (!stonk) stonk = snapshotStonk(mint);
-  if (!stonk) return {data: null, stale: false, error: "Not listed here."};
+  return stonk;
+}
 
-  // Decorate with live pool figures. If this fails the row is returned exactly
-  // as the store has it — which is the whole point of the split.
+/** Live pool figures layered onto a store row. */
+async function decorateAsset(asset: Asset): Promise<SourceResult<Asset>> {
   try {
-    const pool = await deepestPoolFor(mint);
-    if (!pool) return {data: stonk, stale: true, error: null};
+    const pool = await deepestPoolFor(asset.mint);
+    if (!pool) return {data: asset, stale: true, error: null};
+
+    const price =
+      pool.priceUsd !== null
+        ? {
+            usd: pool.priceUsd,
+            source: "pool" as const,
+            status: "priced" as const,
+            at: new Date().toISOString(),
+          }
+        : asset.price;
+
+    if (asset.kind === "stock") {
+      return {
+        data: {
+          ...asset,
+          price,
+          changePct: pool.changePct24h ?? asset.changePct,
+        },
+        stale: false,
+        error: null,
+      };
+    }
 
     return {
       data: {
-        ...stonk,
-        price:
-          pool.priceUsd !== null
-            ? {
-                usd: pool.priceUsd,
-                source: "pool",
-                status: "priced",
-                at: new Date().toISOString(),
-              }
-            : stonk.price,
-        changePct: pool.changePct24h ?? stonk.changePct,
-        liquidityUsd: pool.liquidityUsd ?? stonk.liquidityUsd,
-        volume24hUsd: pool.volume24hUsd ?? stonk.volume24hUsd,
-        // Recomputed against the fresher price, using the supply that was
-        // measured on chain. Never rescaled without a real supply.
+        ...asset,
+        price,
+        changePct: pool.changePct24h ?? asset.changePct,
+        liquidityUsd: pool.liquidityUsd ?? asset.liquidityUsd,
+        volume24hUsd: pool.volume24hUsd ?? asset.volume24hUsd,
         marketCapUsd:
-          pool.priceUsd !== null && stonk.circulatingSupply !== null
-            ? pool.priceUsd * stonk.circulatingSupply
-            : stonk.marketCapUsd,
+          pool.priceUsd !== null && asset.circulatingSupply !== null
+            ? pool.priceUsd * asset.circulatingSupply
+            : asset.marketCapUsd,
       },
       stale: false,
       error: null,
     };
   } catch {
-    return {data: stonk, stale: true, error: null};
+    return {data: asset, stale: true, error: null};
   }
 }
 
@@ -105,22 +138,20 @@ async function poolForAsset(asset: Asset): Promise<Pubkey | null> {
   return pool?.address ?? null;
 }
 
-export async function fetchChart(
-  kind: string,
-  id: string,
-  timeframe: Timeframe,
-): Promise<SourceResult<{points: ChartPoint[]; timeframe: Timeframe}>> {
-  const {data: asset} = await fetchAsset(kind, id);
-  if (!asset) {
-    return {
-      data: {points: [], timeframe},
-      stale: false,
-      error: "Not listed here.",
-    };
+/** Mint for a route id without decorating from a provider. */
+function mintForRoute(kind: string, id: string): Pubkey | null {
+  if (kind === "stock") {
+    return snapshotStock(decodeURIComponent(id))?.mint ?? null;
   }
+  return asPubkey(id);
+}
 
-  // The worker's copy first: fresh, it is one store read instead of a provider.
-  const kept = freshCandles(await readCoinTape(asset.mint), timeframe);
+async function fetchChartForAsset(
+  asset: Asset,
+  timeframe: Timeframe,
+  tape: CoinTape | null = null,
+): Promise<SourceResult<{points: ChartPoint[]; timeframe: Timeframe}>> {
+  const kept = freshCandles(tape ?? (await readCoinTape(asset.mint)), timeframe);
   if (kept) return {data: {points: kept, timeframe}, stale: false, error: null};
 
   try {
@@ -144,6 +175,31 @@ export async function fetchChart(
   }
 }
 
+export async function fetchChart(
+  kind: string,
+  id: string,
+  timeframe: Timeframe,
+): Promise<SourceResult<{points: ChartPoint[]; timeframe: Timeframe}>> {
+  const mint = mintForRoute(kind, id);
+  if (mint) {
+    const kept = freshCandles(await readCoinTape(mint), timeframe);
+    if (kept) {
+      return {data: {points: kept, timeframe}, stale: false, error: null};
+    }
+  }
+
+  const {data: asset} = await fetchAsset(kind, id);
+  if (!asset) {
+    return {
+      data: {points: [], timeframe},
+      stale: false,
+      error: "Not listed here.",
+    };
+  }
+
+  return fetchChartForAsset(asset, timeframe);
+}
+
 /**
  * Where a tape came from.
  *
@@ -153,64 +209,129 @@ export async function fetchChart(
  */
 export type TapeSource = "chain" | "provider";
 
-export async function fetchTrades(
-  kind: string,
-  id: string,
-): Promise<SourceResult<{trades: Trade[]; pollMs: number; source: TapeSource}>> {
-  const empty = {trades: [] as Trade[], pollMs: 12_000, source: "provider" as TapeSource};
-  const {data: asset} = await fetchAsset(kind, id);
-  if (!asset) {
-    return {data: empty, stale: false, error: "Not listed here."};
-  }
+export type TradesPayload = {
+  trades: Trade[];
+  pollMs: number;
+  source: TapeSource;
+  /** False when older fills were backfilled from the provider. */
+  tapeComplete: boolean;
+};
 
-  // The worker's copy first. It refreshes every few seconds, so the client
-  // polls a little faster than it would a provider-backed tape.
-  const kept = freshTrades(await readCoinTape(asset.mint));
-  if (kept) {
-    return {data: {trades: kept, pollMs: 4_000, source: "chain"}, stale: false, error: null};
-  }
+const emptyTrades = (): SourceResult<TradesPayload> => ({
+  data: {trades: [], pollMs: 12_000, source: "provider", tapeComplete: false},
+  stale: false,
+  error: null,
+});
 
+const providerPollMs = () => (process.env.COINGECKO_API_KEY ? 4_000 : 12_000);
+
+const tradesFromTape = (tape: CoinTape | null): SourceResult<TradesPayload> | null => {
+  const kept = freshTrades(tape);
+  if (!kept) return null;
+  /*
+   * Worker/DB tapes are a bounded chain window for display. They are not the
+   * live merge that knows whether provider fills were backfilled, so the chart
+   * keeps appending until a poll marks the tape complete.
+   */
+  return {
+    data: {trades: kept, pollMs: 4_000, source: "chain", tapeComplete: false},
+    stale: false,
+    error: null,
+  };
+};
+
+/** Provider fills that survived a merge — chain did not list them. */
+function providerBackfilled(chain: readonly Trade[], merged: readonly Trade[]): boolean {
+  const chainSigs = new Set(chain.map((trade) => trade.txHash));
+  return merged.some((trade) => !chainSigs.has(trade.txHash));
+}
+
+async function fetchTradesForAsset(
+  asset: Asset,
+  tape: CoinTape | null = null,
+  options: {chainFirst?: boolean} = {},
+): Promise<SourceResult<TradesPayload>> {
+  const empty = emptyTrades();
+  const chainFirst = options.chainFirst !== false;
   try {
     const pool = await deepestPoolFor(asset.mint);
     if (!pool) {
-      return {data: empty, stale: false, error: "No pool is trading this yet."};
+      return {data: empty.data, stale: false, error: "No pool is trading this yet."};
     }
 
-    // The chain first; the provider only when the chain cannot answer.
-    if (pool.otherMint) {
+    // Chain first on live polls — extend the in-process tape so new fills stream
+    // in. SSR skips this (chainFirst: false) so the page budget is not spent on
+    // RPC while the browser will poll anyway.
+    if (chainFirst && pool.otherMint) {
       try {
         const chain = await chainTradesFor(pool.address, asset.mint, pool.otherMint);
-        // An empty tape falls through: the window a page reads reaches back
-        // only minutes on a pool busy with routing, and "no trades yet" about
-        // a coin that is trading is worse than the provider's partial view.
         if (chain && chain.trades.length > 0) {
-          return {
-            data: {trades: chain.trades, pollMs: 6_000, source: "chain"},
-            stale: chain.stale,
-            error: null,
-          };
+          try {
+            const {trades: providerTrades, stale: providerStale} = await tradesFor(
+              pool.address,
+              asset.mint,
+            );
+            const merged = mergeTape(chain.trades, providerTrades);
+            const tapeComplete = !providerBackfilled(chain.trades, merged);
+            return {
+              data: {
+                trades: merged,
+                pollMs: 4_000,
+                source: "chain",
+                tapeComplete,
+              },
+              stale: chain.stale || providerStale,
+              error: null,
+            };
+          } catch {
+            return {
+              data: {
+                trades: chain.trades,
+                pollMs: 4_000,
+                source: "chain",
+                tapeComplete: true,
+              },
+              stale: chain.stale,
+              error: null,
+            };
+          }
         }
       } catch {
         // Fall through to the provider rather than empty the tape.
       }
     }
 
+    const fromTape = tradesFromTape(
+      tape ?? (await readCoinTape(asset.mint, {live: true})),
+    );
+    if (fromTape) return fromTape;
+
     const {trades, stale} = await tradesFor(pool.address, asset.mint);
-    // Without a provider key the free tier allows roughly 30 calls a minute, so
-    // the tape refreshes every 12s rather than every 4s. Told to the client
-    // rather than guessed there.
     return {
       data: {
         trades,
-        pollMs: process.env.COINGECKO_API_KEY ? 4_000 : 12_000,
+        pollMs: providerPollMs(),
         source: "provider",
+        tapeComplete: false,
       },
       stale,
       error: null,
     };
   } catch (error) {
-    return {data: empty, stale: true, error: (error as Error).message};
+    return {data: empty.data, stale: true, error: (error as Error).message};
   }
+}
+
+export async function fetchTrades(
+  kind: string,
+  id: string,
+): Promise<SourceResult<TradesPayload>> {
+  const {data: asset} = await fetchAsset(kind, id);
+  if (!asset) {
+    return {...emptyTrades(), error: "Not listed here."};
+  }
+
+  return fetchTradesForAsset(asset);
 }
 
 /** Resolves to null instead of waiting past `ms`, or instead of throwing. */
@@ -221,8 +342,12 @@ function within<T>(work: Promise<T>, ms: number): Promise<T | null> {
   ]);
 }
 
-/** How long a coin page will wait on its data before rendering without it. */
-const PAGE_DATA_BUDGET_MS = 1_500;
+/** Store row + tape read — not spent on duplicate provider work. */
+const PAGE_CORE_BUDGET_MS = 400;
+/** Gecko decoration for the header, in parallel with chart/trades. */
+const PAGE_DECORATE_BUDGET_MS = 900;
+/** Chart and trades each get their own ceiling so one slow leg does not starve the other. */
+const PAGE_SECTION_BUDGET_MS = 1_200;
 
 /**
  * Trades rendered into the page. The feed prefetches every row on screen, and
@@ -243,6 +368,72 @@ const PAGE_TRADES = 60;
  * `listedAt` picks the chart's timeframe the same way the page will, so the
  * series read here is the one the page shows rather than a near miss.
  */
+/** Header only — store row with optional Gecko decoration, no chart or tape work. */
+export async function fetchAssetPageHeader(
+  kind: "stonk" | "stock",
+  id: string,
+): Promise<AssetResponse | null> {
+  const core = await within(assetCore(kind, id), PAGE_CORE_BUDGET_MS);
+  if (!core) return null;
+  const decorated = await within(decorateAsset(core), PAGE_DECORATE_BUDGET_MS);
+  return {
+    asset: decorated?.data ?? core,
+    stale: decorated?.stale ?? false,
+  };
+}
+
+/** Chart and trades once the header row is known — for streamed SSR sections. */
+export async function fetchAssetPageSecondary(
+  asset: Asset,
+  timeframe: Timeframe,
+): Promise<Pick<AssetPageInitial, "chart" | "trades">> {
+  const tape = await readCoinTape(asset.mint);
+  const tapeChart = freshCandles(tape, timeframe);
+  const tapeTrades = freshTrades(tape);
+
+  const chartWork: Promise<SourceResult<{points: ChartPoint[]; timeframe: Timeframe}> | null> =
+    tapeChart
+      ? Promise.resolve({
+          data: {points: tapeChart, timeframe},
+          stale: false,
+          error: null,
+        })
+      : within(fetchChartForAsset(asset, timeframe, tape), PAGE_SECTION_BUDGET_MS);
+
+  const tradesWork: Promise<SourceResult<TradesPayload> | null> = tapeTrades
+    ? Promise.resolve({
+        data: {
+          trades: tapeTrades,
+          pollMs: 4_000,
+          source: "chain" as TapeSource,
+          tapeComplete: false,
+        },
+        stale: false,
+        error: null,
+      })
+    : within(fetchTradesForAsset(asset, tape, {chainFirst: false}), PAGE_SECTION_BUDGET_MS);
+
+  const [chart, trades] = await Promise.all([chartWork, tradesWork]);
+
+  return {
+    chart: chart?.data
+      ? {
+          ...chart.data,
+          stale: chart.stale,
+          error: chart.data.points.length > 0 ? null : (chart.error ?? null),
+        }
+      : null,
+    trades: trades?.data
+      ? {
+          ...trades.data,
+          trades: trades.data.trades.slice(0, PAGE_TRADES),
+          stale: trades.stale,
+          error: trades.data.trades.length > 0 ? null : (trades.error ?? null),
+        }
+      : null,
+  };
+}
+
 export async function fetchAssetPageData(
   kind: "stonk" | "stock",
   id: string,
@@ -252,29 +443,73 @@ export async function fetchAssetPageData(
   const at = Date.now();
   const timeframe = defaultChartTimeframe({kind, listedAt, requested});
 
-  const [asset, chart, trades] = await Promise.all([
-    within(fetchAsset(kind, id), PAGE_DATA_BUDGET_MS),
-    within(fetchChart(kind, id, timeframe), PAGE_DATA_BUDGET_MS),
-    within(fetchTrades(kind, id), PAGE_DATA_BUDGET_MS),
+  /*
+   * One asset read and one tape read, then chart and trades in parallel.
+   * The old shape ran fetchAsset three times and read coin_tapes twice,
+   * which often burned the SSR budget on duplicate provider work before
+   * trades could render.
+   */
+  const core = await within(assetCore(kind, id), PAGE_CORE_BUDGET_MS);
+  if (!core) {
+    return {at, asset: null, chart: null, trades: null};
+  }
+
+  const [tape, decorated] = await Promise.all([
+    readCoinTape(core.mint),
+    within(decorateAsset(core), PAGE_DECORATE_BUDGET_MS),
   ]);
+
+  const assetForSections = decorated?.data ?? core;
+  const assetStale = decorated?.stale ?? false;
+
+  const tapeChart = freshCandles(tape, timeframe);
+  const tapeTrades = freshTrades(tape);
+
+  const chartWork: Promise<SourceResult<{points: ChartPoint[]; timeframe: Timeframe}> | null> =
+    tapeChart
+      ? Promise.resolve({
+          data: {points: tapeChart, timeframe},
+          stale: false,
+          error: null,
+        })
+      : within(fetchChartForAsset(assetForSections, timeframe, tape), PAGE_SECTION_BUDGET_MS);
+
+  const tradesWork: Promise<SourceResult<TradesPayload> | null> = tapeTrades
+    ? Promise.resolve({
+        data: {
+          trades: tapeTrades,
+          pollMs: 4_000,
+          source: "chain" as TapeSource,
+          tapeComplete: false,
+        },
+        stale: false,
+        error: null,
+      })
+    : within(
+        fetchTradesForAsset(assetForSections, tape, {chainFirst: false}),
+        PAGE_SECTION_BUDGET_MS,
+      );
+
+  const [chart, trades] = await Promise.all([chartWork, tradesWork]);
 
   return {
     at,
-    asset: asset?.data ? {asset: asset.data, stale: asset.stale} : null,
-    // Failures are left for the browser to retry rather than rendered in.
-    chart:
-      chart && !chart.error
-        ? {...chart.data, stale: chart.stale, error: null}
-        : null,
-    trades:
-      trades && !trades.error
-        ? {
-            ...trades.data,
-            trades: trades.data.trades.slice(0, PAGE_TRADES),
-            stale: trades.stale,
-            error: null,
-          }
-        : null,
+    asset: {asset: assetForSections, stale: assetStale},
+    chart: chart?.data
+      ? {
+          ...chart.data,
+          stale: chart.stale,
+          error: chart.data.points.length > 0 ? null : (chart.error ?? null),
+        }
+      : null,
+    trades: trades?.data
+      ? {
+          ...trades.data,
+          trades: trades.data.trades.slice(0, PAGE_TRADES),
+          stale: trades.stale,
+          error: trades.data.trades.length > 0 ? null : (trades.error ?? null),
+        }
+      : null,
   };
 }
 
@@ -324,7 +559,17 @@ async function fromStore(mint: Pubkey): Promise<Stonk | null> {
 export const stonkFor = cache(async (id: string): Promise<Stonk | null> => {
   const mint = asPubkey(id);
   if (!mint) return null;
-  return (await fromStore(mint)) ?? snapshotStonk(mint);
+  const known = (await fromStore(mint)) ?? snapshotStonk(mint);
+  if (known) return known;
+
+  /*
+   * A mint the store has never heard of. The indexer will not list a curve
+   * until it is well on its way to graduating, so a coin launched moments ago
+   * is invisible here and the page 404s. Ask the chain whether this mint is
+   * a launch we would have registered, and if it is, register it now.
+   */
+  const {registerLaunchByMint} = await import("./live/registerLaunch");
+  return registerLaunchByMint(mint);
 });
 
 /**
@@ -447,6 +692,11 @@ export function allStonks(): readonly Stonk[] {
 
 export function findStock(ticker: string): Stock | null {
   return snapshotStock(ticker);
+}
+
+/** Registry list with bundled snapshot prices — no live provider round trip. */
+export function feedStocksSnapshot(): FeedPage<Stock> {
+  return snapshotStocks();
 }
 
 /**

@@ -1,12 +1,12 @@
 "use client";
 
 import {useEffect, useMemo, useRef, useState} from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import {useQuery, useQueryClient} from "@tanstack/react-query";
 
-import {AllocationChart} from "@/components/AllocationChart";
 import {StickyPageHeader} from "@/components/AppShell";
-import {BalanceChart, type BalancePoint} from "@/components/BalanceChart";
+import type {BalancePoint} from "@/components/BalanceChart";
 import {EditTargetsSheet} from "@/components/EditTargetsSheet";
 import {ReceiveSheet} from "@/components/ReceiveSheet";
 import {RebalanceSheet} from "@/components/RebalanceSheet";
@@ -38,6 +38,15 @@ import {
 import {compact, compactMoney, stamp} from "@/lib/format";
 import {shortPubkey} from "@/lib/pubkey";
 import type {Holding} from "@/lib/types";
+
+const AllocationChart = dynamic(
+  () => import("@/components/AllocationChart").then((m) => ({default: m.AllocationChart})),
+  {ssr: false, loading: () => <div className="h-[180px] animate-pulse rounded-panel bg-wash" />},
+);
+const BalanceChart = dynamic(
+  () => import("@/components/BalanceChart").then((m) => ({default: m.BalanceChart})),
+  {ssr: false, loading: () => <div className="h-[180px] animate-pulse rounded-panel bg-wash" />},
+);
 
 type Split = "all" | "stonk" | "stock";
 
@@ -104,13 +113,9 @@ export function StonkfolioScreen() {
       if (!response.ok) throw new Error(body.error ?? "Could not read your wallet.");
       return body;
     },
-    /*
-     * Ten seconds, down from thirty, and refetched on focus. This is the number
-     * people come back to the app to look at; opening it should show now, not
-     * whatever it was when the tab was last visible.
-     */
-    refetchInterval: 10_000,
-    refetchOnWindowFocus: true,
+    // Matches the server-side holdings cache and private browser cache.
+    refetchInterval: 12_000,
+    refetchOnWindowFocus: false,
   });
 
   const history = useBalanceHistory(wallet, range, query.data?.totalUsd ?? null);
@@ -138,8 +143,8 @@ export function StonkfolioScreen() {
 
   const sol = (query.data?.solLamports ?? 0) / 1_000_000_000;
 
-  // Cost basis for the gain line on each holding row.
-  const trades = useWalletTrades(wallet);
+  // Cost basis for the gain line — after holdings so the first paint is one RPC batch.
+  const trades = useWalletTrades(wallet, {enabled: Boolean(query.data)});
   const positions = useMemo(
     () => new Map(trades.positions.map((position) => [position.mint, position])),
     [trades.positions],

@@ -68,6 +68,165 @@ body {
     border-radius: 38px;
     box-shadow: var(--shadow-frame);
   }
+
+  /*
+   * Showcase deployment only (`body.desktop-phone`). The dark card above is
+   * what trador.one keeps; this replaces it with the iPhone on a light stage.
+   * Below the breakpoint the shell is `display: contents`, so a real phone
+   * still gets the full-screen app.
+   */
+  body.desktop-phone {
+    background: #f2f2f4;
+    display: block;
+    padding: 0;
+  }
+
+  body.desktop-phone .phone-stage {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 100dvh;
+    padding: 28px 24px;
+    box-sizing: border-box;
+  }
+
+  body.desktop-phone .phone {
+    display: block;
+    position: relative;
+    flex: none;
+    /* Width is derived from the height so the feed cannot stretch the device. */
+    height: min(880px, calc(100dvh - 48px));
+    width: calc(min(880px, calc(100dvh - 48px)) * 424 / 880);
+    filter: drop-shadow(0 28px 40px rgb(0 0 0 / 18%))
+      drop-shadow(0 8px 16px rgb(0 0 0 / 10%));
+  }
+
+  body.desktop-phone .phone-bezel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    box-sizing: border-box;
+    padding: 13px;
+    border-radius: 58px;
+    background: #0c0c0e;
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 24%),
+      inset 0 0 0 3px #000;
+  }
+
+  body.desktop-phone .phone-screen {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    border-radius: 44px;
+    background: #000;
+    /* Stands in for env(safe-area-inset-top) on a desktop browser. */
+    --phone-inset-top: 50px;
+  }
+
+  body.desktop-phone .phone-pad {
+    padding-top: calc(26px + env(safe-area-inset-top, 0px) + var(--phone-inset-top));
+  }
+
+  body.desktop-phone .phone-pull {
+    top: calc(10px + env(safe-area-inset-top, 0px) + var(--phone-inset-top));
+  }
+
+  body.desktop-phone .app-frame {
+    width: 100%;
+    height: auto;
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  body.desktop-phone .phone-status {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    z-index: 35;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 54px;
+    padding: 10px 22px 0;
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    pointer-events: none;
+  }
+
+  body.desktop-phone .phone-island {
+    position: absolute;
+    top: 11px;
+    left: 50%;
+    width: 118px;
+    height: 35px;
+    border-radius: 20px;
+    background: #000;
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 10%);
+    transform: translateX(-50%);
+  }
+
+  body.desktop-phone .phone-glyphs {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  body.desktop-phone .phone-btn {
+    position: absolute;
+    display: block;
+    width: 3px;
+    border-radius: 2px;
+    background: linear-gradient(#4a4a4e, #1a1a1c);
+  }
+
+  body.desktop-phone .phone-btn-silent {
+    top: 13%;
+    left: -3px;
+    height: 3.4%;
+  }
+
+  body.desktop-phone .phone-btn-volup {
+    top: 19%;
+    left: -3px;
+    height: 6.4%;
+  }
+
+  body.desktop-phone .phone-btn-voldown {
+    top: 27%;
+    left: -3px;
+    height: 6.4%;
+  }
+
+  body.desktop-phone .phone-btn-power {
+    top: 22%;
+    right: -3px;
+    height: 10%;
+  }
+}
+
+/* Real phones, and the showcase link opened on one: no device chrome. */
+.phone-stage,
+.phone,
+.phone-bezel,
+.phone-screen {
+  display: contents;
+}
+
+.phone-status,
+.phone-btn {
+  display: none;
 }
 
 @layer utilities {

@@ -1,6 +1,6 @@
-import {fetchFeed, fetchStocks} from "@/lib/server/sources";
+import {feedStocksSnapshot, fetchFeed} from "@/lib/server/sources";
 
-import {SearchScreen} from "./SearchScreen";
+import {SearchSeed} from "@/components/keptAlive/HomeSearchKeptAlive";
 
 export const metadata = {title: "Search"};
 
@@ -27,13 +27,11 @@ const PREVIEW = 4;
 export default async function SearchPage() {
   // Falls back to the bundled snapshot when the store is unreachable, so the
   // preview degrades to slightly stale rows rather than to an empty screen.
-  const [trending, stocks] = await Promise.all([
-    fetchFeed("trending", {limit: PREVIEW}),
-    fetchStocks(),
-  ]);
+  const trending = await fetchFeed("trending", {limit: PREVIEW});
+  const stocks = feedStocksSnapshot();
 
   return (
-    <SearchScreen
+    <SearchSeed
       preview={[...stocks.items.slice(0, PREVIEW), ...trending.items.slice(0, PREVIEW)]}
     />
   );

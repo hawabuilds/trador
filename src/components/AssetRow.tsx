@@ -1,9 +1,10 @@
 "use client";
 
-import {useEffect} from "react";
+import {useEffect, useRef} from "react";
 import Link from "next/link";
+import {useQueryClient} from "@tanstack/react-query";
 
-import {usePrefetchAssetPage} from "@/hooks/useAsset";
+import {prefetchAssetPage, usePrefetchAssetPage} from "@/hooks/useAsset";
 import {cn} from "@/lib/cn";
 import {preloadAssetPageCode} from "@/lib/preloadAssetPageCode";
 import {
@@ -187,6 +188,9 @@ function Change({pct}: {pct: number | null}) {
 /**
  * A fluid list of rows — no boxes, no rules, just the tickers.
  */
+/** Viewport prefetch for the rows most likely to be tapped next. */
+const VIEWPORT_PREFETCH = 10;
+
 export function AssetList({
   assets,
   arrivals,
@@ -197,6 +201,10 @@ export function AssetList({
   arrivals?: ReadonlySet<string>;
   now?: number;
 }) {
+  const client = useQueryClient();
+  const listRef = useRef<HTMLUListElement>(null);
+  const prefetched = useRef(new Set<string>());
+
   // A list of coins is where coin pages are opened from, so fetch their chart
   // and trades code once the list has drawn and the browser is idle.
   useEffect(() => {
@@ -204,8 +212,35 @@ export function AssetList({
     idle(() => preloadAssetPageCode());
   }, []);
 
+  useEffect(() => {
+    const root = listRef.current;
+    if (!root || assets.length === 0) return;
+
+    const rows = [...root.querySelectorAll<HTMLLIElement>("li")].slice(0, VIEWPORT_PREFETCH);
+    if (rows.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const index = rows.indexOf(entry.target as HTMLLIElement);
+          const asset = assets[index];
+          if (!asset) continue;
+          const key = `${asset.kind}:${asset.id}`;
+          if (prefetched.current.has(key)) continue;
+          prefetched.current.add(key);
+          prefetchAssetPage(client, asset);
+        }
+      },
+      {root: null, rootMargin: "120px 0px", threshold: 0.01},
+    );
+
+    for (const row of rows) observer.observe(row);
+    return () => observer.disconnect();
+  }, [assets, client]);
+
   return (
-    <ul className="-mx-[22px]">
+    <ul ref={listRef} className="-mx-[22px]">
       {assets.map((asset) => {
         const key = `${asset.kind}:${asset.id}`;
         return (

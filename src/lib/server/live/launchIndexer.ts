@@ -53,10 +53,9 @@ import {
   writeIndexerState,
 } from "./universeStore";
 
-const RPC_URL =
-  process.env.SOLANA_RPC_URL ||
-  process.env.HELIUS_RPC_URL ||
-  "https://api.mainnet-beta.solana.com";
+import {indexerRpcUrl} from "../rpcUrl";
+
+const RPC_URL = indexerRpcUrl();
 
 let rpcCalls = 0;
 
@@ -86,7 +85,10 @@ const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Gap between pump sweep calls. Zero when a paid RPC removes the limit. */
-const PUMP_SWEEP_GAP_MS = process.env.SOLANA_RPC_URL || process.env.HELIUS_RPC_URL ? 0 : 700;
+const PUMP_SWEEP_GAP_MS =
+  process.env.INDEXER_RPC_URL || process.env.HELIUS_RPC_URL || process.env.SOLANA_RPC_URL
+    ? 0
+    : 700;
 
 /**
  * `rpc`, but it waits out a rate limit instead of failing the pass.
@@ -363,7 +365,11 @@ const GRADUATING_FLOOR = 0.1;
  * point. The first pass after a restart always runs, so a cold worker fills the
  * tab immediately rather than leaving it empty for a quarter of an hour.
  */
-const GRADUATING_EVERY = 10;
+/** Every Nth `indexAll` pass runs the 88-call graduating sweep. Default 20 ≈ 30 min at 90s. */
+const GRADUATING_EVERY = Math.max(
+  1,
+  Number.parseInt(process.env.GRADUATING_EVERY ?? "20", 10) || 20,
+);
 
 let passCount = 0;
 
@@ -938,12 +944,22 @@ export async function indexAll(): Promise<{
 
   const decorated = {named, priced, error: decorateError};
 
-  await writeIndexerState("live-tip", {heartbeat_at: new Date().toISOString()});
+  const passes = graduating
+    ? [stonkfun, direct, pumpfun, graduating]
+    : [stonkfun, direct, pumpfun];
 
-  return {
-    passes: graduating
-      ? [stonkfun, direct, pumpfun, graduating]
-      : [stonkfun, direct, pumpfun],
-    decorated,
-  };
+  /*
+   * Heartbeat only when discovery actually ran.
+   *
+   * Decoration can succeed while every getProgramAccounts pass failed — RPC
+   * outage, Helius deprioritization, a bad URL. Writing a heartbeat anyway
+   * made `/api/cron/index` defer forever to a worker that was only re-pricing
+   * stale rows, which is the failure that presents as a feed that simply stops
+   * growing.
+   */
+  if ([stonkfun, direct, pumpfun].some((pass) => !pass.error)) {
+    await writeIndexerState("live-tip", {heartbeat_at: new Date().toISOString()});
+  }
+
+  return {passes, decorated};
 }

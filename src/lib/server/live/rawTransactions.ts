@@ -142,16 +142,16 @@ export interface RawRead {
 /**
  * The node to read raw transactions from, or null when none is configured.
  *
- * Its own setting first, so the worker can read transactions from one node
- * without also moving its launch sweeps, which read `SOLANA_RPC_URL`.
+ * Its own setting first, so signature lists and raw tx batches never ride the
+ * same Helius quota as wallet traffic or indexer sweeps. Defaults to the
+ * public mainnet endpoint when unset — cheap enough for `getTransaction` lists.
  */
-export const rawRpc = (): string | null =>
-  process.env.RAW_TX_RPC_URL || process.env.SOLANA_RPC_URL || null;
+export const rawRpc = (): string =>
+  process.env.RAW_TX_RPC_URL || "https://api.mainnet-beta.solana.com";
 
 /** Read and reduce transactions, every batch at once, and say which are missing. */
 export async function rawTransactions(signatures: string[]): Promise<RawRead> {
   const rpc = rawRpc();
-  if (!rpc) throw new Error("No RPC is configured for raw transactions.");
   const batches: string[][] = [];
   for (let i = 0; i < signatures.length; i += BATCH) batches.push(signatures.slice(i, i + BATCH));
 

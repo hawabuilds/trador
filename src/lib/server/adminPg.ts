@@ -18,6 +18,7 @@
 
 import type {Pool, PoolClient} from "pg";
 
+import {NEW_FEED_RECENCY_MS} from "@/config/feed";
 import type {StatRow, StonkRow, StonkWrite} from "./live/universeStore";
 
 const URL = process.env.DATABASE_URL ?? process.env.POSTGRES_URL ?? "";
@@ -428,15 +429,21 @@ export async function pgFeedHead(
 ): Promise<StonkRow[]> {
   const column = sort === "new" ? "graduated_at" : "vol_24h";
   return withClient(async (client) => {
+    const recencyCutoff =
+      sort === "new" ? new Date(Date.now() - NEW_FEED_RECENCY_MS).toISOString() : null;
     const {rows} = await client.query(
       `select * from public.stonk_feed
         where status = 'listed'
           and launchpad is not null
           and (eligible is null or eligible is true)
-          ${sort === "new" ? "and (last_mcap >= $2 or last_mcap is null)" : ""}
+          ${
+            sort === "new"
+              ? "and (last_mcap >= $2 or last_mcap is null or graduated_at >= $3)"
+              : ""
+          }
         order by ${column} desc nulls last, mint desc
         limit $1`,
-      sort === "new" ? [limit, newMinMcapUsd] : [limit],
+      sort === "new" ? [limit, newMinMcapUsd, recencyCutoff] : [limit],
     );
     return rows as StonkRow[];
   });

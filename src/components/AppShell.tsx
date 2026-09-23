@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import {useEffect, useRef, type ReactNode} from "react";
 import {useRouter} from "next/navigation";
 
@@ -10,16 +11,26 @@ import {isPrivyOAuthReturn} from "@/lib/session";
 
 import {cn} from "@/lib/cn";
 import {PullIndicator, RefreshDock, useRefreshAll, usePullToRefresh} from "./Refresh";
-import {PushPrompt} from "./PushPrompt";
 import {TabBar} from "./TabBar";
+import {
+  HomeSearchKeptAlivePanels,
+  KeptAliveProvider,
+} from "./keptAlive/HomeSearchKeptAlive";
+
+const PushPrompt = dynamic(() => import("./PushPrompt").then((m) => ({default: m.PushPrompt})), {
+  ssr: false,
+});
 
 /**
  * Status bar / Dynamic Island inset, plus a little extra so titles do not sit
  * against the cutout. Lives on sticky headers and on other app pages — not on
  * the scroller, or a sticky `top: 0` would stack it twice.
+ *
+ * `phone-pad` is only given extra inset on the desktop phone stage, where it
+ * stands in for the island inset a real phone reports through `env()`.
  */
 export const APP_SCROLL_PAD_TOP =
-  "pt-[calc(26px+env(safe-area-inset-top,0px))]";
+  "phone-pad pt-[calc(26px+env(safe-area-inset-top,0px))]";
 
 /**
  * Title + filter block that stays put while the feed scrolls.
@@ -102,29 +113,46 @@ export function AppShell({children}: {children: ReactNode}) {
     router.replace("/");
   }, [ready, authenticated, router]);
 
-  if (!ready || (!authenticated && !isPrivyOAuthReturn())) {
-    return <div className="h-full bg-surface-base" />;
+  /*
+   * Privy still restoring a session: render the shell and route content now.
+   * Wallet-gated actions stay disabled in their own components until `ready`.
+   * Only a confirmed signed-out visitor is held back while the redirect runs.
+   */
+  if (ready && !authenticated && !isPrivyOAuthReturn()) {
+    return (
+      <div
+        className={`${APP_SCROLL_PAD_TOP} h-full animate-pulse space-y-4 bg-surface-base px-[22px]`}
+        aria-busy
+        aria-label="Loading"
+      >
+        <div className="h-8 w-40 rounded-md bg-surface-raised" />
+        <div className="h-64 rounded-xl bg-surface-raised" />
+      </div>
+    );
   }
 
   return (
-    <div className="flex h-full flex-col bg-surface-base">
-      <PullIndicator pull={pull} refreshing={refreshing} />
-      <div
-        ref={scrollerRef}
-        className="scroll-quiet min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-[22px] pb-[calc(96px+env(safe-area-inset-bottom))]"
-        style={{
-          // The list follows the finger, which is what makes the gesture feel
-          // like it is moving the content rather than playing an animation.
-          transform: pull > 0 ? `translateY(${pull * 0.6}px)` : undefined,
-          transition: pull === 0 ? "transform 220ms ease" : undefined,
-        }}
-      >
-        {children}
-      </div>
+    <KeptAliveProvider>
+      <div className="flex h-full flex-col bg-surface-base">
+        <PullIndicator pull={pull} refreshing={refreshing} />
+        <div
+          ref={scrollerRef}
+          className="scroll-quiet min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-[22px] pb-[calc(96px+env(safe-area-inset-bottom))]"
+          style={{
+            // The list follows the finger, which is what makes the gesture feel
+            // like it is moving the content rather than playing an animation.
+            transform: pull > 0 ? `translateY(${pull * 0.6}px)` : undefined,
+            transition: pull === 0 ? "transform 220ms ease" : undefined,
+          }}
+        >
+          {children}
+          <HomeSearchKeptAlivePanels />
+        </div>
 
-      <TabBar />
-      <RefreshDock refresh={refresh} refreshing={refreshing} />
-      <PushPrompt />
-    </div>
+        <TabBar />
+        <RefreshDock refresh={refresh} refreshing={refreshing} />
+        <PushPrompt />
+      </div>
+    </KeptAliveProvider>
   );
 }

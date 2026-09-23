@@ -1,6 +1,6 @@
 "use client";
 
-import {useEffect, useState} from "react";
+import {useEffect, useSyncExternalStore, useState} from "react";
 import Link from "next/link";
 import {useRouter} from "next/navigation";
 
@@ -38,11 +38,15 @@ export function LoginScreen() {
   /*
    * Was there a session here last time?
    *
-   * Read in an effect so the server's HTML and the first client render agree —
-   * `localStorage` does not exist during rendering.
+   * `useSyncExternalStore` reads the hint on the first client render without
+   * waiting for an effect, so a returning user never sees the marketing page
+   * flash before Privy restores the session.
    */
-  const [returning, setReturning] = useState(false);
-  useEffect(() => setReturning(readSignedInHint()), []);
+  const returning = useSyncExternalStore(
+    () => () => {},
+    readSignedInHint,
+    () => false,
+  );
 
   useEffect(() => {
     if (ready && authenticated) router.replace("/home");
@@ -57,7 +61,17 @@ export function LoginScreen() {
    * first-time visitor still gets the page immediately.
    */
   if ((returning && !ready) || (ready && authenticated)) {
-    return <div className="h-full bg-surface-base" />;
+    return (
+      <div
+        className="flex h-full flex-col justify-center bg-surface-base px-8 animate-pulse"
+        aria-busy
+        aria-label="Loading"
+      >
+        <div className="mb-[1em] h-10 w-36 rounded-md bg-surface-raised" />
+        <div className="h-12 w-full max-w-[280px] rounded-md bg-surface-raised" />
+        <div className="mt-5 h-5 w-48 rounded-md bg-surface-raised" />
+      </div>
+    );
   }
 
   const startLogin = () => {

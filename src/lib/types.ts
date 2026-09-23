@@ -153,6 +153,11 @@ export interface TradesResponse {
   pollMs: number;
   /** `chain` is every fill; `provider` may be partial. */
   source?: "chain" | "provider";
+  /**
+   * When `source` is `chain`, false means older fills were backfilled from the
+   * provider — the chart must not treat the tape as complete.
+   */
+  tapeComplete?: boolean;
   stale: boolean;
   error: string | null;
 }

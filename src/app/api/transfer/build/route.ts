@@ -8,11 +8,9 @@ import {
 
 import {assertPubkey} from "@/lib/pubkey";
 import {badRequest, json} from "@/lib/server/http";
+import {serverRpcUrl} from "@/lib/server/rpcUrl";
 
-const RPC_URL =
-  process.env.SOLANA_RPC_URL ||
-  process.env.HELIUS_RPC_URL ||
-  "https://api.mainnet-beta.solana.com";
+const RPC_URL = serverRpcUrl();
 
 const MAX_LAMPORTS = BigInt(Number.MAX_SAFE_INTEGER);
 

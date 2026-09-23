@@ -18,11 +18,10 @@ import {snapshotStocks, snapshotStonks} from "@/lib/server/snapshot";
 import {hasDatabase} from "@/lib/server/db";
 import type {Asset, Holding} from "@/lib/types";
 import {cached} from "./cache";
+import {serverRpcUrl} from "../rpcUrl";
+import {readCachedBalances, writeCachedBalances} from "./walletHoldingsCache";
 
-const RPC_URL =
-  process.env.SOLANA_RPC_URL ||
-  process.env.HELIUS_RPC_URL ||
-  "https://api.mainnet-beta.solana.com";
+const RPC_URL = serverRpcUrl();
 
 interface ParsedTokenAccount {
   account: {
@@ -59,60 +58,82 @@ export interface Stonkfolio {
   stale: boolean;
 }
 
+async function stonkfolioFromBalances(
+  byMint: ReadonlyMap<string, number>,
+  solLamports: number,
+): Promise<Omit<Stonkfolio, "stale">> {
+  const universe = await universeFor([...byMint.keys()]);
+
+  const holdings: Holding[] = [];
+  let otherCount = 0;
+  let totalUsd = 0;
+
+  for (const [mint, amount] of byMint) {
+    const asset = universe.get(mint);
+    if (!asset) {
+      otherCount += 1;
+      continue;
+    }
+    const price = asset.price.usd;
+    // Null rather than 0 when unpriced: a holding whose price is unknown is
+    // not a holding worth nothing, and it must not drag the total down.
+    const valueUsd = price === null ? null : price * amount;
+    if (valueUsd !== null) totalUsd += valueUsd;
+    holdings.push({asset, amount, valueUsd});
+  }
+
+  holdings.sort((a, b) => (b.valueUsd ?? 0) - (a.valueUsd ?? 0));
+
+  return {holdings, otherCount, solLamports, totalUsd};
+}
+
+async function balancesFromRpc(wallet: Pubkey): Promise<{
+  byMint: Map<string, number>;
+  solLamports: number;
+}> {
+  // Both token programs. Every verified stock is Token-2022, and coins are
+  // classic SPL — querying only one would silently hide half the portfolio.
+  const [classic, token2022, balance] = await Promise.all([
+    rpc<{value: ParsedTokenAccount[]}>("getTokenAccountsByOwner", [
+      wallet,
+      {programId: TOKEN_PROGRAM},
+      {encoding: "jsonParsed", commitment: "confirmed"},
+    ]),
+    rpc<{value: ParsedTokenAccount[]}>("getTokenAccountsByOwner", [
+      wallet,
+      {programId: TOKEN_2022_PROGRAM},
+      {encoding: "jsonParsed", commitment: "confirmed"},
+    ]),
+    rpc<{value: number}>("getBalance", [wallet, {commitment: "confirmed"}]),
+  ]);
+
+  const byMint = new Map<string, number>();
+  for (const entry of [...classic.value, ...token2022.value]) {
+    const info = entry.account.data.parsed?.info;
+    const mint = info?.mint;
+    const amount = info?.tokenAmount?.uiAmount;
+    if (!mint || typeof amount !== "number" || amount <= 0) continue;
+    byMint.set(mint, (byMint.get(mint) ?? 0) + amount);
+  }
+
+  return {byMint, solLamports: balance.value};
+}
+
 export async function stonkfolioFor(wallet: Pubkey): Promise<Stonkfolio> {
+  const pg = await readCachedBalances(wallet);
+  if (pg) {
+    const value = await stonkfolioFromBalances(pg.byMint, pg.solLamports);
+    return {...value, stale: false};
+  }
+
   /*
-   * Eight seconds, down from twenty. The balance is now priced live, and a long
-   * cache in front of a live price is the same lag moved one layer up.
+   * Twelve seconds in-process. Cross-instance repeats are served from Postgres
+   * when fresh; this layer still dedupes concurrent reads on one instance.
    */
-  const {value, stale} = await cached(`holdings:${wallet}`, 8_000, async () => {
-    // Both token programs. Every verified stock is Token-2022, and coins are
-    // classic SPL — querying only one would silently hide half the portfolio.
-    const [classic, token2022, balance] = await Promise.all([
-      rpc<{value: ParsedTokenAccount[]}>("getTokenAccountsByOwner", [
-        wallet,
-        {programId: TOKEN_PROGRAM},
-        {encoding: "jsonParsed", commitment: "confirmed"},
-      ]),
-      rpc<{value: ParsedTokenAccount[]}>("getTokenAccountsByOwner", [
-        wallet,
-        {programId: TOKEN_2022_PROGRAM},
-        {encoding: "jsonParsed", commitment: "confirmed"},
-      ]),
-      rpc<{value: number}>("getBalance", [wallet, {commitment: "confirmed"}]),
-    ]);
-
-    const byMint = new Map<string, number>();
-    for (const entry of [...classic.value, ...token2022.value]) {
-      const info = entry.account.data.parsed?.info;
-      const mint = info?.mint;
-      const amount = info?.tokenAmount?.uiAmount;
-      if (!mint || typeof amount !== "number" || amount <= 0) continue;
-      byMint.set(mint, (byMint.get(mint) ?? 0) + amount);
-    }
-
-    const universe = await universeFor([...byMint.keys()]);
-
-    const holdings: Holding[] = [];
-    let otherCount = 0;
-    let totalUsd = 0;
-
-    for (const [mint, amount] of byMint) {
-      const asset = universe.get(mint);
-      if (!asset) {
-        otherCount += 1;
-        continue;
-      }
-      const price = asset.price.usd;
-      // Null rather than 0 when unpriced: a holding whose price is unknown is
-      // not a holding worth nothing, and it must not drag the total down.
-      const valueUsd = price === null ? null : price * amount;
-      if (valueUsd !== null) totalUsd += valueUsd;
-      holdings.push({asset, amount, valueUsd});
-    }
-
-    holdings.sort((a, b) => (b.valueUsd ?? 0) - (a.valueUsd ?? 0));
-
-    return {holdings, otherCount, solLamports: balance.value, totalUsd};
+  const {value, stale} = await cached(`holdings:${wallet}`, 12_000, async () => {
+    const {byMint, solLamports} = await balancesFromRpc(wallet);
+    void writeCachedBalances(wallet, solLamports, byMint);
+    return await stonkfolioFromBalances(byMint, solLamports);
   });
 
   return {...value, stale};

@@ -1,5 +1,7 @@
 import {NextResponse} from "next/server";
 
+import {serverRpcUrl} from "@/lib/server/rpcUrl";
+
 export const dynamic = "force-dynamic";
 
 /**
@@ -46,7 +48,13 @@ const ALLOWED = new Set([
   "isBlockhashValid",
 ]);
 
-const UPSTREAM = process.env.SOLANA_RPC_URL || process.env.HELIUS_RPC_URL || "";
+/** Refuse the proxy until a paid or dedicated app RPC is configured. */
+const UPSTREAM =
+  process.env.SERVER_RPC_URL ||
+  process.env.HELIUS_RPC_URL ||
+  process.env.SOLANA_RPC_URL
+    ? serverRpcUrl()
+    : "";
 
 export async function POST(request: Request) {
   if (!UPSTREAM) {

@@ -337,7 +337,11 @@ export function CreateSheet({open, onClose}: {open: boolean; onClose: () => void
       }
 
       // Register it so its page exists now, not whenever the indexer reaches it.
-      await postJson("/api/launch/confirm", token, {
+      // One attempt is not enough: the signature can be confirmed on the node
+      // the browser asked while the server's read still misses the new pool,
+      // and swallowing that miss is how "View your coin" opens a 404.
+      setStage({kind: "working", label: "Opening your coin page…"});
+      const registration = {
         launchpad,
         mint: built.body.mint,
         pool: built.body.pool,
@@ -345,7 +349,18 @@ export function CreateSheet({open, onClose}: {open: boolean; onClose: () => void
         name: name.trim(),
         symbol,
         image: built.body.image,
-      }).catch(() => undefined);
+      };
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        const confirmed = await postJson<{ok?: boolean; error?: string}>(
+          "/api/launch/confirm",
+          token,
+          registration,
+        ).catch(() => null);
+        if (confirmed?.ok) break;
+        const terminal = confirmed !== null && (confirmed.status === 400 || confirmed.status === 401 || confirmed.status === 409);
+        if (terminal || attempt === 5) break;
+        await new Promise((resolve) => window.setTimeout(resolve, 1500));
+      }
 
       setStage({kind: "done", mint: built.body.mint, signature, symbol, launchpad});
     } catch (error) {

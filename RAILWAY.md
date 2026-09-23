@@ -55,9 +55,19 @@ disagree on a version check, so it waits.
 | Variable | Why |
 | --- | --- |
 | `DATABASE_URL` | The worker writes in batches, so it takes the direct Postgres path, not PostgREST. **Must be the pooler host — see below.** |
-| `HELIUS_RPC_URL` | A public RPC rate-limits the pump.fun sweep — 9 of 29 calls failed. Helius took a full pass from minutes to 36 seconds. |
+| `INDEXER_RPC_URL` or `HELIUS_RPC_URL` | Discovery sweeps (`getProgramAccounts`). A public RPC rate-limits the pump.fun sweep — 9 of 29 calls failed. Helius took a full pass from minutes to 36 seconds. **Do not set `SOLANA_RPC_URL` here** unless you intend to keep paying Alchemy for indexer traffic. |
+| `RAW_TX_RPC_URL` | Signature lists and raw transaction reads for trade tapes. Set to `https://api.mainnet-beta.solana.com` so Helius quota stays on sweeps and wallet-shaped reads, not one `getSignaturesForAddress` per coin per round. Defaults to that public URL when unset. |
+| `HELIUS_API_KEY` | Parsed transaction batches (when tapes are not served from `coin_tapes` in Postgres). Optional if `HELIUS_RPC_URL` embeds `api-key=`. |
 | `COINGECKO_API_KEY`, `COINGECKO_API_PLAN` | Decoration only. Absent, prices fall down the ladder. |
 | `INDEX_INTERVAL_MS` | Optional. Defaults to 90s. A reconciler is idempotent, so this is a cost dial. |
+| `GRADUATING_EVERY` | Optional. Defaults to `20`. How often the expensive graduating pump sweep runs (every N worker passes). |
+
+**Helius-only split (recommended):**
+
+- **Railway worker:** `INDEXER_RPC_URL` or `HELIUS_RPC_URL`, `RAW_TX_RPC_URL=https://api.mainnet-beta.solana.com`, `DATABASE_URL`, CoinGecko keys. Unset `SOLANA_RPC_URL`.
+- **Vercel app:** `SERVER_RPC_URL` or `HELIUS_RPC_URL` for `/api/rpc`, launch confirm, holdings. Unset `INDEXER_RPC_URL` and `SOLANA_RPC_URL`. Charts stay fast when `KEEP_TAPES` + `coin_tapes` are populated on the worker; CoinGecko remains the candle fallback.
+
+**Not on Railway:** `SERVER_RPC_URL` is for the Next app. The worker does not serve pages.
 
 **`DATABASE_URL` is deliberately NOT set on Vercel.** Setting it there would
 make every serverless function take the `pg` path and open a connection per

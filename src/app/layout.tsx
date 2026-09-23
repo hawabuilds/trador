@@ -1,6 +1,7 @@
+import type {ReactNode} from "react";
 import type {Metadata, Viewport} from "next";
+import dynamic from "next/dynamic";
 import {Inter, JetBrains_Mono, Montserrat} from "next/font/google";
-import {Analytics} from "@vercel/analytics/next";
 
 import {Providers} from "@/components/providers/Providers";
 import {OVERLAY_ROOT_ID} from "@/components/ui/OverlayPortal";
@@ -11,13 +12,37 @@ import {THEME_COLOR} from "@/lib/theme";
 import "./globals.css";
 import {ZoomLock} from "@/components/ZoomLock";
 
+const Analytics = dynamic(
+  () => import("@vercel/analytics/react").then((m) => ({default: m.Analytics})),
+  {ssr: false},
+);
+
+/** Separate deployment only. Unset, the document is the one trador.one serves. */
+const desktopPhone = process.env.NEXT_PUBLIC_DESKTOP_PHONE === "1";
+
+const PhoneStageShell = desktopPhone
+  ? dynamic(() =>
+      import("@/components/PhoneStage").then((m) => ({
+        default: function PhoneStageShell({children}: {children: ReactNode}) {
+          return (
+            <m.PhoneStage>
+              <div className="app-frame">
+                <m.PhoneStatusBar />
+                {children}
+              </div>
+            </m.PhoneStage>
+          );
+        },
+      })),
+    )
+  : null;
+
 /**
  * Inter for interface copy: 400 body, 300 large display, 500/700 headings.
  * Tabular figures keep price columns stable; mono stays on addresses only.
  */
 const display = Inter({
   subsets: ["latin"],
-  weight: ["300", "400", "500", "700"],
   variable: "--font-display",
   display: "swap",
 });
@@ -32,7 +57,7 @@ const wordmark = Montserrat({
 
 const mono = JetBrains_Mono({
   subsets: ["latin"],
-  weight: ["400", "500", "700"],
+  weight: ["400", "500"],
   variable: "--font-mono",
   display: "swap",
 });
@@ -90,13 +115,22 @@ export default function RootLayout({
       style={{colorScheme: "dark"}}
       data-theme="dark"
     >
-      <body className="font-sans text-ink antialiased">
+      <body
+        className={`font-sans text-ink antialiased${desktopPhone ? " desktop-phone" : ""}`}
+      >
         <ZoomLock />
         <Providers>
-          <div className="app-frame">
-            {children}
-            <div id={OVERLAY_ROOT_ID} />
-          </div>
+          {PhoneStageShell ? (
+            <PhoneStageShell>
+              {children}
+              <div id={OVERLAY_ROOT_ID} />
+            </PhoneStageShell>
+          ) : (
+            <div className="app-frame">
+              {children}
+              <div id={OVERLAY_ROOT_ID} />
+            </div>
+          )}
         </Providers>
         <Analytics />
       </body>

@@ -32,10 +32,10 @@ interface HotCoin {
   busy: boolean;
 }
 
-const TRENDING = 40;
-const NEWEST = 20;
-const BUSY_TRENDING = 20;
-const BUSY_NEWEST = 10;
+const TRENDING = 48;
+const NEWEST = 28;
+const BUSY_TRENDING = 24;
+const BUSY_NEWEST = 14;
 const BUSY_STOCKS = 10;
 
 /** Coins read at once. The RPC plan refuses bursts much wider than this. */

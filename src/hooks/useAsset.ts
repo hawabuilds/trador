@@ -1,9 +1,10 @@
 "use client";
 
 import {useRef, useState} from "react";
-import {useQuery, useQueryClient, type QueryClient} from "@tanstack/react-query";
+import {keepPreviousData, useQuery, useQueryClient, type QueryClient} from "@tanstack/react-query";
 
 import {defaultChartTimeframe} from "@/lib/chartTimeframe";
+import {useTradesStream} from "@/hooks/useTradesStream";
 import {preloadAssetPageCode} from "@/lib/preloadAssetPageCode";
 import type {
   Asset,
@@ -15,8 +16,8 @@ import type {
   TradesResponse,
 } from "@/lib/types";
 
-async function get<T>(url: string): Promise<T> {
-  const response = await fetch(url);
+async function get<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(url, init);
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as {error?: string} | null;
     throw new Error(body?.error ?? `Request failed (${response.status}).`);
@@ -41,7 +42,8 @@ const chartQuery = (kind: string, id: string, timeframe: Timeframe) => ({
 
 const tradesQuery = (kind: string, id: string) => ({
   queryKey: ["trades", kind, id],
-  queryFn: () => get<TradesResponse>(`/api/asset/${kind}/${id}/trades`),
+  queryFn: () =>
+    get<TradesResponse>(`/api/asset/${kind}/${id}/trades`, {cache: "no-store"}),
 });
 
 /**
@@ -66,8 +68,8 @@ export function prefetchAssetPage(client: QueryClient, asset: Asset): void {
 
   const listedAt = asset.kind === "stonk" ? asset.listedAt : null;
   const timeframe = defaultChartTimeframe({kind, listedAt});
-  void client.prefetchQuery(chartQuery(kind, id, timeframe));
-  void client.prefetchQuery(tradesQuery(kind, id));
+  void client.prefetchQuery({...chartQuery(kind, id, timeframe), staleTime: 15_000});
+  void client.prefetchQuery({...tradesQuery(kind, id), staleTime: 0});
 }
 
 /**
@@ -114,6 +116,7 @@ export function useAsset(kind: string, id: string, seed?: Seed<AssetResponse>) {
   useSeed(assetQuery(kind, id).queryKey, seed);
   const query = useQuery({
     ...assetQuery(kind, id),
+    staleTime: 15_000,
     refetchInterval: 15_000,
   });
 
@@ -135,6 +138,7 @@ export function useChart(
   useSeed(chartQuery(kind, id, timeframe).queryKey, seed?.data?.timeframe === timeframe ? seed : undefined);
   const query = useQuery({
     ...chartQuery(kind, id, timeframe),
+    staleTime: 15_000,
     refetchInterval: 30_000,
     // Keep the previous series on screen while a new timeframe loads. Dropping
     // to an empty chart between two good states reads as a failure.
@@ -158,17 +162,25 @@ export function useTrades(
   seed?: Seed<TradesResponse>,
 ) {
   useSeed(tradesQuery(kind, id).queryKey, seed);
+  const streaming = useTradesStream(kind, id, enabled);
   const query = useQuery({
     ...tradesQuery(kind, id),
     enabled,
+    // Always stale so interval polls and remounts pick up new fills; pollMs
+    // sets cadence, not whether the last response is trusted.
+    staleTime: 0,
+    placeholderData: keepPreviousData,
     // The server decides the cadence, because it knows whether a provider key
     // is configured and therefore what the rate limit allows.
-    refetchInterval: (query) => query.state.data?.pollMs ?? 12_000,
+    refetchInterval: streaming
+      ? false
+      : (query) => query.state.data?.pollMs ?? 12_000,
   });
 
   return {
     trades: query.data?.trades ?? [],
-    complete: query.data?.source === "chain",
+    complete:
+      query.data?.source === "chain" && query.data?.tapeComplete !== false,
     isLoading: query.isLoading,
     error: query.data?.error ?? (query.error as Error | null)?.message ?? null,
     retry: () => void query.refetch(),

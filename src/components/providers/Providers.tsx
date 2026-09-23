@@ -7,6 +7,8 @@ import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
 import {DemoSessionProvider} from "./DemoSession";
 import {ThemeProvider} from "./ThemeProvider";
 import {persistCoinCache, restoreCoinCache} from "@/lib/coinCache";
+import {persistFeedCache, restoreFeedCache} from "@/lib/feedCache";
+import {SERVICE_WORKER} from "@/config/flags";
 import {isPrivyConfigured} from "@/lib/session";
 
 /**
@@ -27,18 +29,35 @@ export function Providers({children}: {children: React.ReactNode}) {
           // The feed re-polls on its own cadence; refetching on every window
           // focus on top of that just burns provider quota.
           refetchOnWindowFocus: false,
-          staleTime: 10_000,
+          staleTime: 15_000,
+          // Keep tab switches warm when parallel routes are not in play.
+          gcTime: 5 * 60_000,
           retry: 1,
         },
       },
     });
     // Before the first render, so a coin page reopened from the device's copy
     // draws with it rather than a frame later.
-    if (typeof window !== "undefined") restoreCoinCache(client);
+    if (typeof window !== "undefined") {
+      restoreCoinCache(client);
+      restoreFeedCache(client);
+    }
     return client;
   });
 
-  useEffect(() => persistCoinCache(queryClient), [queryClient]);
+  useEffect(() => {
+    const stopCoin = persistCoinCache(queryClient);
+    const stopFeed = persistFeedCache(queryClient);
+    return () => {
+      stopCoin();
+      stopFeed();
+    };
+  }, [queryClient]);
+
+  useEffect(() => {
+    if (!SERVICE_WORKER || !("serviceWorker" in navigator)) return;
+    void navigator.serviceWorker.register("/sw.js").catch(() => {});
+  }, []);
 
   return (
     <ThemeProvider>

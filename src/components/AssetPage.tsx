@@ -112,7 +112,9 @@ export function AssetPage({
 }) {
   const router = useRouter();
   const at = initial?.at ?? 0;
-  const {asset, isLoading, error} = useAsset(kind, id, {data: initial?.asset ?? null, at});
+  const {asset: liveAsset, isLoading, error} = useAsset(kind, id, {data: initial?.asset ?? null, at});
+  const asset = liveAsset ?? initial?.asset?.asset ?? null;
+  const headerPending = !asset && isLoading;
 
   const listedAt = asset?.kind === "stonk" ? asset.listedAt : null;
   const autoTimeframe = defaultChartTimeframe({kind, listedAt, requested: requestedTimeframe});
@@ -206,7 +208,7 @@ export function AssetPage({
   );
 
   if (!asset) {
-    if (isLoading) return <AssetSkeleton />;
+    if (headerPending) return <AssetSkeleton />;
     return (
       <div className={APP_SCROLL_PAD_TOP}>
         <BackButton onClick={() => router.push("/home")} />

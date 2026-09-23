@@ -1,7 +1,6 @@
 import {publicJson} from "@/lib/server/http";
 import {fetchFeed, fetchGraduating, fetchStocks} from "@/lib/server/sources";
 
-
 export const dynamic = "force-dynamic";
 
 /*
@@ -15,6 +14,18 @@ export const dynamic = "force-dynamic";
 const SORTS = ["trending", "new", "marketCap", "rewards"] as const;
 type FeedSort = (typeof SORTS)[number];
 
+const INCLUDES = ["stocks", "graduating"] as const;
+type FeedInclude = (typeof INCLUDES)[number];
+
+function parseInclude(raw: string | null): Set<FeedInclude> {
+  const out = new Set<FeedInclude>();
+  if (!raw) return out;
+  for (const part of raw.split(",")) {
+    if ((INCLUDES as readonly string[]).includes(part)) out.add(part as FeedInclude);
+  }
+  return out;
+}
+
 /**
  * The feed, live.
  *
@@ -23,10 +34,9 @@ type FeedSort = (typeof SORTS)[number];
  * afterwards: the client polls here, so a coin launched thirty seconds ago
  * arrives without a reload.
  *
- * That gap was the whole bug. The page was server-rendering from the *static*
- * snapshot baked in at build time and never refetching, so the feed a visitor
- * saw was frozen at whenever the last deploy happened — while the worker
- * dutifully wrote new coins into a store nothing read.
+ * `include` is optional: omit it on the default stonks poll so fifteen-second
+ * refreshes do not re-price every stock and re-list every curve launch. The
+ * client asks for `stocks` or `graduating` when someone opens those surfaces.
  *
  * Cached for ten seconds at the edge. The worker sweeps every ninety, so
  * anything shorter is spend with nothing new to show, and anything longer is
@@ -42,33 +52,20 @@ export async function GET(request: Request) {
 
   const quoteTicker = params.get("quote");
   const limit = Number(params.get("limit"));
+  const include = parseInclude(params.get("include"));
 
-  const stonks = await fetchFeed(sort, {
+  const feedOptions = {
     limit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, 200) : undefined,
     cursor: params.get("cursor"),
-    // "all" is the UI's word for no filter; the store wants null.
     quoteTicker: quoteTicker && quoteTicker !== "all" ? quoteTicker : null,
-  });
+  };
 
-  /*
-   * Stocks come from the registry rather than the store.
-   *
-   * The set of verified tokenized equities changes when an issuer mints a new
-   * one — a handful of times a year — and every entry carries a verified mint
-   * authority that was checked by hand. Polling a database for it would add a
-   * query per request to answer a question whose answer is in the bundle.
-   */
-  const stocks = await fetchStocks();
+  const stonks = await fetchFeed(sort, feedOptions);
 
-  /*
-   * Launches still on the curve, nearest to graduating first.
-   *
-   * Sent with every feed response rather than behind its own endpoint, because
-   * the tab strip switches between them instantly and a second round trip on
-   * tap would make Graduating feel slower than the tabs either side of it.
-   * It is 60 rows at most — the whole point of the 10% floor.
-   */
-  const graduating = await fetchGraduating();
+  const [stocks, graduating] = await Promise.all([
+    include.has("stocks") ? fetchStocks() : Promise.resolve(null),
+    include.has("graduating") ? fetchGraduating() : Promise.resolve(null),
+  ]);
 
   return publicJson({stonks, stocks, graduating}, 10);
 }

@@ -1,8 +1,11 @@
+import {Suspense} from "react";
 import {notFound} from "next/navigation";
 
 import {AssetPage} from "@/components/AssetPage";
 import {asPubkey} from "@/lib/pubkey";
-import {fetchAssetPageData, stonkFor} from "@/lib/server/sources";
+import {fetchAssetPageHeader, stonkFor} from "@/lib/server/sources";
+
+import {CoinSecondaryStream} from "./CoinSecondaryStream";
 
 /**
  * Rendered per request, because membership is a live question.
@@ -40,16 +43,34 @@ export default async function StonkPage({
   /*
    * A 404 here means "no such coin anywhere", not "the store was slow".
    *
-   * `stonkFor` already swallows store errors and falls through to the
-   * snapshot, so reaching this line means both sources came back empty.
+   * `stonkFor` reads the store, then the snapshot, then — for a mint neither
+   * knows — the chain, and registers a launch it can verify. Reaching this
+   * line means all three came back empty.
    */
   const stonk = await stonkFor(mint);
   if (!stonk) notFound();
 
   const requested = searchParams.tf ?? null;
-  const initial = await fetchAssetPageData("stonk", mint, requested, stonk.listedAt);
+  const at = Date.now();
+  const header = await fetchAssetPageHeader("stonk", mint);
+  if (!header) notFound();
 
   return (
-    <AssetPage kind="stonk" id={mint} requestedTimeframe={requested} initial={initial} />
+    <>
+      <AssetPage
+        kind="stonk"
+        id={mint}
+        requestedTimeframe={requested}
+        initial={{at, asset: header, chart: null, trades: null}}
+      />
+      <Suspense fallback={null}>
+        <CoinSecondaryStream
+          asset={header.asset}
+          requested={requested}
+          listedAt={stonk.listedAt}
+          at={at}
+        />
+      </Suspense>
+    </>
   );
 }

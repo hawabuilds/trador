@@ -1,13 +1,17 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import {useCallback, useEffect, useMemo, useState} from "react";
 import Link from "next/link";
 import {usePathname, useRouter, useSearchParams} from "next/navigation";
 
 import {StickyPageHeader} from "@/components/AppShell";
-import {NEW_FEED_MIN_MCAP_USD} from "@/config/feed";
+import {passesNewFeedFloor} from "@/config/feed";
 import {AssetList} from "@/components/AssetRow";
-import {CreateSheet} from "@/components/CreateSheet";
+const CreateSheet = dynamic(
+  () => import("@/components/CreateSheet").then((m) => ({default: m.CreateSheet})),
+  {ssr: false},
+);
 import {LoadMore} from "@/components/LoadMore";
 import {FilterRail, type FilterOption} from "@/components/FilterRail";
 import {HomeTabs, type HomeTab} from "@/components/HomeTabs";
@@ -38,8 +42,8 @@ import type {
  * is meaningless.
  */
 /*
- * `NEW_FEED_MIN_MCAP_USD` is imported rather than declared here: the store
- * applies the same floor when it cuts a page, and two copies of a threshold
+ * `passesNewFeedFloor` is imported rather than reimplemented here: the store
+ * applies the same rule when it cuts a page, and two copies of a threshold
  * drift the first time one is tuned.
  */
 
@@ -65,7 +69,7 @@ const STONK_SORTS: FilterOption<StonkSort>[] = [
   {
     value: "new",
     label: "New",
-    title: "Newest graduations, above $10K market cap",
+    title: "Newest graduations — fresh launches always; older ones above $10K market cap",
   },
   {
     value: "graduating",
@@ -193,6 +197,10 @@ export function HomeFeed({
   const feed = useFeed({
     sort: stonkSort,
     quoteTicker: quote === "all" ? null : quote,
+    include: {
+      stocks: tab === "stocks",
+      graduating: tab === "stonks" && stonkSort === "graduating",
+    },
     initial: {
       stonks: initialStonks,
       stocks: initialStocks,
@@ -269,9 +277,8 @@ export function HomeFeed({
          * being new.
          */
         return list
-          .filter(
-            (stonk) =>
-              stonk.marketCapUsd === null || stonk.marketCapUsd >= NEW_FEED_MIN_MCAP_USD,
+          .filter((stonk) =>
+            passesNewFeedFloor(stonk.marketCapUsd, stonk.listedAt ?? null),
           )
           .sort(
             (a, b) =>
