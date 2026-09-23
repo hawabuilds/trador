@@ -67,7 +67,8 @@ export function prefetchAssetPage(client: QueryClient, asset: Asset): void {
   }
 
   const listedAt = asset.kind === "stonk" ? asset.listedAt : null;
-  const timeframe = defaultChartTimeframe({kind, listedAt});
+  const coinStatus = asset.kind === "stonk" ? asset.status : null;
+  const timeframe = defaultChartTimeframe({kind, listedAt, coinStatus});
   void client.prefetchQuery({...chartQuery(kind, id, timeframe), staleTime: 15_000});
   void client.prefetchQuery({...tradesQuery(kind, id), staleTime: 0});
 }

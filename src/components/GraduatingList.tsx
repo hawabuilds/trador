@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import {CurveProgress} from "@/components/CurveProgress";
+import {assetPath} from "@/lib/routes";
 import {LaunchpadMark} from "@/components/LaunchpadMark";
 import {Avatar} from "@/components/ui/Avatar";
 import {PairTicker} from "@/components/ui/Badges";
@@ -41,7 +42,7 @@ export function GraduatingList({
       {coins.map((coin) => (
         <li key={coin.mint}>
           <Link
-            href={`/stonk/${coin.mint}`}
+            href={assetPath("stonk", coin.mint, "1m")}
             prefetch={false}
             className="flex items-center gap-3 px-[22px] py-[13px] transition-colors duration-150 hover:bg-[var(--overlay-wash)]"
           >

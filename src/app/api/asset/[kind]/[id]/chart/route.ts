@@ -1,5 +1,6 @@
+import {defaultChartTimeframe} from "@/lib/chartTimeframe";
 import {badRequest, json, parseKind, parseTimeframe, publicJson} from "@/lib/server/http";
-import {fetchChart} from "@/lib/server/sources";
+import {fetchChart, stonkFor} from "@/lib/server/sources";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,14 @@ export async function GET(
   if (!kind) return badRequest("Unknown asset kind.");
 
   const url = new URL(request.url);
-  const timeframe = parseTimeframe(url.searchParams.get("tf"), "1h");
+  const stonk = kind === "stonk" ? await stonkFor(params.id) : null;
+  const fallbackTf = defaultChartTimeframe({
+    kind,
+    listedAt: stonk?.listedAt ?? null,
+    coinStatus: stonk?.status ?? null,
+    requested: url.searchParams.get("tf"),
+  });
+  const timeframe = parseTimeframe(url.searchParams.get("tf"), fallbackTf);
 
   const result = await fetchChart(kind, params.id, timeframe);
   const body = {

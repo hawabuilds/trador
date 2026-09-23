@@ -68,6 +68,7 @@ export default async function StonkPage({
           asset={header.asset}
           requested={requested}
           listedAt={stonk.listedAt}
+          coinStatus={stonk.status}
           at={at}
         />
       </Suspense>

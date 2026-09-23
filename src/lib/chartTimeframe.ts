@@ -1,4 +1,4 @@
-import type {AssetKind, Timeframe} from "./types";
+import type {AssetKind, CoinStatus, Timeframe} from "./types";
 import {STOCK_TIMEFRAMES, TIMEFRAMES} from "./types";
 
 /**
@@ -28,17 +28,20 @@ export function isYoungListing(
   return age >= 0 && age < YOUNG_LISTING_MS;
 }
 
-/** First-paint interval: URL wins, then a young listing, otherwise 1h. */
+/** First-paint interval: URL wins, then on-curve or young listing, otherwise 1h. */
 export function defaultChartTimeframe(input: {
   kind: AssetKind;
   listedAt?: string | null;
+  /** Bonding-curve launches — same default as the New feed's `?tf=1m` links. */
+  coinStatus?: CoinStatus | null;
   requested?: string | null;
   now?: number;
 }): Timeframe {
   const fromUrl = parseRequestedTimeframe(input.requested, input.kind);
   if (fromUrl) return fromUrl;
-  if (input.kind === "stonk" && isYoungListing(input.listedAt, input.now)) {
-    return "1m";
+  if (input.kind === "stonk") {
+    if (input.coinStatus === "pending") return "1m";
+    if (isYoungListing(input.listedAt, input.now)) return "1m";
   }
   return "1h";
 }

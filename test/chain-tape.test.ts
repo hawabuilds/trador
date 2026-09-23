@@ -80,6 +80,38 @@ test("a failed transaction, or one without our pool's other side, is no fill", (
   );
 });
 
+test("bonding-curve fills are read from the signer's token accounts", () => {
+  const buyer = "Buyer111111111111111111111111111111111111111";
+  const curveBuy: ParsedTx = {
+    signature: "curve-buy-sig",
+    timestamp: 1_700_000_000,
+    feePayer: buyer,
+    accountData: [
+      {
+        tokenBalanceChanges: [
+          {
+            userAccount: buyer,
+            tokenAccount: "",
+            mint: COIN,
+            rawTokenAmount: {tokenAmount: "1000000", decimals: 6},
+          },
+          {
+            userAccount: buyer,
+            tokenAccount: "",
+            mint: NKE,
+            rawTokenAmount: {tokenAmount: "-50000", decimals: 6},
+          },
+        ],
+      },
+    ],
+  };
+  const fill = fillFromTx(curveBuy, COIN, NKE, NKE_USD);
+  assert.ok(fill);
+  assert.equal(fill.side, "buy");
+  close(fill.amount, 1);
+  close(fill.amountUsd, 0.05 * NKE_USD);
+});
+
 function trade(txHash: string, at: string, priceUsd = 1, amountUsd = 10): Trade {
   return {
     id: `${txHash}:b`,

@@ -55,6 +55,11 @@ export function TradesPanel({
 
   return (
     <div className="-mx-[22px]">
+      {error ? (
+        <p className="px-[22px] pb-2 text-center text-[12px] leading-[1.45] text-muted">
+          {error}
+        </p>
+      ) : null}
       <div
         className={cn(
           COLUMNS,

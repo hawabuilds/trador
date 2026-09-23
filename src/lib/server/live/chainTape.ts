@@ -84,19 +84,56 @@ export function fillFromTx(
     if (!(Number.isFinite(priceUsd) && priceUsd > 0)) continue;
 
     const side = coinDelta < 0 ? "buy" : "sell";
-    return {
-      id: `${tx.signature}:${side === "buy" ? "b" : "s"}`,
-      side,
-      amount,
-      amountUsd,
-      priceUsd,
-      maker: tx.feePayer,
-      txHash: tx.signature,
-      makerHandle: null,
-      at: new Date(tx.timestamp * 1000).toISOString(),
-    };
+    return tradeFromDeltas(tx, side, amount, amountUsd, priceUsd);
+  }
+
+  /*
+   * Bonding-curve buys and sells move the signer's token accounts, not a pair
+   * of pool vaults sharing an AMM authority. The same price rule applies once
+   * the two legs are found on the fee payer.
+   */
+  for (const coinChange of changes) {
+    if (coinChange.mint !== mint || coinChange.userAccount !== tx.feePayer) continue;
+    const coinDelta = uiAmount(coinChange.rawTokenAmount);
+    if (!(coinDelta !== 0 && Number.isFinite(coinDelta))) continue;
+
+    const otherChange = changes.find(
+      (change) =>
+        change.mint === otherMint &&
+        change.userAccount === tx.feePayer &&
+        Math.sign(uiAmount(change.rawTokenAmount)) === -Math.sign(coinDelta),
+    );
+    if (!otherChange) continue;
+
+    const amount = Math.abs(coinDelta);
+    const amountUsd = Math.abs(uiAmount(otherChange.rawTokenAmount)) * otherUsd;
+    const priceUsd = amountUsd / amount;
+    if (!(Number.isFinite(priceUsd) && priceUsd > 0)) continue;
+
+    const side = coinDelta > 0 ? "buy" : "sell";
+    return tradeFromDeltas(tx, side, amount, amountUsd, priceUsd);
   }
   return null;
+}
+
+function tradeFromDeltas(
+  tx: ParsedTx,
+  side: "buy" | "sell",
+  amount: number,
+  amountUsd: number,
+  priceUsd: number,
+): Trade {
+  return {
+    id: `${tx.signature}:${side === "buy" ? "b" : "s"}`,
+    side,
+    amount,
+    amountUsd,
+    priceUsd,
+    maker: tx.feePayer,
+    txHash: tx.signature,
+    makerHandle: null,
+    at: new Date(tx.timestamp * 1000).toISOString(),
+  };
 }
 
 /** Newest first, one row per transaction, at most `TAPE_MAX`. */
@@ -138,6 +175,8 @@ interface TapeState {
   trades: Trade[];
   /** Newest signature seen on the pool, fill or not, so nothing is parsed twice. */
   head: string | null;
+  /** Set on the round that could not parse every signature. */
+  unreadable?: number;
 }
 
 /**
@@ -153,9 +192,15 @@ interface TapeState {
  * refusing. The caller handles the gap instead, by taking only the unbroken
  * run of transactions it did read.
  */
-async function decode(signatures: string[], key: string | null): Promise<Map<string, ParsedTx>> {
+interface DecodeResult {
+  read: Map<string, ParsedTx>;
+  /** Signatures that could not be parsed — the tape still uses what was read. */
+  unreadable: number;
+}
+
+async function decode(signatures: string[], key: string | null): Promise<DecodeResult> {
   const read = new Map<string, ParsedTx>();
-  if (signatures.length === 0) return read;
+  if (signatures.length === 0) return {read, unreadable: 0};
 
   let missing = signatures;
   if (rawRpc()) {
@@ -168,22 +213,28 @@ async function decode(signatures: string[], key: string | null): Promise<Map<str
     }
   }
 
-  // Helius only when there is no node to read from. Falling back to it when a
-  // node read came up empty just moved a burst it had refused onto a limit ten
-  // times tighter, and turned one slow round into a failed one.
-  if (read.size === 0 && missing.length > 0) {
-    if (rawRpc()) throw new Error(`${missing.length} transactions could not be read.`);
-    if (!key) throw new Error("No way to read transactions is configured.");
-    const batches: string[][] = [];
-    for (let i = 0; i < missing.length; i += COLD_BATCH) {
-      batches.push(missing.slice(i, i + COLD_BATCH));
+  /*
+   * Helius for whatever the node refused or has not indexed yet. On a cold
+   * curve load the node often returns nothing while Helius still parses; on a
+   * warm extend only the missing tail is sent, in small batches.
+   */
+  if (missing.length > 0) {
+    if (!key) {
+      if (read.size === 0) throw new Error("No way to read transactions is configured.");
+    } else {
+      const batchSize = read.size === 0 ? COLD_BATCH : Math.min(25, COLD_BATCH);
+      const batches: string[][] = [];
+      for (let i = 0; i < missing.length; i += batchSize) {
+        batches.push(missing.slice(i, i + batchSize));
+      }
+      const parsed = (await Promise.all(batches.map((batch) => parseTransactions(batch, key)))).flat();
+      for (const tx of parsed) read.set(tx.signature, tx);
     }
-    const parsed = (await Promise.all(batches.map((batch) => parseTransactions(batch, key)))).flat();
-    for (const tx of parsed) read.set(tx.signature, tx);
   }
 
+  const unreadable = signatures.filter((signature) => !read.has(signature)).length;
   if (read.size === 0) throw new Error(`${signatures.length} transactions could not be read.`);
-  return read;
+  return {read, unreadable};
 }
 
 /**
@@ -240,7 +291,7 @@ export async function chainTradesFor(
    * page, which is paying for it while someone waits.
    */
   coldLimit = COLD_PAGES * PAGE,
-): Promise<{trades: Trade[]; stale: boolean} | null> {
+): Promise<{trades: Trade[]; stale: boolean; warning: string | null} | null> {
   const key = heliusKey();
   if (!key && !rawRpc()) return null;
 
@@ -251,6 +302,7 @@ export async function chainTradesFor(
   const previous = peek<TapeState>(cacheKey);
 
   const {value, stale} = await cached<TapeState>(cacheKey, TTL_MS, async () => {
+    let unreadable = 0;
     const toFills = (txs: ParsedTx[]) =>
       txs
         .map((tx) => fillFromTx(tx, mint, otherMint, otherUsd))
@@ -262,10 +314,13 @@ export async function chainTradesFor(
       // Less than a page means the list reached back to what we hold, so
       // extending cannot leave a hole. A full page might not have.
       if (!fresh.full) {
-        const run = unbrokenRun(fresh.rows, await decode(fresh.succeeded, key));
+        const decoded = await decode(fresh.succeeded, key);
+        unreadable = decoded.unreadable;
+        const run = unbrokenRun(fresh.rows, decoded.read);
         return {
           trades: mergeTape(toFills(run.transactions), previous.trades),
           head: run.head ?? previous.head,
+          unreadable,
         };
       }
     }
@@ -275,9 +330,19 @@ export async function chainTradesFor(
     // two seconds, and this is the first thing an opened coin waits on.
     const rows = await signaturesFor(pool, {limit: coldLimit});
     const succeeded = rows.filter((row) => !row.err).map((row) => row.signature);
-    const run = unbrokenRun(rows, await decode(succeeded, key));
-    return {trades: mergeTape(toFills(run.transactions), []), head: run.head};
+    const decoded = await decode(succeeded, key);
+    unreadable = decoded.unreadable;
+    const run = unbrokenRun(rows, decoded.read);
+    return {
+      trades: mergeTape(toFills(run.transactions), []),
+      head: run.head,
+      unreadable,
+    };
   });
 
-  return {trades: value.trades, stale};
+  const warning =
+    value.unreadable && value.unreadable > 0
+      ? `${value.unreadable} transactions could not be read.`
+      : null;
+  return {trades: value.trades, stale, warning};
 }

@@ -15,6 +15,7 @@ import {
   tokenAge,
 } from "@/lib/priceFormat";
 import {SECTOR_LABEL} from "@/lib/sectors";
+import {assetPath} from "@/lib/routes";
 import type {Asset} from "@/lib/types";
 import {Sparkline} from "./Sparkline";
 import {Avatar} from "./ui/Avatar";
@@ -23,9 +24,8 @@ import {NoLiquidityChip, PairTicker, VerifiedTick} from "./ui/Badges";
 import {PriceDelta} from "./ui/PriceDelta";
 
 export function assetHref(asset: Asset): string {
-  return asset.kind === "stock"
-    ? `/stock/${asset.ticker}`
-    : `/stonk/${asset.mint}`;
+  const timeframe = asset.kind === "stonk" && asset.status === "pending" ? "1m" : null;
+  return assetPath(asset.kind, asset.id, timeframe);
 }
 
 /**

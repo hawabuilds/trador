@@ -18,11 +18,12 @@ export async function GET(
   if (!kind) return badRequest("Unknown asset kind.");
 
   const url = new URL(request.url);
-  const listedAt =
-    kind === "stonk"
-      ? ((await stonkFor(params.id))?.listedAt ?? null)
-      : null;
-  const fallbackTf = defaultChartTimeframe({kind, listedAt});
+  const stonk = kind === "stonk" ? await stonkFor(params.id) : null;
+  const fallbackTf = defaultChartTimeframe({
+    kind,
+    listedAt: stonk?.listedAt ?? null,
+    coinStatus: stonk?.status ?? null,
+  });
   const timeframe = parseTimeframe(url.searchParams.get("tf"), fallbackTf);
 
   if (kind === "stonk" && !asPubkey(params.id)) {

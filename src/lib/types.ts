@@ -4,6 +4,8 @@ import type {SectorId} from "./sectors";
 import type {PriceAuthority, StockIssuer, StockKind} from "./stocks/registry";
 import type {CoinStatus, QuoteKind} from "./universe";
 
+export type {CoinStatus, QuoteKind} from "./universe";
+
 /**
  * The two things the app shows.
  *

@@ -9,8 +9,10 @@
  */
 
 import {cache} from "react";
+import {bondingCurvePda} from "@nirholas/pump-sdk";
+import {PublicKey} from "@solana/web3.js";
 
-import {asPubkey, type Pubkey} from "@/lib/pubkey";
+import {asPubkey, samePubkey, type Pubkey} from "@/lib/pubkey";
 import {defaultChartTimeframe} from "@/lib/chartTimeframe";
 import {mergeTradesIntoChart} from "@/lib/chartLive";
 import {STEP_MS} from "@/lib/fillCandles";
@@ -83,7 +85,14 @@ async function assetCore(kind: string, id: string): Promise<Asset | null> {
 
   let stonk = await fromStore(mint);
   if (!stonk) stonk = snapshotStonk(mint);
-  return stonk;
+  if (stonk) return stonk;
+
+  /*
+   * Same last resort as `stonkFor`: a mint the page already proved exists on
+   * chain should not 404 its own chart because the asset API never registered it.
+   */
+  const {registerLaunchByMint} = await import("./live/registerLaunch");
+  return registerLaunchByMint(mint);
 }
 
 /** Live pool figures layered onto a store row. */
@@ -141,16 +150,76 @@ async function poolForAsset(asset: Asset): Promise<Pubkey | null> {
 }
 
 /** Still on the bonding curve — no graduated AMM pool, but curve buys are real. */
-function isOnCurveStonk(asset: Asset): asset is Stonk {
-  return asset.kind === "stonk" && asset.status === "pending";
+function isOnCurveStonk(asset: Asset): boolean {
+  if (asset.kind !== "stonk") return false;
+  if (asset.status === "pending") return true;
+  // `curve_progress` is only written for on-curve rows; catches status drift.
+  return asset.curveProgress !== null;
+}
+
+/** Fewer signatures on a cold curve read — the page is waiting on this. */
+const CURVE_COLD_SIGS = 150;
+
+/**
+ * Account to pass to `getSignaturesForAddress` for curve tape.
+ *
+ * `rowToStonk` falls back to the mint when `pool` is null; pump.fun's curve
+ * PDA is still derivable from the mint.
+ */
+function curveTapeAddress(stonk: Stonk): Pubkey | null {
+  if (!samePubkey(stonk.pool, stonk.mint)) return stonk.pool;
+  if (stonk.launchpad === "pumpfun") {
+    return bondingCurvePda(new PublicKey(stonk.mint)).toBase58() as Pubkey;
+  }
+  return null;
+}
+
+function hasCurvePoolAddress(stonk: Stonk): boolean {
+  return curveTapeAddress(stonk) !== null;
 }
 
 async function curveChainTrades(
   stonk: Stonk,
-): Promise<{trades: Trade[]; stale: boolean} | null> {
-  const tape = await chainTradesFor(stonk.pool, stonk.mint, stonk.quoteMint);
+): Promise<{trades: Trade[]; stale: boolean; warning: string | null} | null> {
+  const pool = curveTapeAddress(stonk);
+  if (!pool) return null;
+  const tape = await chainTradesFor(pool, stonk.mint, stonk.quoteMint, CURVE_COLD_SIGS);
   if (!tape) return null;
   return tape;
+}
+
+async function fetchChartFromCurve(
+  stonk: Stonk,
+  timeframe: Timeframe,
+): Promise<SourceResult<{points: ChartPoint[]; timeframe: Timeframe}>> {
+  try {
+    const chain = await curveChainTrades(stonk);
+    if (chain && chain.trades.length > 0) {
+      const bucketMs = STEP_MS[timeframe] ?? STEP_MS["5m"];
+      const points = mergeTradesIntoChart([], chain.trades, bucketMs, {complete: true});
+      return {
+        data: {points, timeframe},
+        stale: chain.stale,
+        error:
+          points.length > 0 ? chain.warning : (chain.warning ?? "Not enough curve history yet."),
+      };
+    }
+    return {
+      data: {points: [], timeframe},
+      stale: chain?.stale ?? false,
+      error: chain
+        ? "No curve trades yet."
+        : hasCurvePoolAddress(stonk)
+          ? "Curve history is not configured."
+          : "Bonding curve pool is not indexed yet.",
+    };
+  } catch (error) {
+    return {
+      data: {points: [], timeframe},
+      stale: true,
+      error: (error as Error).message,
+    };
+  }
 }
 
 /** Mint for a route id without decorating from a provider. */
@@ -169,35 +238,16 @@ async function fetchChartForAsset(
   const kept = freshCandles(tape ?? (await readCoinTape(asset.mint)), timeframe);
   if (kept) return {data: {points: kept, timeframe}, stale: false, error: null};
 
-  if (isOnCurveStonk(asset)) {
-    try {
-      const chain = await curveChainTrades(asset);
-      if (chain && chain.trades.length > 0) {
-        const bucketMs = STEP_MS[timeframe] ?? STEP_MS["5m"];
-        const points = mergeTradesIntoChart([], chain.trades, bucketMs, {complete: true});
-        return {
-          data: {points, timeframe},
-          stale: chain.stale,
-          error: points.length > 0 ? null : "Not enough curve history yet.",
-        };
-      }
-      return {
-        data: {points: [], timeframe},
-        stale: chain?.stale ?? false,
-        error: chain ? "No curve trades yet." : "Curve history is not configured.",
-      };
-    } catch (error) {
-      return {
-        data: {points: [], timeframe},
-        stale: true,
-        error: (error as Error).message,
-      };
-    }
+  if (asset.kind === "stonk" && isOnCurveStonk(asset)) {
+    return fetchChartFromCurve(asset, timeframe);
   }
 
   try {
     const pool = await poolForAsset(asset);
     if (!pool) {
+      if (asset.kind === "stonk" && hasCurvePoolAddress(asset)) {
+        return fetchChartFromCurve(asset, timeframe);
+      }
       return {
         data: {points: [], timeframe},
         stale: false,
@@ -281,6 +331,44 @@ const tradesFromTape = (tape: CoinTape | null): SourceResult<TradesPayload> | nu
   };
 };
 
+async function fetchTradesFromCurve(
+  stonk: Stonk,
+  tape: CoinTape | null,
+): Promise<SourceResult<TradesPayload>> {
+  const empty = emptyTrades();
+  try {
+    const fromTape = tradesFromTape(tape ?? (await readCoinTape(stonk.mint, {live: true})));
+    if (fromTape) return fromTape;
+
+    const chain = await curveChainTrades(stonk);
+    if (chain && chain.trades.length > 0) {
+      return {
+        data: {
+          trades: chain.trades,
+          pollMs: 4_000,
+          source: "chain",
+          tapeComplete: false,
+        },
+        stale: chain.stale,
+        error: chain.warning,
+      };
+    }
+    return {
+      data: empty.data,
+      stale: chain?.stale ?? false,
+      error:
+        chain?.warning ??
+        (chain
+          ? "No curve trades yet."
+          : hasCurvePoolAddress(stonk)
+            ? "Curve trades are not configured."
+            : "Bonding curve pool is not indexed yet."),
+    };
+  } catch (error) {
+    return {data: empty.data, stale: true, error: (error as Error).message};
+  }
+}
+
 /** Provider fills that survived a merge — chain did not list them. */
 function providerBackfilled(chain: readonly Trade[], merged: readonly Trade[]): boolean {
   const chainSigs = new Set(chain.map((trade) => trade.txHash));
@@ -295,39 +383,16 @@ async function fetchTradesForAsset(
   const empty = emptyTrades();
   const chainFirst = options.chainFirst !== false;
 
-  if (isOnCurveStonk(asset)) {
-    try {
-      const fromTape = tradesFromTape(
-        tape ?? (await readCoinTape(asset.mint, {live: true})),
-      );
-      if (fromTape) return fromTape;
-
-      const chain = await curveChainTrades(asset);
-      if (chain && chain.trades.length > 0) {
-        return {
-          data: {
-            trades: chain.trades,
-            pollMs: 4_000,
-            source: "chain",
-            tapeComplete: false,
-          },
-          stale: chain.stale,
-          error: null,
-        };
-      }
-      return {
-        data: empty.data,
-        stale: chain?.stale ?? false,
-        error: chain ? "No curve trades yet." : "Curve trades are not configured.",
-      };
-    } catch (error) {
-      return {data: empty.data, stale: true, error: (error as Error).message};
-    }
+  if (asset.kind === "stonk" && isOnCurveStonk(asset)) {
+    return fetchTradesFromCurve(asset, tape);
   }
 
   try {
     const pool = await deepestPoolFor(asset.mint);
     if (!pool) {
+      if (asset.kind === "stonk" && hasCurvePoolAddress(asset)) {
+        return fetchTradesFromCurve(asset, tape);
+      }
       return {data: empty.data, stale: false, error: "No pool is trading this yet."};
     }
 
@@ -496,7 +561,7 @@ export async function fetchAssetPageSecondary(
       ? {
           ...chart.data,
           stale: chart.stale,
-          error: chart.data.points.length > 0 ? null : (chart.error ?? null),
+          error: chart.error ?? null,
         }
       : null,
     trades: trades?.data
@@ -504,7 +569,7 @@ export async function fetchAssetPageSecondary(
           ...trades.data,
           trades: trades.data.trades.slice(0, PAGE_TRADES),
           stale: trades.stale,
-          error: trades.data.trades.length > 0 ? null : (trades.error ?? null),
+          error: trades.error ?? null,
         }
       : null,
   };
@@ -515,9 +580,10 @@ export async function fetchAssetPageData(
   id: string,
   requested: string | null,
   listedAt: string | null,
+  coinStatus: Stonk["status"] | null = null,
 ): Promise<AssetPageInitial> {
   const at = Date.now();
-  const timeframe = defaultChartTimeframe({kind, listedAt, requested});
+  const timeframe = defaultChartTimeframe({kind, listedAt, coinStatus, requested});
 
   /*
    * One asset read and one tape read, then chart and trades in parallel.
@@ -575,7 +641,7 @@ export async function fetchAssetPageData(
       ? {
           ...chart.data,
           stale: chart.stale,
-          error: chart.data.points.length > 0 ? null : (chart.error ?? null),
+          error: chart.error ?? null,
         }
       : null,
     trades: trades?.data
@@ -583,7 +649,7 @@ export async function fetchAssetPageData(
           ...trades.data,
           trades: trades.data.trades.slice(0, PAGE_TRADES),
           stale: trades.stale,
-          error: trades.data.trades.length > 0 ? null : (trades.error ?? null),
+          error: trades.error ?? null,
         }
       : null,
   };

@@ -120,7 +120,13 @@ export function AssetPage({
   const headerPending = !asset && isLoading;
 
   const listedAt = asset?.kind === "stonk" ? asset.listedAt : null;
-  const autoTimeframe = defaultChartTimeframe({kind, listedAt, requested: requestedTimeframe});
+  const coinStatus = asset?.kind === "stonk" ? asset.status : null;
+  const autoTimeframe = defaultChartTimeframe({
+    kind,
+    listedAt,
+    coinStatus,
+    requested: requestedTimeframe,
+  });
 
   // The picked timeframe is scoped to the asset, so navigating from one coin to
   // another does not carry a 1m pick onto something listed last year.
