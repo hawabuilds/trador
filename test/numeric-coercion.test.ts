@@ -54,6 +54,27 @@ function pgRow(overrides: Partial<Record<string, unknown>> = {}): StonkRow {
   } as unknown as StonkRow;
 }
 
+test("trending_score from stats is exposed on the stonk", () => {
+  const stonk = rowToStonk(pgRow({}), {
+    mint: "11111111111111111111111111111112",
+    trending_score: "2.75" as unknown as number,
+    last_price: null,
+    last_mcap: null,
+    liquidity_usd: null,
+    vol_24h: null,
+    vol_1h: null,
+    txs_24h: null,
+    unique_makers_24h: null,
+    page_views: null,
+    price_change_24h: null,
+    rewards_24h_usd: null,
+    price_status: null,
+    price_source: null,
+    priced_at: null,
+  });
+  assert.equal(stonk.trendingScore, 2.75);
+});
+
 test("a numeric arriving as a string becomes a number", () => {
   const stonk = rowToStonk(
     pgRow({curve_progress: "0.627881", circulating_supply: "999600000"}),

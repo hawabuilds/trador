@@ -1,4 +1,5 @@
-import {feedStocksSnapshot, fetchFeed} from "@/lib/server/sources";
+import {feedStocksSnapshot, fetchFeed, fetchGraduating} from "@/lib/server/sources";
+import type {StonkSort} from "@/lib/types";
 
 import {HomeSeed} from "@/components/keptAlive/HomeSearchKeptAlive";
 
@@ -33,29 +34,37 @@ const emptyStocks = (): ReturnType<typeof feedStocksSnapshot> => ({
   capturedAt: null,
 });
 
+const STONK_SORTS = ["trending", "new", "graduating", "marketCap"] as const satisfies readonly StonkSort[];
+
+function readStonkSort(raw: string | undefined): StonkSort {
+  return raw && (STONK_SORTS as readonly string[]).includes(raw) ? (raw as StonkSort) : "trending";
+}
+
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: {tab?: string};
+  searchParams: {tab?: string; sort?: string};
 }) {
   /*
-   * One store read for first paint. Graduating and live stock prices are loaded
-   * when someone opens those tabs — not on every cold open and not on every
-   * fifteen-second poll.
+   * One store read for first paint, aligned with the sort in the URL when it is
+   * not Graduating. Graduating loads its own list; other sorts still skip live
+   * stock prices unless the Stocks tab is open.
    */
-  const feed = await fetchFeed("trending");
+  const stonkSort = readStonkSort(searchParams.sort);
+  const feedSort = stonkSort === "graduating" ? "trending" : stonkSort;
+  const [feed, graduating] = await Promise.all([
+    fetchFeed(feedSort),
+    stonkSort === "graduating" ? fetchGraduating() : Promise.resolve([]),
+  ]);
   const onStocksTab = searchParams.tab === "stocks";
 
   return (
     <HomeSeed
-      stonks={{
-        items: feed.items,
-        cursor: feed.cursor,
-        source: feed.source,
-        capturedAt: feed.capturedAt,
-      }}
+      stonks={feed}
       stocks={onStocksTab ? feedStocksSnapshot() : emptyStocks()}
-      graduating={[]}
+      graduating={graduating}
+      initialStonkSort={feedSort}
+      seedGraduating={stonkSort === "graduating"}
       now={Date.now()}
     />
   );

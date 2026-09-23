@@ -16,10 +16,17 @@
  * The numbers move as the universe grows; the reasoning does not. It is a
  * fraction of the graduation market cap, not a round number.
  *
- * Only this sort. Market cap and Trending are explicitly rankings — hiding rows
- * there would make the ordering lie about what it is ordering.
+ * Only the New sort. Market cap ranks the full listed universe; Trending has
+ * its own floor at {@link TRENDING_MIN_MCAP_USD}.
  */
 export const NEW_FEED_MIN_MCAP_USD = 10_000;
+
+/**
+ * Minimum market cap for the Trending sort — hides micro-caps that still qualify
+ * for New via recency. Applied in the store, Postgres, and snapshot fallback so
+ * paging and quote-chip totals stay aligned.
+ */
+export const TRENDING_MIN_MCAP_USD = 25_000;
 
 /**
  * How long after graduation the New sort keeps a coin visible even when it has
@@ -29,6 +36,9 @@ export const NEW_FEED_MIN_MCAP_USD = 10_000;
  * first trades often print a lower mark minutes later — and the $10K floor was
  * hiding every coin in that window, which read as "nothing new for hours" on
  * the New tab while Trending still moved.
+ *
+ * Recency does not bypass a missing cap: unpriced rows stay off New until
+ * Jupiter decoration writes a positive `last_mcap`.
  */
 export const NEW_FEED_RECENCY_MS = 48 * 60 * 60_000;
 
@@ -37,8 +47,38 @@ export function passesNewFeedFloor(
   graduatedAt: string | null,
   nowMs = Date.now(),
 ): boolean {
-  if (marketCapUsd === null) return true;
+  if (
+    marketCapUsd == null ||
+    !Number.isFinite(marketCapUsd) ||
+    marketCapUsd <= 0
+  ) {
+    return false;
+  }
   if (marketCapUsd >= NEW_FEED_MIN_MCAP_USD) return true;
   if (!graduatedAt) return false;
   return nowMs - Date.parse(graduatedAt) <= NEW_FEED_RECENCY_MS;
+}
+
+/** Same floor as the store's New sort — for snapshot fallback and client filter. */
+export function filterNewFeedStonks<
+  T extends {marketCapUsd: number | null; listedAt: string | null},
+>(items: readonly T[]): T[] {
+  return items.filter((stonk) =>
+    passesNewFeedFloor(stonk.marketCapUsd, stonk.listedAt ?? null),
+  );
+}
+
+export function passesTrendingFeedFloor(marketCapUsd: number | null): boolean {
+  return (
+    marketCapUsd != null &&
+    Number.isFinite(marketCapUsd) &&
+    marketCapUsd >= TRENDING_MIN_MCAP_USD
+  );
+}
+
+/** Same floor as the store's Trending sort — for snapshot fallback and client filter. */
+export function filterTrendingFeedStonks<
+  T extends {marketCapUsd: number | null},
+>(items: readonly T[]): T[] {
+  return items.filter((stonk) => passesTrendingFeedFloor(stonk.marketCapUsd));
 }

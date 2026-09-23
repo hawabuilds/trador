@@ -10,6 +10,8 @@ export interface FilterOption<T extends string> {
   hint?: string;
   title?: string;
   disabled?: boolean;
+  /** Fires before click — used to prefetch the next feed sort. */
+  onPointerDown?: () => void;
 }
 
 interface FilterRailProps<T extends string> {
@@ -79,6 +81,7 @@ export function FilterRail<T extends string>({
             title={option.title}
             disabled={option.disabled && !active}
             aria-pressed={active}
+            onPointerDown={option.onPointerDown}
             onClick={() => onChange(option.value)}
             className={cn(
               "shrink-0 whitespace-nowrap rounded-full px-3.5 py-2 text-[13.5px] leading-none",

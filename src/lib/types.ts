@@ -70,6 +70,8 @@ export interface Stonk extends AssetBase {
 
   readonly marketCapUsd: number | null;
   readonly volume24hUsd: number | null;
+  /** Weighted activity rank for Trending; null until the decorate pass sets it. */
+  readonly trendingScore: number | null;
   /** Three-state. Null on a bonding curve, where there is no pool to measure. */
   readonly liquidityUsd: number | null;
   readonly isTradeable: boolean | null;
@@ -348,12 +350,26 @@ export type StockSort = "launches" | "marketCap" | "movers";
 /** The watchlist's own split. */
 export type WatchFilter = "all" | "stonk" | "stock";
 
+/** Listed stonks per quote ticker — same filters as the feed list, not one page. */
+export interface FeedQuoteCounts {
+  readonly byTicker: Readonly<Record<string, number>>;
+  readonly total: number;
+}
+
 export interface FeedPage<T> {
   readonly items: readonly T[];
   readonly cursor: string | null;
   /** Where this page came from, so the UI can be honest about staleness. */
   readonly source: "live" | "snapshot";
   readonly capturedAt: string | null;
+  /**
+   * Per–quote-ticker totals for the active sort. Omitted on paged fetches.
+   *
+   * Counting the visible page lied: forty rows on screen is not forty NVDA
+   * coins in the universe, and a quote filter on the API shrank the page
+   * before the client counted it.
+   */
+  readonly quoteCounts?: FeedQuoteCounts;
 }
 
 // ---------------------------------------------------------------------------

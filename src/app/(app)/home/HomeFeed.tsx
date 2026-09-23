@@ -7,7 +7,8 @@ import {usePathname, useRouter, useSearchParams} from "next/navigation";
 import {useQueryClient} from "@tanstack/react-query";
 
 import {StickyPageHeader} from "@/components/AppShell";
-import {passesNewFeedFloor} from "@/config/feed";
+import {filterNewFeedStonks, filterTrendingFeedStonks} from "@/config/feed";
+import {isGraduatedListedStonk, sortStonksGraduating} from "@/lib/graduatingFeedSort";
 import {AssetList} from "@/components/AssetRow";
 const CreateSheet = dynamic(
   () => import("@/components/CreateSheet").then((m) => ({default: m.CreateSheet})),
@@ -25,6 +26,7 @@ import {RocketIcon, StarIcon} from "@/components/ui/Icons";
 import {TradorMark} from "@/components/ui/TradorMark";
 import {TradorWordmark} from "@/components/ui/TradorWordmark";
 import {formatUtc} from "@/lib/priceFormat";
+import {sortStonksTrending} from "@/lib/trendingFeedSort";
 import {SECTORS, type SectorId} from "@/lib/sectors";
 import type {
   Asset,
@@ -44,8 +46,8 @@ import type {
  * is meaningless.
  */
 /*
- * `passesNewFeedFloor` is imported rather than reimplemented here: the store
- * applies the same rule when it cuts a page, and two copies of a threshold
+ * `filterNewFeedStonks` is imported rather than reimplemented here: the store
+ * applies the same floor when it cuts a page, and two copies of a threshold
  * drift the first time one is tuned.
  */
 
@@ -76,7 +78,7 @@ const STONK_SORTS: FilterOption<StonkSort>[] = [
   {
     value: "graduating",
     label: "Graduating",
-    title: "Still on the bonding curve — closest to graduating first",
+    title: "Still on the bonding curve — closest first, hottest activity at each step",
   },
   {value: "marketCap", label: "Market cap"},
 ];
@@ -103,6 +105,8 @@ export function HomeFeed({
   stonks: initialStonks,
   stocks: initialStocks,
   graduating: initialGraduating,
+  initialStonkSort,
+  seedGraduating,
   now,
   active = true,
 }: {
@@ -110,6 +114,8 @@ export function HomeFeed({
   stocks: FeedPage<Stock>;
   /** Curve launches, server-rendered so the tab is populated on first tap. */
   graduating: readonly Stonk[];
+  initialStonkSort: Exclude<StonkSort, "graduating">;
+  seedGraduating: boolean;
   /** Server render time, so age strings match after hydration. */
   now: number;
   /** False while Home is kept alive but another tab is showing. */
@@ -149,6 +155,35 @@ export function HomeFeed({
     setCreateOpen(false);
     if (params.get("create")) router.replace(pathname, {scroll: false});
   }, [params, router, pathname]);
+
+  const prefetchNewFeed = useCallback(() => {
+    const quoteKey = quote === "all" ? "all" : quote;
+    void queryClient.prefetchQuery({
+      queryKey: ["feed", "new", quoteKey, false, false],
+      queryFn: async () => {
+        const search = new URLSearchParams({sort: "new"});
+        if (quote !== "all") search.set("quote", quote);
+        const response = await fetch(`/api/feed?${search}`);
+        if (!response.ok) throw new Error("Could not load the feed.");
+        return (await response.json()) as {
+          stonks: FeedPage<Stonk>;
+          stocks: FeedPage<Stock> | null;
+          graduating: Stonk[] | null;
+        };
+      },
+      staleTime: 15_000,
+    });
+  }, [queryClient, quote]);
+
+  const stonkSortOptions = useMemo(
+    () =>
+      STONK_SORTS.map((option) =>
+        option.value === "new"
+          ? {...option, onPointerDown: prefetchNewFeed}
+          : option,
+      ),
+    [prefetchNewFeed],
+  );
 
   /*
    * State to URL, one way.
@@ -207,6 +242,8 @@ export function HomeFeed({
       stocks: initialStocks,
       graduating: [...initialGraduating],
     },
+    initialStonkSort,
+    seedGraduating,
     enabled: active,
   });
 
@@ -225,17 +262,39 @@ export function HomeFeed({
   const stocks = feed.stocks;
 
   /**
-   * The quote-asset rail, built from what is actually in the feed rather than
-   * from the whole registry — so a chip never leads to an empty list, which is
-   * the commonest way a filter row lies to someone.
+   * Quote filter chips — totals from the store for this sort, not one page.
+   *
+   * Counting `stonks.items` capped at forty and shrank when a quote filter was
+   * on the API, so a chip's hint rarely matched the list after a tap.
    */
   const quoteOptions = useMemo<FilterOption<string>[]>(() => {
+    const server = stonks.quoteCounts;
+    if (server) {
+      return [
+        {value: "all", label: "All", hint: String(server.total)},
+        ...Object.entries(server.byTicker)
+          .sort((a, b) => b[1] - a[1])
+          .map(([ticker, count]) => ({
+            value: ticker,
+            label: ticker,
+            hint: String(count),
+          })),
+      ];
+    }
+
+    const listed = stonks.items.filter(isGraduatedListedStonk);
+    const base =
+      stonkSort === "new"
+        ? filterNewFeedStonks(listed)
+        : stonkSort === "trending"
+          ? filterTrendingFeedStonks(listed)
+          : listed;
     const counts = new Map<string, number>();
-    for (const stonk of stonks.items) {
+    for (const stonk of base) {
       counts.set(stonk.quoteTicker, (counts.get(stonk.quoteTicker) ?? 0) + 1);
     }
     return [
-      {value: "all", label: "All", hint: String(stonks.items.length)},
+      {value: "all", label: "All", hint: String(base.length)},
       ...[...counts.entries()]
         .sort((a, b) => b[1] - a[1])
         .map(([ticker, count]) => ({
@@ -244,7 +303,7 @@ export function HomeFeed({
           hint: String(count),
         })),
     ];
-  }, [stonks.items]);
+  }, [stonks.quoteCounts, stonks.items, stonkSort]);
 
   const sectorOptions = useMemo<FilterOption<SectorId | "all">[]>(() => {
     const counts = new Map<SectorId, number>();
@@ -263,38 +322,26 @@ export function HomeFeed({
 
   const shownStonks = useMemo(() => {
     const list = stonks.items.filter(
-      (stonk) => quote === "all" || stonk.quoteTicker === quote,
+      (stonk) =>
+        isGraduatedListedStonk(stonk) &&
+        (quote === "all" || stonk.quoteTicker === quote),
     );
 
     switch (stonkSort) {
       case "trending":
-        // Server order (trending score / vol) — do not re-rank by price.
-        return list;
+        return sortStonksTrending(filterTrendingFeedStonks(list));
       case "marketCap":
         return [...list].sort((a, b) => (b.marketCapUsd ?? 0) - (a.marketCapUsd ?? 0));
       case "new":
         /*
-         * Newest graduations, with the dust filtered out.
+         * Server order is `graduated_at desc` with the floor in SQL — do not
+         * re-sort here or keyset pages disagree with what is on screen.
          *
-         * Graduating costs roughly $8,200 of the quote stock and lands a coin
-         * near $39K, but the median graduated coin has since fallen to about
-         * $2.9K — so without a floor this sort is mostly headstones. 518 of
-         * the 694 listed coins sit between $1K and $5K.
-         *
-         * An **unpriced** coin is kept, deliberately. Null market cap means the
-         * decorate pass has not reached it yet, which is the state a coin that
-         * graduated ninety seconds ago is in — exactly what this sort is for.
-         * Hiding it would filter out the newest thing on the launchpad for
-         * being new.
+         * Pending launches never reach this list: the store only reads
+         * `status = listed`, and the guard above drops any row that slipped
+         * through snapshot or placeholder data.
          */
-        return list
-          .filter((stonk) =>
-            passesNewFeedFloor(stonk.marketCapUsd, stonk.listedAt ?? null),
-          )
-          .sort(
-            (a, b) =>
-              new Date(b.listedAt ?? 0).getTime() - new Date(a.listedAt ?? 0).getTime(),
-          );
+        return filterNewFeedStonks(list);
       default:
         return list;
     }
@@ -346,8 +393,17 @@ export function HomeFeed({
    * Kept out of `showing` entirely so the empty states and counts below stay
    * about the tradeable universe.
    */
-  const graduating = feed.graduating;
+  const graduating = useMemo(
+    () => (feed.graduating ? sortStonksGraduating(feed.graduating) : []),
+    [feed.graduating],
+  );
   const showingGraduating = tab === "stonks" && stonkSort === "graduating";
+
+  const stonksListLoading =
+    tab === "stonks" &&
+    !showingGraduating &&
+    stonkSort === "new" &&
+    feed.stonksLoading;
 
   const showing: readonly Asset[] =
     tab === "stonks"
@@ -405,7 +461,7 @@ export function HomeFeed({
             <div className="flex flex-col gap-2.5">
               <FilterRail
                 label="Sort coins"
-                options={STONK_SORTS}
+                options={stonkSortOptions}
                 value={stonkSort}
                 onChange={setStonkSort}
               />
@@ -453,7 +509,9 @@ export function HomeFeed({
       </StickyPageHeader>
 
       {showingGraduating ? (
-        graduating.length > 0 ? (
+        feed.graduatingLoading ? (
+          <AssetListSkeleton label="Loading graduating launches" />
+        ) : graduating.length > 0 ? (
           <GraduatingList coins={graduating} now={now} />
         ) : (
           <div className="px-6 py-12 text-center">
@@ -464,13 +522,14 @@ export function HomeFeed({
             </p>
           </div>
         )
+      ) : stonksListLoading ? (
+        <AssetListSkeleton label="Loading coins" />
       ) : showing.length > 0 ? (
         <>
           {/*
-            Dimmed while these are the previous chip's rows. They stay on screen
-            so the list never blanks, but at full strength they posed as the
-            answer to the chip just tapped — a Trending coin appearing under
-            Market cap for half a second, then vanishing.
+            Dimmed while these are the previous chip's rows (e.g. Market cap
+            after Trending). New uses a skeleton instead — empty beats wrong
+            rows under that chip.
           */}
           <div
             className="transition-opacity duration-150"
@@ -509,6 +568,23 @@ export function HomeFeed({
 
       <CreateSheet open={createOpen} onClose={closeCreate} />
     </div>
+  );
+}
+
+function AssetListSkeleton({label}: {label: string}) {
+  return (
+    <ul className="-mx-[22px]" aria-busy aria-label={label}>
+      {Array.from({length: 8}, (_, i) => (
+        <li key={i} className="flex items-center gap-3 px-[22px] py-[13px]">
+          <div className="h-10 w-10 shrink-0 animate-pulse rounded-full bg-surface-raised" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="h-4 w-28 animate-pulse rounded-md bg-surface-raised" />
+            <div className="h-3 w-36 animate-pulse rounded-md bg-surface-raised" />
+          </div>
+          <div className="h-4 w-14 animate-pulse rounded-md bg-surface-raised" />
+        </li>
+      ))}
+    </ul>
   );
 }
 

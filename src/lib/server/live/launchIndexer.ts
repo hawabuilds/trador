@@ -45,7 +45,7 @@ import {encodeBase58, type Pubkey} from "@/lib/pubkey";
 import {STOCK_MINTS, stockForMint} from "@/lib/stocks/registry";
 import {computeTrendingScore} from "@/lib/trendingScore";
 import {quoteKindFor, statusFor} from "@/lib/universe";
-import {hasAdminPg} from "../adminPg";
+import {hasAdminPg, pgClearCurveProgress} from "../adminPg";
 import {
   type StonkWrite,
   statsFor,
@@ -233,6 +233,13 @@ export async function indexStonkfun(): Promise<IndexPass> {
     }
 
     const written = await upsertStonks(writes);
+    if (hasAdminPg && writes.length > 0) {
+      try {
+        await pgClearCurveProgress(writes.map((row) => row.mint));
+      } catch (error) {
+        console.error("clear curve_progress after stonkfun reconcile failed", error);
+      }
+    }
     const slot = await rpc<number>("getSlot", [{commitment: "finalized"}]);
     await writeIndexerState("stonkfun:reconcile", {last_slot: slot, slots_behind: 0});
 

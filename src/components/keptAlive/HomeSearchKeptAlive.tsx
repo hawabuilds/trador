@@ -9,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import {usePathname} from "next/navigation";
+import {usePathname, useSearchParams} from "next/navigation";
 
 import {HomeFeed} from "@/app/(app)/home/HomeFeed";
 import {SearchScreen} from "@/app/(app)/search/SearchScreen";
@@ -19,6 +19,8 @@ type HomeSeedProps = {
   stonks: FeedPage<Stonk>;
   stocks: FeedPage<Stock>;
   graduating: readonly Stonk[];
+  initialStonkSort: "trending" | "new" | "marketCap";
+  seedGraduating: boolean;
   now: number;
 };
 
@@ -67,7 +69,15 @@ export function HomeSeed(props: HomeSeedProps) {
   const {setHome} = useKeptAlive();
   useLayoutEffect(() => {
     setHome(props);
-  }, [props.stonks, props.stocks, props.graduating, props.now, setHome]);
+  }, [
+    props.stonks,
+    props.stocks,
+    props.graduating,
+    props.initialStonkSort,
+    props.seedGraduating,
+    props.now,
+    setHome,
+  ]);
   return null;
 }
 
@@ -80,8 +90,14 @@ export function SearchSeed({preview}: {preview: readonly Asset[]}) {
   return null;
 }
 
+function readBootstrapStonkSort(raw: string | null): HomeSeedProps["initialStonkSort"] {
+  if (raw === "new" || raw === "marketCap") return raw;
+  return "trending";
+}
+
 export function HomeSearchKeptAlivePanels() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const {home, setHome, searchPreview, setSearchPreview} = useKeptAlive();
 
   const onHome = pathname === "/home" || pathname.startsWith("/home/");
@@ -96,7 +112,10 @@ export function HomeSearchKeptAlivePanels() {
       let cancelled = false;
       (async () => {
         try {
-          const response = await fetch("/api/home/bootstrap");
+          const initialStonkSort = readBootstrapStonkSort(searchParams.get("sort"));
+          const response = await fetch(
+            `/api/home/bootstrap?sort=${encodeURIComponent(initialStonkSort)}`,
+          );
           if (!response.ok || cancelled) return;
           const body = (await response.json()) as {
             at: number;
@@ -106,6 +125,8 @@ export function HomeSearchKeptAlivePanels() {
             stonks: body.stonks,
             stocks: {items: [], cursor: null, source: "snapshot", capturedAt: null},
             graduating: [],
+            initialStonkSort,
+            seedGraduating: false,
             now: body.at,
           });
         } catch {
@@ -116,7 +137,7 @@ export function HomeSearchKeptAlivePanels() {
         cancelled = true;
       };
     }
-  }, [onHome, home, setHome]);
+  }, [onHome, home, setHome, searchParams]);
 
   useEffect(() => {
     if (onSearch && !searchPreview) {

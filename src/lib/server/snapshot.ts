@@ -14,11 +14,13 @@
  * Regenerate with `npm run seed:snapshot`.
  */
 
+import {filterNewFeedStonks, filterTrendingFeedStonks} from "@/config/feed";
 import {displayImageUrl} from "@/lib/imageUrl";
 import {assertPubkey} from "@/lib/pubkey";
 import {sectorFor} from "@/lib/sectors";
 import {stocksByPopularity} from "@/lib/stocks/registry";
-import type {FeedPage, PriceState, Stock, Stonk} from "@/lib/types";
+import type {FeedPage, FeedQuoteCounts, PriceState, Stock, Stonk} from "@/lib/types";
+import type {FeedSort} from "./live/universeStore";
 import {type QuoteKind} from "@/lib/universe";
 
 import SNAPSHOT from "./snapshot.generated.json" with {type: "json"};
@@ -97,6 +99,7 @@ const STONKS: readonly Stonk[] = (SNAP.stonks ?? []).map((raw) => {
     decimals: raw.decimals,
     circulatingSupply: raw.circulatingSupply,
     volume24hUsd: null,
+    trendingScore: null,
     liquidityUsd: raw.liquidityUsd,
     isTradeable: raw.isTradeable,
     changePct: raw.changePct,
@@ -113,6 +116,23 @@ const STONKS: readonly Stonk[] = (SNAP.stonks ?? []).map((raw) => {
 
 export function snapshotStonks(): FeedPage<Stonk> {
   return {items: STONKS, cursor: null, source: "snapshot", capturedAt: CAPTURED_AT};
+}
+
+/** Quote-chip totals when the store is unreachable — same rules as `listStonks`. */
+export function snapshotStonkQuoteCounts(sort: FeedSort): FeedQuoteCounts {
+  let visible = STONKS.filter((stonk) => stonk.status === "listed");
+  if (sort === "new") visible = filterNewFeedStonks(visible);
+  else if (sort === "trending") visible = filterTrendingFeedStonks(visible);
+
+  const byTicker: Record<string, number> = {};
+  let total = 0;
+  for (const stonk of visible) {
+    const ticker = stonk.quoteTicker;
+    if (!ticker) continue;
+    byTicker[ticker] = (byTicker[ticker] ?? 0) + 1;
+    total += 1;
+  }
+  return {byTicker, total};
 }
 
 /**

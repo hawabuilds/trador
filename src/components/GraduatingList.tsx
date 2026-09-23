@@ -11,7 +11,8 @@ import {formatMarketCapUsd, isPriced, tokenAge} from "@/lib/priceFormat";
 import type {Stonk} from "@/lib/types";
 
 /**
- * Launches still on their bonding curve, nearest to graduating first.
+ * Launches still on their bonding curve — closest to graduating first, with
+ * trending activity breaking ties at the same progress.
  *
  * A separate list rather than `AssetList`, because the shape of the row is
  * genuinely different. `AssetRow` ends in a market cap and a 24h change, and a

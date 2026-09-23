@@ -18,7 +18,7 @@
 
 import type {Pool, PoolClient} from "pg";
 
-import {NEW_FEED_RECENCY_MS} from "@/config/feed";
+import {NEW_FEED_RECENCY_MS, TRENDING_MIN_MCAP_USD} from "@/config/feed";
 import type {StatRow, StonkRow, StonkWrite} from "./live/universeStore";
 
 const URL = process.env.DATABASE_URL ?? process.env.POSTGRES_URL ?? "";
@@ -445,12 +445,18 @@ export async function pgFeedHead(
           and (eligible is null or eligible is true)
           ${
             sort === "new"
-              ? "and (last_mcap >= $2 or last_mcap is null or graduated_at >= $3)"
-              : ""
+              ? "and last_mcap > 0 and (last_mcap >= $2 or graduated_at >= $3)"
+              : sort === "trending"
+                ? "and last_mcap >= $2"
+                : ""
           }
         order by ${order}
         limit $1`,
-      sort === "new" ? [limit, newMinMcapUsd, recencyCutoff] : [limit],
+      sort === "new"
+        ? [limit, newMinMcapUsd, recencyCutoff]
+        : sort === "trending"
+          ? [limit, TRENDING_MIN_MCAP_USD]
+          : [limit],
     );
     return rows as StonkRow[];
   });
@@ -471,19 +477,86 @@ export async function pgIncrementPageView(mint: string): Promise<void> {
 }
 
 /**
- * Launches still on the curve, nearest to graduating first.
+ * Launches still on the curve — progress first, trending activity at each step.
  *
  * Separate from `pgListStonks` rather than a flag on it, because the two
  * surfaces order by different things and mean different things. A graduated
- * coin is ranked by what it is worth; a graduating one by how close it is, and
- * it has no price to rank by at all.
+ * coin is ranked by what it is worth; a graduating one by curve progress and
+ * the trade activity the decorate pass writes on pending rows.
  */
+/**
+ * How many listed stonks sit in each quote ticker, for filter chips.
+ *
+ * Same `stonk_feed` filters as `listStonks` / `pgFeedHead` — listed,
+ * launchpad set, three-state eligible, and the New floor when that sort is
+ * active. Counts every row, not one page.
+ */
+export async function pgStonkQuoteCounts(
+  sort: "trending" | "new" | "marketCap",
+  newMinMcapUsd: number,
+): Promise<{byTicker: Record<string, number>; total: number}> {
+  return withClient(async (client) => {
+    const recencyCutoff =
+      sort === "new" ? new Date(Date.now() - NEW_FEED_RECENCY_MS).toISOString() : null;
+    const floorClause =
+      sort === "new"
+        ? "and last_mcap > 0 and (last_mcap >= $1 or graduated_at >= $2)"
+        : sort === "trending"
+          ? "and last_mcap >= $1"
+          : "";
+    const params =
+      sort === "new"
+        ? [newMinMcapUsd, recencyCutoff]
+        : sort === "trending"
+          ? [TRENDING_MIN_MCAP_USD]
+          : [];
+
+    const {rows} = await client.query<{quote_ticker: string; n: number}>(
+      `select quote_ticker, count(*)::int as n
+         from public.stonk_feed
+        where status = 'listed'
+          and launchpad is not null
+          and (eligible is null or eligible is true)
+          and quote_ticker is not null
+          and quote_ticker <> ''
+          ${floorClause}
+        group by quote_ticker`,
+      params,
+    );
+
+    const byTicker: Record<string, number> = {};
+    let total = 0;
+    for (const row of rows) {
+      byTicker[row.quote_ticker] = row.n;
+      total += row.n;
+    }
+    return {byTicker, total};
+  });
+}
+
+/** Drop stale graduating progress after the reconciler marks a pool TRADE. */
+export async function pgClearCurveProgress(mints: readonly string[]): Promise<void> {
+  if (mints.length === 0) return;
+  await withClient((client) =>
+    client.query(
+      `update public.stonks set curve_progress = null
+        where mint = any($1::text[])`,
+      [mints],
+    ),
+  );
+}
+
 export async function pgListGraduating(limit = 200): Promise<StonkRow[]> {
   return withClient(async (client) => {
     const {rows} = await client.query(
-      `select * from public.stonks
-       where status = 'pending' and eligible is distinct from false
-       order by curve_progress desc nulls last, mint
+      `select * from public.stonk_feed
+       where status = 'pending'
+         and launchpad is not null
+         and eligible is distinct from false
+       order by curve_progress desc nulls last,
+                trending_score desc nulls last,
+                vol_24h desc nulls last,
+                mint desc
        limit $1`,
       [limit],
     );

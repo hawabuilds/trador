@@ -9,11 +9,16 @@
  */
 
 import {displayImageUrl} from "@/lib/imageUrl";
-import {NEW_FEED_MIN_MCAP_USD, NEW_FEED_RECENCY_MS} from "@/config/feed";
+import {
+  NEW_FEED_MIN_MCAP_USD,
+  NEW_FEED_RECENCY_MS,
+  TRENDING_MIN_MCAP_USD,
+} from "@/config/feed";
 import {MIN_LIQUIDITY_USD} from "@/config/liquidity";
 import {type Pubkey, assertPubkey} from "@/lib/pubkey";
+import {encodeTrendingCursor, trendingCursorFilter, parseTrendingCursor} from "@/lib/trendingFeedSort";
 import {applyThreeStateFilter, isTradeableFromLiquidity} from "@/lib/threeState";
-import type {PriceState, Stonk} from "@/lib/types";
+import type {FeedQuoteCounts, PriceState, Stonk} from "@/lib/types";
 import type {QuoteKind} from "@/lib/universe";
 import {db, hasDatabase} from "../db";
 import {
@@ -172,6 +177,7 @@ export function rowToStonk(row: StonkRow, stat?: StatRow | null): Stonk {
     price,
     marketCapUsd: stat?.last_mcap ?? null,
     volume24hUsd: stat?.vol_24h ?? null,
+    trendingScore: num(stat?.trending_score),
     liquidityUsd: stat?.liquidity_usd ?? null,
     isTradeable:
       row.is_tradeable ??
@@ -231,6 +237,68 @@ export interface FeedPageRows {
  * relies on the mint column being `COLLATE "C"`, or the comparison disagrees
  * with the index.
  */
+function aggregateQuoteTickers(tickers: readonly (string | null | undefined)[]): FeedQuoteCounts {
+  const byTicker: Record<string, number> = {};
+  let total = 0;
+  for (const ticker of tickers) {
+    if (!ticker) continue;
+    byTicker[ticker] = (byTicker[ticker] ?? 0) + 1;
+    total += 1;
+  }
+  return {byTicker, total};
+}
+
+/**
+ * Filter-chip totals for the feed — full universe, same rules as {@link listStonks}.
+ *
+ * Never derived from one page of rows. Never scoped to an active quote filter.
+ */
+export async function countQuoteTickersForFeed(sort: FeedSort): Promise<FeedQuoteCounts> {
+  if (hasAdminPg) {
+    try {
+      const {pgStonkQuoteCounts} = await import("../adminPg");
+      return await pgStonkQuoteCounts(sort, NEW_FEED_MIN_MCAP_USD);
+    } catch {
+      // Fall through to PostgREST or snapshot.
+    }
+  }
+
+  if (hasDatabase) {
+    try {
+      let request = db()
+        .from("stonk_feed")
+        .select("quote_ticker")
+        .eq("status", "listed")
+        .not("launchpad", "is", null);
+
+      request = applyThreeStateFilter(request, "eligible");
+
+      if (sort === "new") {
+        const recencyCutoff = new Date(Date.now() - NEW_FEED_RECENCY_MS).toISOString();
+        request = request
+          .gt("last_mcap", 0)
+          .or(
+            `last_mcap.gte.${NEW_FEED_MIN_MCAP_USD},graduated_at.gte.${recencyCutoff}`,
+          );
+      } else if (sort === "trending") {
+        request = request.gte("last_mcap", TRENDING_MIN_MCAP_USD);
+      }
+
+      const {data, error} = await request;
+      if (!error && data) {
+        return aggregateQuoteTickers(
+          (data as {quote_ticker: string | null}[]).map((row) => row.quote_ticker),
+        );
+      }
+    } catch {
+      // Fall through to snapshot.
+    }
+  }
+
+  const {snapshotStonkQuoteCounts} = await import("../snapshot");
+  return snapshotStonkQuoteCounts(sort);
+}
+
 export async function listStonks(query: FeedQuery): Promise<FeedPageRows> {
   const limit = Math.min(Math.max(query.limit ?? 40, 1), 100);
 
@@ -266,16 +334,18 @@ export async function listStonks(query: FeedQuery): Promise<FeedPageRows> {
    * the next cursor still only advances forty — so scrolling appears to stall.
    * Applied here, every page is a full page of rows somebody will actually see.
    *
-   * An **unpriced** coin is kept deliberately: a null market cap means the
-   * decorate pass has not reached it yet, which is exactly the state of a coin
-   * that graduated ninety seconds ago. Hiding it would filter out the newest
-   * thing on the launchpad for being new.
+   * Unpriced rows (`last_mcap` null or zero) never appear on New — recency
+   * only relaxes the dollar floor for coins that already have a positive cap.
    */
   if (query.sort === "new" && query.applyNewFloor !== false) {
     const recencyCutoff = new Date(Date.now() - NEW_FEED_RECENCY_MS).toISOString();
-    request = request.or(
-      `last_mcap.gte.${NEW_FEED_MIN_MCAP_USD},last_mcap.is.null,graduated_at.gte.${recencyCutoff}`,
-    );
+    request = request
+      .gt("last_mcap", 0)
+      .or(
+        `last_mcap.gte.${NEW_FEED_MIN_MCAP_USD},graduated_at.gte.${recencyCutoff}`,
+      );
+  } else if (trending) {
+    request = request.gte("last_mcap", TRENDING_MIN_MCAP_USD);
   }
 
   if (trending) {
@@ -290,14 +360,16 @@ export async function listStonks(query: FeedQuery): Promise<FeedPageRows> {
   }
 
   if (query.cursor) {
-    const [value, mint] = splitCursor(query.cursor);
-    const cursorColumn = trending ? "trending_score" : column;
-    if (value) {
-      // PostgREST has no row-value syntax, so this is spelled out: strictly
-      // past the cursor, or level with it and a lower mint.
-      request = request.or(
-        `${cursorColumn}.lt.${value},and(${cursorColumn}.eq.${value},mint.lt.${mint})`,
-      );
+    if (trending) {
+      const filter = trendingCursorFilter(parseTrendingCursor(query.cursor));
+      if (filter) request = request.or(filter);
+    } else {
+      const [value, mint] = splitCursor(query.cursor);
+      if (value) {
+        // PostgREST has no row-value syntax, so this is spelled out: strictly
+        // past the cursor, or level with it and a lower mint.
+        request = request.or(`${column}.lt.${value},and(${column}.eq.${value},mint.lt.${mint})`);
+      }
     }
   }
 
@@ -311,15 +383,55 @@ export async function listStonks(query: FeedQuery): Promise<FeedPageRows> {
   const stats = new Map<string, StatRow>(joined.map((row) => [row.mint, statFrom(row)]));
 
   const last = joined[joined.length - 1];
-  const cursorColumn = trending ? "trending_score" : column;
+  const lastJoined = last as unknown as StonkRow & StatRow;
   return {
     rows,
     stats,
     cursor:
       joined.length === limit && last
-        ? `${(last as unknown as Record<string, unknown>)[cursorColumn] ?? ""}|${last.mint}`
+        ? trending
+          ? encodeTrendingCursor({
+              score: num(lastJoined.trending_score),
+              vol: num(lastJoined.vol_24h),
+              mint: last.mint,
+            })
+          : `${(last as unknown as Record<string, unknown>)[column] ?? ""}|${last.mint}`
         : null,
   };
+}
+
+/**
+ * Launches still on the curve — same filters and order as {@link pgListGraduating}.
+ *
+ * PostgREST path for serverless runtimes that have Supabase credentials but no
+ * direct `DATABASE_URL`, which would otherwise leave Graduating permanently empty.
+ */
+export async function listGraduating(limit = 200): Promise<FeedPageRows> {
+  const cap = Math.min(Math.max(limit, 1), 200);
+
+  let request = db()
+    .from("stonk_feed")
+    .select("*")
+    .eq("status", "pending")
+    .not("launchpad", "is", null)
+    .limit(cap);
+
+  request = applyThreeStateFilter(request, "eligible");
+
+  request = request
+    .order("curve_progress", {ascending: false, nullsFirst: false})
+    .order("trending_score", {ascending: false, nullsFirst: false})
+    .order("vol_24h", {ascending: false, nullsFirst: false})
+    .order("mint", {ascending: false});
+
+  const {data, error} = await request;
+  if (error) throw new Error(`Graduating query failed: ${error.message}`);
+
+  const joined = (data ?? []) as (StonkRow & StatRow)[];
+  const rows = joined as unknown as StonkRow[];
+  const stats = new Map<string, StatRow>(joined.map((row) => [row.mint, statFrom(row)]));
+
+  return {rows, stats, cursor: null};
 }
 
 /**

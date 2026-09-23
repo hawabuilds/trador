@@ -10,7 +10,10 @@
 
 import {cache} from "react";
 
+import {filterNewFeedStonks, filterTrendingFeedStonks} from "@/config/feed";
+import {isOnBondingCurve} from "@/lib/graduatingFeedSort";
 import {asPubkey, type Pubkey} from "@/lib/pubkey";
+import {sortStonksTrending} from "@/lib/trendingFeedSort";
 import {defaultChartTimeframe} from "@/lib/chartTimeframe";
 import {mergeTradesIntoChart} from "@/lib/chartLive";
 import {STEP_MS} from "@/lib/fillCandles";
@@ -38,7 +41,14 @@ import {
   staleTrades,
 } from "./live/coinTapes";
 import {candlesFor, deepestPoolFor, tradesFor} from "./live/gecko";
-import {findStonk, listStonks, rowToStonk, searchStonks} from "./live/universeStore";
+import {
+  countQuoteTickersForFeed,
+  findStonk,
+  listGraduating,
+  listStonks,
+  rowToStonk,
+  searchStonks,
+} from "./live/universeStore";
 
 export interface SourceResult<T> {
   data: T;
@@ -152,9 +162,7 @@ async function poolForAsset(asset: Asset): Promise<Pubkey | null> {
 /** Still on the bonding curve — no graduated AMM pool, but curve buys are real. */
 function isOnCurveStonk(asset: Asset): boolean {
   if (asset.kind !== "stonk") return false;
-  if (asset.status === "pending") return true;
-  // `curve_progress` is only written for on-curve rows; catches status drift.
-  return asset.curveProgress !== null;
+  return isOnBondingCurve(asset);
 }
 
 /** Fewer signatures on a cold curve read — the page is waiting on this. */
@@ -806,21 +814,22 @@ export const stonkFor = cache(async (id: string): Promise<Stonk | null> => {
 export async function fetchFeed(
   sort: "trending" | "new" | "marketCap",
   options: {limit?: number; cursor?: string | null; quoteTicker?: string | null} = {},
-): Promise<{
-  items: readonly Stonk[];
-  cursor: string | null;
-  source: "live" | "snapshot";
-  capturedAt: string | null;
-}> {
+): Promise<FeedPage<Stonk>> {
+  const quoteCountsForPage = !options.cursor
+    ? countQuoteTickersForFeed(sort)
+    : Promise.resolve(undefined);
+
   if (hasDatabase) {
     try {
       const page = await listStonks({sort, ...options});
       if (page.rows.length > 0) {
+        const quoteCounts = await quoteCountsForPage;
         return {
           items: page.rows.map((row) => rowToStonk(row, page.stats.get(row.mint) ?? null)),
           cursor: page.cursor,
           source: "live",
           capturedAt: null,
+          quoteCounts,
         };
       }
       /*
@@ -859,11 +868,25 @@ export async function fetchFeed(
   }
 
   const snapshot = snapshotStonks();
+  let items = snapshot.items;
+  if (sort === "new") {
+    items = filterNewFeedStonks(items);
+  } else if (sort === "trending") {
+    items = sortStonksTrending(filterTrendingFeedStonks(items));
+  } else if (sort === "marketCap") {
+    items = [...items].sort((a, b) => (b.marketCapUsd ?? 0) - (a.marketCapUsd ?? 0));
+  }
+  if (options.quoteTicker) {
+    items = items.filter((stonk) => stonk.quoteTicker === options.quoteTicker);
+  }
+  const {snapshotStonkQuoteCounts} = await import("./snapshot");
+  const quoteCounts = (await quoteCountsForPage) ?? snapshotStonkQuoteCounts(sort);
   return {
-    items: snapshot.items,
+    items,
     cursor: null,
     source: "snapshot",
     capturedAt: snapshot.capturedAt,
+    quoteCounts,
   };
 }
 
@@ -876,6 +899,19 @@ export async function fetchFeed(
  * the honest answer when the store cannot be reached.
  */
 export async function fetchGraduating(limit = 60): Promise<readonly Stonk[]> {
+  const {sortStonksGraduating} = await import("@/lib/graduatingFeedSort");
+
+  if (hasDatabase) {
+    try {
+      const page = await listGraduating(limit);
+      return sortStonksGraduating(
+        page.rows.map((row) => rowToStonk(row, page.stats.get(row.mint) ?? null)),
+      );
+    } catch {
+      // Fall through to direct Postgres when both are configured.
+    }
+  }
+
   const {hasAdminPg, pgListGraduating} = await import("./adminPg");
   if (!hasAdminPg) return [];
 
@@ -883,7 +919,9 @@ export async function fetchGraduating(limit = 60): Promise<readonly Stonk[]> {
     const rows = await pgListGraduating(limit);
     const {statsFor} = await import("./live/universeStore");
     const stats = await statsFor(rows.map((row) => row.mint));
-    return rows.map((row) => rowToStonk(row, stats.get(row.mint) ?? null));
+    return sortStonksGraduating(
+      rows.map((row) => rowToStonk(row, stats.get(row.mint) ?? null)),
+    );
   } catch {
     return [];
   }

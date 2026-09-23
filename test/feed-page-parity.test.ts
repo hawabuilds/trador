@@ -132,3 +132,34 @@ test("the feed and the chart page agree on where coins come from", () => {
       "disagree about which coins exist.",
   );
 });
+
+test("home SSR seeds stonks for the URL sort, not always trending", () => {
+  const page = code("app", "(app)", "home", "page.tsx");
+  assert.match(page, /readStonkSort\(searchParams\.sort\)/);
+  assert.match(
+    page,
+    /stonkSort === "graduating"\s*\?\s*"trending"\s*:\s*stonkSort/,
+    "Graduating borrows trending stonks for the kept-alive poll; other sorts fetch their own page.",
+  );
+  assert.match(page, /initialStonkSort=\{feedSort\}/);
+});
+
+test("useFeed does not reuse another sort's rows as placeholder data", () => {
+  const hook = code("hooks", "useFeed.ts");
+  assert.ok(!/\bkeepPreviousData\b/.test(hook));
+  assert.match(hook, /previousQuery\.queryKey\[1\]\s*!==\s*apiSort/);
+  assert.match(hook, /sort === initialStonkSort/);
+});
+
+test("graduating reads the store without requiring DATABASE_URL", () => {
+  const body = declaration(
+    code("lib", "server", "sources.ts"),
+    "export async function fetchGraduating",
+  );
+  assert.notEqual(body, "", "sources.ts should export `fetchGraduating`.");
+  assert.ok(
+    /listGraduating/.test(body),
+    "fetchGraduating must read pending rows through PostgREST when Supabase is " +
+      "configured, or Graduating stays empty on serverless without DATABASE_URL.",
+  );
+});

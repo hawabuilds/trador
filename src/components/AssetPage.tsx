@@ -19,6 +19,7 @@ import {hoveredCandleChangePct} from "@/lib/chartLwc";
 import {changePctForPoints, mergeTradesIntoChart} from "@/lib/chartLive";
 import {TIMEFRAME_MS, chartWindowMs} from "@/lib/chartPlot";
 import {defaultChartTimeframe} from "@/lib/chartTimeframe";
+import {isOnBondingCurve} from "@/lib/graduatingFeedSort";
 import {cn} from "@/lib/cn";
 import {clock, shortAddress} from "@/lib/format";
 import {publishPrice} from "@/lib/livePrice";
@@ -122,9 +123,7 @@ export function AssetPage({
 
   const listedAt = asset?.kind === "stonk" ? asset.listedAt : null;
   const coinStatus = asset?.kind === "stonk" ? asset.status : null;
-  const onBondingCurve =
-    asset?.kind === "stonk" &&
-    (asset.status === "pending" || asset.curveProgress !== null);
+  const onBondingCurve = asset?.kind === "stonk" && isOnBondingCurve(asset);
   const autoTimeframe = defaultChartTimeframe({
     kind,
     listedAt,

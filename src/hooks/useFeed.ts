@@ -1,9 +1,24 @@
 "use client";
 
 import {useCallback, useEffect, useMemo, useRef, useState} from "react";
-import {keepPreviousData, useQuery} from "@tanstack/react-query";
+import {useQuery} from "@tanstack/react-query";
+import type {QueryKey} from "@tanstack/react-query";
 
 import type {FeedPage, Stock, Stonk, StonkSort} from "@/lib/types";
+
+type FeedStonkSort = Exclude<StonkSort, "graduating">;
+
+function feedPlaceholderData(
+  previousData: FeedResponse | undefined,
+  previousQuery: {queryKey: QueryKey} | undefined,
+  apiSort: FeedStonkSort,
+): FeedResponse | undefined {
+  if (!previousData || !previousQuery) return undefined;
+  // Quote and include toggles keep the last page visible; a sort change must not
+  // reuse another order's rows — Trending coins under New read as a broken feed.
+  if (previousQuery.queryKey[1] !== apiSort) return undefined;
+  return previousData;
+}
 
 interface FeedResponse {
   stonks: FeedPage<Stonk>;
@@ -36,6 +51,8 @@ export function useFeed({
   quoteTicker,
   include,
   initial,
+  initialStonkSort,
+  seedGraduating,
   enabled = true,
 }: {
   sort: StonkSort;
@@ -46,10 +63,40 @@ export function useFeed({
     stocks: FeedPage<Stock>;
     graduating?: readonly Stonk[];
   };
+  /** Which stonks sort the server seed was fetched for — not Graduating. */
+  initialStonkSort: FeedStonkSort;
+  /** True when SSR already fetched the graduating list for first paint. */
+  seedGraduating: boolean;
   /** False when Home is kept alive but hidden on another tab. */
   enabled?: boolean;
 }) {
   const apiSort = sort === "graduating" ? "trending" : sort;
+
+  const plainPoll = !quoteTicker && !include.stocks && !include.graduating;
+  const stonksSeedMatches =
+    plainPoll &&
+    sort !== "graduating" &&
+    sort === apiSort &&
+    sort === initialStonkSort;
+  const graduatingSeedMatches =
+    !quoteTicker &&
+    !include.stocks &&
+    include.graduating &&
+    sort === "graduating" &&
+    seedGraduating;
+
+  const stonksSortAwaitingFetch =
+    sort !== "graduating" &&
+    sort === apiSort &&
+    sort !== initialStonkSort &&
+    (sort === "new" || sort === "marketCap");
+
+  const emptyStonks: FeedPage<Stonk> = {
+    items: [],
+    cursor: null,
+    source: initial.stonks.source,
+    capturedAt: initial.stonks.capturedAt,
+  };
 
   const query = useQuery({
     queryKey: ["feed", apiSort, quoteTicker ?? "all", include.stocks, include.graduating],
@@ -68,23 +115,43 @@ export function useFeed({
       return (await response.json()) as FeedResponse;
     },
     initialData:
-      apiSort === "trending" && !quoteTicker && !include.stocks && !include.graduating
+      stonksSeedMatches || graduatingSeedMatches
         ? {
-            stonks: initial.stonks,
+            stonks: stonksSeedMatches ? initial.stonks : emptyStonks,
             stocks: null,
-            graduating: null,
+            graduating: graduatingSeedMatches ? [...(initial.graduating ?? [])] : null,
           }
         : undefined,
-    placeholderData: keepPreviousData,
+    placeholderData: (previousData, previousQuery) =>
+      feedPlaceholderData(previousData, previousQuery, apiSort),
     staleTime: 15_000,
     refetchInterval: 15_000,
     refetchOnWindowFocus: false,
   });
 
-  const firstPage = query.data?.stonks ?? initial.stonks;
+  const firstPage = query.data?.stonks ?? (stonksSeedMatches ? initial.stonks : emptyStonks);
 
   const stocks = query.data?.stocks ?? initial.stocks;
-  const graduating = query.data?.graduating ?? initial.graduating ?? [];
+
+  const graduatingFromQuery = query.data?.graduating;
+  const graduating: readonly Stonk[] | null =
+    graduatingFromQuery !== undefined && graduatingFromQuery !== null
+      ? graduatingFromQuery
+      : graduatingSeedMatches
+        ? [...(initial.graduating ?? [])]
+        : include.graduating
+          ? null
+          : [...(initial.graduating ?? [])];
+
+  const graduatingLoading =
+    include.graduating &&
+    graduating === null &&
+    (query.isPending || query.isFetching || !graduatingSeedMatches);
+
+  const stonksLoading =
+    stonksSortAwaitingFetch &&
+    !stonksSeedMatches &&
+    (query.isPending || (query.isFetching && !query.data));
 
   const [older, setOlder] = useState<readonly Stonk[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -143,6 +210,8 @@ export function useFeed({
     stonks: {...firstPage, items},
     stocks,
     graduating,
+    graduatingLoading,
+    stonksLoading,
     isFetching: query.isFetching,
     isPlaceholder: query.isPlaceholderData,
     error: query.error ? (query.error as Error).message : null,
