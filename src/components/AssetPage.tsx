@@ -1,8 +1,9 @@
 "use client";
 
-import {useEffect, useMemo, useState} from "react";
+import {useCallback, useEffect, useMemo, useState} from "react";
 import dynamic from "next/dynamic";
 import {useRouter} from "next/navigation";
+import {useQueryClient} from "@tanstack/react-query";
 
 import {APP_SCROLL_PAD_TOP} from "@/components/AppShell";
 import {RefreshChip} from "@/components/Refresh";
@@ -10,8 +11,9 @@ import {accountUrl, tokenUrl} from "@/config/explorer";
 import {launchpadFace} from "@/config/launchpads";
 import {useAsset, useChart, useTrades} from "@/hooks/useAsset";
 import {useLivePrice} from "@/hooks/useLivePrice";
+import {usePageRefresh} from "@/hooks/usePageRefresh";
 import {useUser} from "@/hooks/useUser";
-import {useWalletTrades} from "@/hooks/useWalletTrades";
+import {useWalletTrades, WALLET_TRADES_KEY} from "@/hooks/useWalletTrades";
 import {hoveredCandleChangePct} from "@/lib/chartLwc";
 import {changePctForPoints, mergeTradesIntoChart} from "@/lib/chartLive";
 import {TIMEFRAME_MS, chartWindowMs} from "@/lib/chartPlot";
@@ -111,6 +113,7 @@ export function AssetPage({
   initial?: AssetPageInitial | null;
 }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const at = initial?.at ?? 0;
   const {asset: liveAsset, isLoading, error} = useAsset(kind, id, {data: initial?.asset ?? null, at});
   const asset = liveAsset ?? initial?.asset?.asset ?? null;
@@ -147,6 +150,33 @@ export function AssetPage({
    * layout so the two read the same way.
    */
   const {wallet} = useUser();
+
+  usePageRefresh(
+    "asset",
+    useCallback(async () => {
+      const mint = asset?.mint ?? null;
+      await Promise.all([
+        queryClient.refetchQueries({queryKey: ["asset", kind, id]}),
+        queryClient.refetchQueries({
+          predicate: (query) =>
+            query.queryKey[0] === "chart" &&
+            query.queryKey[1] === kind &&
+            query.queryKey[2] === id,
+        }),
+        queryClient.refetchQueries({queryKey: ["trades", kind, id]}),
+        queryClient.refetchQueries({queryKey: ["asset-news", id]}),
+        queryClient.refetchQueries({
+          predicate: (query) =>
+            query.queryKey[0] === "comments" &&
+            query.queryKey[1] === kind &&
+            query.queryKey[2] === id,
+        }),
+        wallet && mint
+          ? queryClient.refetchQueries({queryKey: [WALLET_TRADES_KEY, wallet, mint]})
+          : Promise.resolve(),
+      ]);
+    }, [queryClient, kind, id, wallet, asset?.mint]),
+  );
   const [tapeScope, setTapeScope] = useState<TapeScope>("all");
   const mine = useWalletTrades(wallet, {
     mint: asset?.mint ?? null,

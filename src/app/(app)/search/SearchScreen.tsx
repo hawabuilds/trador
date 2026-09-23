@@ -1,7 +1,7 @@
 "use client";
 
-import {useEffect, useMemo, useState} from "react";
-import {useQuery} from "@tanstack/react-query";
+import {useCallback, useEffect, useMemo, useState} from "react";
+import {useQuery, useQueryClient} from "@tanstack/react-query";
 
 import Link from "next/link";
 
@@ -14,6 +14,7 @@ import {compact} from "@/lib/format";
 import {profilePath} from "@/lib/routes";
 import {shortPubkey} from "@/lib/pubkey";
 import type {Asset, Profile, Stock, Stonk} from "@/lib/types";
+import {usePageRefresh} from "@/hooks/usePageRefresh";
 
 type Scope = "all" | "stonk" | "stock" | "people";
 
@@ -33,9 +34,17 @@ interface SearchResponse {
 }
 
 export function SearchScreen({preview}: {preview: readonly Asset[]}) {
+  const queryClient = useQueryClient();
   const [raw, setRaw] = useState("");
   const [query, setQuery] = useState("");
   const [scope, setScope] = useState<Scope>("all");
+
+  usePageRefresh(
+    "search",
+    useCallback(async () => {
+      await queryClient.refetchQueries({queryKey: ["search"]});
+    }, [queryClient]),
+  );
 
   // Debounced, so typing a 44-character mint does not fire 44 requests.
   useEffect(() => {

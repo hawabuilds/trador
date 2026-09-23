@@ -10,7 +10,8 @@ export async function GET(request: Request) {
   if (!wallet) return badRequest("A base58 wallet address is required.");
 
   try {
-    const stonkfolio = await stonkfolioFor(wallet);
+    const force = new URL(request.url).searchParams.get("refresh") === "1";
+    const stonkfolio = await stonkfolioFor(wallet, {force});
 
     /*
      * Sample the value on the way past.

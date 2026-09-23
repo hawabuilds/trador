@@ -36,6 +36,7 @@ export function useFeed({
   quoteTicker,
   include,
   initial,
+  enabled = true,
 }: {
   sort: StonkSort;
   quoteTicker: string | null;
@@ -45,11 +46,14 @@ export function useFeed({
     stocks: FeedPage<Stock>;
     graduating?: readonly Stonk[];
   };
+  /** False when Home is kept alive but hidden on another tab. */
+  enabled?: boolean;
 }) {
   const apiSort = sort === "graduating" ? "trending" : sort;
 
   const query = useQuery({
     queryKey: ["feed", apiSort, quoteTicker ?? "all", include.stocks, include.graduating],
+    enabled,
     queryFn: async (): Promise<FeedResponse> => {
       const params = new URLSearchParams({sort: apiSort});
       if (quoteTicker && quoteTicker !== "all") params.set("quote", quoteTicker);

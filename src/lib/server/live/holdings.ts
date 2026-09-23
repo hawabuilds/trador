@@ -17,7 +17,7 @@ import {type Pubkey} from "@/lib/pubkey";
 import {snapshotStocks, snapshotStonks} from "@/lib/server/snapshot";
 import {hasDatabase} from "@/lib/server/db";
 import type {Asset, Holding} from "@/lib/types";
-import {cached} from "./cache";
+import {cached, invalidate} from "./cache";
 import {serverRpcUrl} from "../rpcUrl";
 import {readCachedBalances, writeCachedBalances} from "./walletHoldingsCache";
 
@@ -119,18 +119,26 @@ async function balancesFromRpc(wallet: Pubkey): Promise<{
   return {byMint, solLamports: balance.value};
 }
 
-export async function stonkfolioFor(wallet: Pubkey): Promise<Stonkfolio> {
-  const pg = await readCachedBalances(wallet);
-  if (pg) {
-    const value = await stonkfolioFromBalances(pg.byMint, pg.solLamports);
-    return {...value, stale: false};
+export async function stonkfolioFor(
+  wallet: Pubkey,
+  opts?: {force?: boolean},
+): Promise<Stonkfolio> {
+  if (!opts?.force) {
+    const pg = await readCachedBalances(wallet);
+    if (pg) {
+      const value = await stonkfolioFromBalances(pg.byMint, pg.solLamports);
+      return {...value, stale: false};
+    }
+  } else {
+    invalidate(`holdings:${wallet}`);
   }
 
   /*
    * Twelve seconds in-process. Cross-instance repeats are served from Postgres
    * when fresh; this layer still dedupes concurrent reads on one instance.
    */
-  const {value, stale} = await cached(`holdings:${wallet}`, 12_000, async () => {
+  const ttl = opts?.force ? 0 : 12_000;
+  const {value, stale} = await cached(`holdings:${wallet}`, ttl, async () => {
     const {byMint, solLamports} = await balancesFromRpc(wallet);
     void writeCachedBalances(wallet, solLamports, byMint);
     return await stonkfolioFromBalances(byMint, solLamports);

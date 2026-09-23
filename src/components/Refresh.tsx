@@ -4,6 +4,7 @@ import {useCallback, useEffect, useRef, useState} from "react";
 import {usePathname} from "next/navigation";
 import {useQueryClient} from "@tanstack/react-query";
 
+import {runPageRefresh} from "@/hooks/usePageRefresh";
 import {cn} from "@/lib/cn";
 import {RefreshIcon} from "./ui/Icons";
 
@@ -32,6 +33,7 @@ const MIN_SPIN_MS = 600;
 /** Refetch everything the current screen is using. */
 export function useRefreshAll(): {refresh: () => Promise<void>; refreshing: boolean} {
   const queryClient = useQueryClient();
+  const pathname = usePathname();
   const [refreshing, setRefreshing] = useState(false);
   const busy = useRef(false);
 
@@ -41,14 +43,14 @@ export function useRefreshAll(): {refresh: () => Promise<void>; refreshing: bool
     setRefreshing(true);
     const started = Date.now();
     try {
-      await queryClient.refetchQueries({type: "active"});
+      await runPageRefresh(pathname, queryClient);
     } finally {
       const rest = Math.max(0, MIN_SPIN_MS - (Date.now() - started));
       await new Promise((resolve) => window.setTimeout(resolve, rest));
       busy.current = false;
       setRefreshing(false);
     }
-  }, [queryClient]);
+  }, [pathname, queryClient]);
 
   return {refresh, refreshing};
 }

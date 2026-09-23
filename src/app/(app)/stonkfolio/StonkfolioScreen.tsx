@@ -1,6 +1,6 @@
 "use client";
 
-import {useEffect, useMemo, useRef, useState} from "react";
+import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import {useQuery, useQueryClient} from "@tanstack/react-query";
@@ -25,8 +25,9 @@ import {PriceDelta} from "@/components/ui/PriceDelta";
 import {HoldingRow} from "@/components/HoldingRow";
 import {useBalanceHistory, type BalanceRange} from "@/hooks/useBalanceHistory";
 import {useMe} from "@/hooks/useMe";
+import {usePageRefresh} from "@/hooks/usePageRefresh";
 import {useUser} from "@/hooks/useUser";
-import {useWalletTrades} from "@/hooks/useWalletTrades";
+import {useWalletTrades, WALLET_TRADES_KEY} from "@/hooks/useWalletTrades";
 import {drift, rebalanceScore, targetsValid} from "@/lib/allocation";
 import {cn} from "@/lib/cn";
 import {
@@ -103,6 +104,40 @@ export function StonkfolioScreen() {
 
   const me = useMe();
   const queryClient = useQueryClient();
+
+  usePageRefresh(
+    "stonkfolio",
+    useCallback(async () => {
+      if (wallet) {
+        try {
+          const response = await fetch(
+            `/api/stonkfolio?wallet=${encodeURIComponent(wallet)}&refresh=1`,
+            {cache: "no-store"},
+          );
+          if (response.ok) {
+            const body = (await response.json()) as StonkfolioResponse;
+            queryClient.setQueryData(["stonkfolio", wallet], body);
+          } else {
+            await queryClient.refetchQueries({queryKey: ["stonkfolio", wallet]});
+          }
+        } catch {
+          await queryClient.refetchQueries({queryKey: ["stonkfolio", wallet]});
+        }
+      }
+      await Promise.all([
+        wallet
+          ? queryClient.refetchQueries({
+              predicate: (query) =>
+                query.queryKey[0] === "stonkfolio-history" && query.queryKey[1] === wallet,
+            })
+          : Promise.resolve(),
+        wallet
+          ? queryClient.refetchQueries({queryKey: [WALLET_TRADES_KEY, wallet]})
+          : Promise.resolve(),
+        handle ? queryClient.refetchQueries({queryKey: ["profile", handle]}) : Promise.resolve(),
+      ]);
+    }, [queryClient, wallet, handle]),
+  );
 
   const query = useQuery({
     queryKey: ["stonkfolio", wallet],

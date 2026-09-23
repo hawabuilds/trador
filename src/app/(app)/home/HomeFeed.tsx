@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import {useCallback, useEffect, useMemo, useState} from "react";
 import Link from "next/link";
 import {usePathname, useRouter, useSearchParams} from "next/navigation";
+import {useQueryClient} from "@tanstack/react-query";
 
 import {StickyPageHeader} from "@/components/AppShell";
 import {passesNewFeedFloor} from "@/config/feed";
@@ -18,6 +19,7 @@ import {HomeTabs, type HomeTab} from "@/components/HomeTabs";
 import {useArrivals} from "@/hooks/useArrivals";
 import {GraduatingList} from "@/components/GraduatingList";
 import {useFeed} from "@/hooks/useFeed";
+import {usePageRefresh} from "@/hooks/usePageRefresh";
 import {useWatchlistAssets} from "@/hooks/useWatchlist";
 import {RocketIcon, StarIcon} from "@/components/ui/Icons";
 import {TradorMark} from "@/components/ui/TradorMark";
@@ -107,6 +109,7 @@ export function HomeFeed({
   stocks: initialStocks,
   graduating: initialGraduating,
   now,
+  active = true,
 }: {
   stonks: FeedPage<Stonk>;
   stocks: FeedPage<Stock>;
@@ -114,6 +117,8 @@ export function HomeFeed({
   graduating: readonly Stonk[];
   /** Server render time, so age strings match after hydration. */
   now: number;
+  /** False while Home is kept alive but another tab is showing. */
+  active?: boolean;
 }) {
   /*
    * Which tab and sort are showing lives in the URL, not only in state.
@@ -130,6 +135,7 @@ export function HomeFeed({
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
+  const queryClient = useQueryClient();
 
   const [tab, setTab] = useState<HomeTab>(
     () => readParam(params.get("tab"), HOME_TABS, "stonks"),
@@ -206,7 +212,19 @@ export function HomeFeed({
       stocks: initialStocks,
       graduating: [...initialGraduating],
     },
+    enabled: active,
   });
+
+  usePageRefresh(
+    "home",
+    useCallback(async () => {
+      await Promise.all([
+        queryClient.refetchQueries({queryKey: ["feed"]}),
+        queryClient.refetchQueries({queryKey: ["watchlist"]}),
+        queryClient.refetchQueries({queryKey: ["watchlist-assets"]}),
+      ]);
+    }, [queryClient]),
+  );
 
   const stonks = feed.stonks;
   const stocks = feed.stocks;
@@ -317,7 +335,7 @@ export function HomeFeed({
    * page, and it has to show a live price rather than whatever it cost when it
    * was starred — so the stored keys are resolved against the store on demand.
    */
-  const watchlist = useWatchlistAssets(tab === "watchlist");
+  const watchlist = useWatchlistAssets(active && tab === "watchlist");
 
   const watched = useMemo(
     () =>

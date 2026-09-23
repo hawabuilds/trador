@@ -147,7 +147,7 @@ export function HomeSearchKeptAlivePanels() {
       ) : null}
       {home ? (
         <div className={onHome ? undefined : "hidden"} aria-hidden={!onHome}>
-          <HomeFeed {...home} />
+          <HomeFeed {...home} active={onHome} />
         </div>
       ) : null}
       {onSearch && !searchPreview ? (
