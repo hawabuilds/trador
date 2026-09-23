@@ -27,8 +27,9 @@ import type {Pubkey} from "@/lib/pubkey";
 import {cached, peek} from "./cache";
 import {
   heliusKey,
+  HeliusRateLimited,
   type SignatureRow,
-  parseTransactions,
+  parseTransactionsInBatches,
   signaturesFor,
   uiAmount,
   type ParsedTx,
@@ -48,8 +49,14 @@ const COLD_PAGES = 3;
  * response is large (1.4s), so smaller batches side by side finish sooner; 50
  * is where it stopped helping, since 25 at a time runs into its rate limit.
  */
-const COLD_BATCH = 50;
+const COLD_BATCH = 25;
+/** Listed pools extend often; curve pages poll more slowly and hold longer. */
 const TTL_MS = 8_000;
+export const CURVE_TTL_MS = 45_000;
+
+export interface ChainTapeOptions {
+  ttlMs?: number;
+}
 
 /**
  * One fill from one transaction, or null if the pool did not trade our coin.
@@ -222,13 +229,13 @@ async function decode(signatures: string[], key: string | null): Promise<DecodeR
     if (!key) {
       if (read.size === 0) throw new Error("No way to read transactions is configured.");
     } else {
-      const batchSize = read.size === 0 ? COLD_BATCH : Math.min(25, COLD_BATCH);
-      const batches: string[][] = [];
-      for (let i = 0; i < missing.length; i += batchSize) {
-        batches.push(missing.slice(i, i + batchSize));
+      const batchSize = read.size === 0 ? COLD_BATCH : Math.min(15, COLD_BATCH);
+      try {
+        const parsed = await parseTransactionsInBatches(missing, key, batchSize);
+        for (const tx of parsed) read.set(tx.signature, tx);
+      } catch (error) {
+        if (!(error instanceof HeliusRateLimited) || read.size === 0) throw error;
       }
-      const parsed = (await Promise.all(batches.map((batch) => parseTransactions(batch, key)))).flat();
-      for (const tx of parsed) read.set(tx.signature, tx);
     }
   }
 
@@ -291,6 +298,7 @@ export async function chainTradesFor(
    * page, which is paying for it while someone waits.
    */
   coldLimit = COLD_PAGES * PAGE,
+  options: ChainTapeOptions = {},
 ): Promise<{trades: Trade[]; stale: boolean; warning: string | null} | null> {
   const key = heliusKey();
   if (!key && !rawRpc()) return null;
@@ -300,8 +308,9 @@ export async function chainTradesFor(
 
   const cacheKey = `chain-tape:${pool}:${mint}`;
   const previous = peek<TapeState>(cacheKey);
+  const ttlMs = options.ttlMs ?? TTL_MS;
 
-  const {value, stale} = await cached<TapeState>(cacheKey, TTL_MS, async () => {
+  const {value, stale} = await cached<TapeState>(cacheKey, ttlMs, async () => {
     let unreadable = 0;
     const toFills = (txs: ParsedTx[]) =>
       txs

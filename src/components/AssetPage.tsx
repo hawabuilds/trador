@@ -6,6 +6,7 @@ import {useRouter} from "next/navigation";
 import {useQueryClient} from "@tanstack/react-query";
 
 import {APP_SCROLL_PAD_TOP} from "@/components/AppShell";
+import {CurveProgress} from "@/components/CurveProgress";
 import {RefreshChip} from "@/components/Refresh";
 import {accountUrl, tokenUrl} from "@/config/explorer";
 import {launchpadFace} from "@/config/launchpads";
@@ -121,6 +122,9 @@ export function AssetPage({
 
   const listedAt = asset?.kind === "stonk" ? asset.listedAt : null;
   const coinStatus = asset?.kind === "stonk" ? asset.status : null;
+  const onBondingCurve =
+    asset?.kind === "stonk" &&
+    (asset.status === "pending" || asset.curveProgress !== null);
   const autoTimeframe = defaultChartTimeframe({
     kind,
     listedAt,
@@ -147,7 +151,9 @@ export function AssetPage({
   const [chartStyle, setChartStyle] = useState<ChartStyle>("line");
   useEffect(() => setChartStyle(readChartStyle()), []);
 
-  const chart = useChart(kind, id, timeframe, {data: initial?.chart ?? null, at});
+  const chart = useChart(kind, id, timeframe, {data: initial?.chart ?? null, at}, {
+    refetchIntervalMs: onBondingCurve ? 45_000 : 30_000,
+  });
   const trades = useTrades(kind, id, true, {data: initial?.trades ?? null, at});
 
   /*
@@ -388,6 +394,12 @@ export function AssetPage({
       <div className="mt-2 flex">
         <MintChip mint={asset.mint} />
       </div>
+
+      {asset.kind === "stonk" && onBondingCurve ? (
+        <div className="mt-3 max-w-[280px]">
+          <CurveProgress progress={asset.curveProgress} className="w-full" />
+        </div>
+      ) : null}
 
       {asset.kind === "stock" && asset.description ? (
         <p className="mt-3 text-[13px] leading-[1.55] text-muted">{asset.description}</p>

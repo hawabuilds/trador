@@ -13,6 +13,33 @@ export const HELIUS_API = process.env.HELIUS_API_URL ?? "https://api-mainnet.hel
 /** Parsed transactions are requested at most this many at a time. */
 export const PARSE_BATCH = 100;
 
+/** Parse calls in flight at once — pool tape and wallet history share this. */
+const PARSE_SLOTS = 2;
+let parseInFlight = 0;
+let parseWaiters: (() => void)[] = [];
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function withParseSlot<T>(work: () => Promise<T>): Promise<T> {
+  while (parseInFlight >= PARSE_SLOTS) {
+    await new Promise<void>((resolve) => parseWaiters.push(resolve));
+  }
+  parseInFlight += 1;
+  try {
+    return await work();
+  } finally {
+    parseInFlight -= 1;
+    const next = parseWaiters.shift();
+    if (next) next();
+  }
+}
+
+export class HeliusRateLimited extends Error {
+  constructor() {
+    super("Helius rate limited a parse batch.");
+  }
+}
+
 export function heliusKey(): string | null {
   if (process.env.HELIUS_API_KEY) return process.env.HELIUS_API_KEY;
   const rpc = process.env.HELIUS_RPC_URL;
@@ -65,17 +92,54 @@ export async function asParsed(response: Response): Promise<ParsedTx[]> {
   return body as ParsedTx[];
 }
 
+async function fetchParsedBatch(signatures: string[], key: string): Promise<ParsedTx[]> {
+  const url = `${HELIUS_API}/v0/transactions?api-key=${key}`;
+  return withParseSlot(async () => {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {"content-type": "application/json"},
+        cache: "no-store",
+        body: JSON.stringify({transactions: signatures}),
+      });
+      if (response.status === 429) {
+        await sleep(Math.min(8_000, 400 * 2 ** attempt));
+        continue;
+      }
+      return asParsed(response);
+    }
+    throw new HeliusRateLimited();
+  });
+}
+
 /** Parse up to `PARSE_BATCH` signatures in one call. */
 export async function parseTransactions(signatures: string[], key: string): Promise<ParsedTx[]> {
   if (signatures.length === 0) return [];
-  return asParsed(
-    await fetch(`${HELIUS_API}/v0/transactions?api-key=${key}`, {
-      method: "POST",
-      headers: {"content-type": "application/json"},
-      cache: "no-store",
-      body: JSON.stringify({transactions: signatures}),
-    }),
-  );
+  return fetchParsedBatch(signatures, key);
+}
+
+/**
+ * Parse many signatures in smaller batches, one batch at a time.
+ *
+ * Stops after the first rate limit when something was already read, so a tape
+ * can extend partially instead of failing the whole refresh.
+ */
+export async function parseTransactionsInBatches(
+  signatures: string[],
+  key: string,
+  batchSize: number,
+): Promise<ParsedTx[]> {
+  const out: ParsedTx[] = [];
+  for (let i = 0; i < signatures.length; i += batchSize) {
+    const batch = signatures.slice(i, i + batchSize);
+    try {
+      out.push(...(await parseTransactions(batch, key)));
+    } catch (error) {
+      if (error instanceof HeliusRateLimited && out.length > 0) break;
+      throw error;
+    }
+  }
+  return out;
 }
 
 /** A newest-first page of parsed transactions touching an address. */

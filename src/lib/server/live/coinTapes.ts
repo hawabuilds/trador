@@ -90,6 +90,16 @@ export function freshCandles(tape: CoinTape | null, timeframe: Timeframe): Chart
   return kept && age(kept.at) < CANDLES_FRESH_MS ? kept.points : null;
 }
 
+/** Kept trades older than `TAPE_FRESH_MS` but still worth showing on a 429. */
+export const TAPE_STALE_MS = 10 * 60_000;
+
+export function staleTrades(tape: CoinTape | null): Trade[] | null {
+  if (!tape || !(tape.trades?.length > 0)) return null;
+  const tradeAge = age(tape.trades_at);
+  if (tradeAge < TAPE_FRESH_MS || tradeAge >= TAPE_STALE_MS) return null;
+  return tape.trades;
+}
+
 export interface CoinTapeWrite {
   mint: string;
   pool: string;

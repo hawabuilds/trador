@@ -17,11 +17,12 @@ import {defaultChartTimeframe} from "@/lib/chartTimeframe";
 import {asPubkey, type Pubkey} from "@/lib/pubkey";
 import type {Timeframe} from "@/lib/types";
 import {snapshotStocks} from "../snapshot";
-import {chainTradesFor, hasChainTape} from "./chainTape";
+import {chainTradesFor, CURVE_TTL_MS, hasChainTape} from "./chainTape";
 import {writeCoinTapes, type CoinTapeWrite} from "./coinTapes";
 import {candlesFor, deepestPoolFor} from "./gecko";
 import {NEW_FEED_MIN_MCAP_USD} from "@/config/feed";
-import {hasAdminPg, pgFeedHead} from "../adminPg";
+import {hasAdminPg, pgFeedHead, pgListGraduating} from "../adminPg";
+import {curveTapeFromRow} from "./curveTapeAddress";
 import {listStonks, type StonkRow} from "./universeStore";
 
 interface HotCoin {
@@ -30,6 +31,8 @@ interface HotCoin {
   listedAt: string | null;
   /** Refreshed every round rather than a slice at a time. */
   busy: boolean;
+  /** Bonding-curve tape when there is no AMM pool yet. */
+  curve?: {address: Pubkey; quoteMint: Pubkey};
 }
 
 const TRENDING = 48;
@@ -37,6 +40,8 @@ const NEWEST = 28;
 const BUSY_TRENDING = 24;
 const BUSY_NEWEST = 14;
 const BUSY_STOCKS = 10;
+const GRADUATING_LIMIT = 32;
+const BUSY_GRADUATING = 12;
 
 /** Coins read at once. The RPC plan refuses bursts much wider than this. */
 const CONCURRENCY = 3;
@@ -102,7 +107,12 @@ async function readHotSet(): Promise<HotCoin[]> {
     const key = asPubkey(mint ?? null);
     if (!key) return;
     const held = coins.get(key);
-    coins.set(key, {mint: key, ...coin, busy: coin.busy || Boolean(held?.busy)});
+    coins.set(key, {
+      mint: key,
+      ...coin,
+      busy: coin.busy || Boolean(held?.busy),
+      curve: coin.curve ?? held?.curve,
+    });
   };
 
   trending.forEach((row, rank) =>
@@ -123,6 +133,20 @@ async function readHotSet(): Promise<HotCoin[]> {
     add(stock.mint, {kind: "stock", listedAt: null, busy: rank < BUSY_STOCKS}),
   );
 
+  if (hasAdminPg) {
+    const graduating = await pgListGraduating(GRADUATING_LIMIT);
+    graduating.forEach((row, rank) => {
+      const curve = curveTapeFromRow(row);
+      if (!curve) return;
+      add(row.mint, {
+        kind: "stonk",
+        listedAt: row.listed_at,
+        busy: rank < BUSY_GRADUATING,
+        curve,
+      });
+    });
+  }
+
   hotSet = [...coins.values()];
   hotSetAt = Date.now();
   return hotSet;
@@ -135,20 +159,30 @@ async function readHotSet(): Promise<HotCoin[]> {
  */
 async function keepOne(coin: HotCoin, coldBudget: {left: number}): Promise<CoinTapeWrite | null> {
   const pool = await deepestPoolFor(coin.mint, POOL_TTL_MS);
-  if (!pool) return null;
+  const curve = coin.curve;
+  const chainPool = pool?.address ?? curve?.address ?? null;
+  const otherMint = pool?.otherMint ?? curve?.quoteMint ?? null;
+  if (!chainPool || !otherMint) return null;
 
-  const write: CoinTapeWrite = {mint: coin.mint, pool: pool.address};
+  const write: CoinTapeWrite = {mint: coin.mint, pool: chainPool};
   const errors: unknown[] = [];
 
-  if (pool.otherMint) {
-    if (!hasChainTape(pool.address, coin.mint)) {
+  if (otherMint) {
+    if (!hasChainTape(chainPool, coin.mint)) {
       // Nothing held for this coin: this read is the deep one. Only a few of
       // those per round, so the rest wait their turn rather than bursting.
       if (coldBudget.left <= 0) return null;
       coldBudget.left -= 1;
     }
     try {
-      const tape = await chainTradesFor(pool.address, coin.mint, pool.otherMint, COLD_LIMIT);
+      const coldLimit = curve ? Math.min(COLD_LIMIT, 400) : COLD_LIMIT;
+      const tape = await chainTradesFor(
+        chainPool,
+        coin.mint,
+        otherMint,
+        coldLimit,
+        curve ? {ttlMs: CURVE_TTL_MS} : {},
+      );
       // A stale tape is the last good one after a failed refresh; not worth
       // re-stamping as fresh. An empty one is not written at all: a page can
       // read the provider's tape instead, which is better than being told a
@@ -159,7 +193,7 @@ async function keepOne(coin: HotCoin, coldBudget: {left: number}): Promise<CoinT
     }
   }
 
-  if (coin.busy && Date.now() - (candlesAt.get(coin.mint) ?? 0) >= CANDLE_EVERY_MS) {
+  if (coin.busy && pool && Date.now() - (candlesAt.get(coin.mint) ?? 0) >= CANDLE_EVERY_MS) {
     // Marked before the call, so a failing coin waits its turn rather than
     // being retried every round.
     candlesAt.set(coin.mint, Date.now());

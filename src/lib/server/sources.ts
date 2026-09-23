@@ -9,10 +9,8 @@
  */
 
 import {cache} from "react";
-import {bondingCurvePda} from "@nirholas/pump-sdk";
-import {PublicKey} from "@solana/web3.js";
 
-import {asPubkey, samePubkey, type Pubkey} from "@/lib/pubkey";
+import {asPubkey, type Pubkey} from "@/lib/pubkey";
 import {defaultChartTimeframe} from "@/lib/chartTimeframe";
 import {mergeTradesIntoChart} from "@/lib/chartLive";
 import {STEP_MS} from "@/lib/fillCandles";
@@ -30,12 +28,14 @@ import type {
 import {hasDatabase} from "./db";
 import {snapshotStock, snapshotStocks, snapshotStonk, snapshotStonks} from "./snapshot";
 import {cached} from "./live/cache";
-import {chainTradesFor, mergeTape, TAPE_MAX} from "./live/chainTape";
+import {chainTradesFor, CURVE_TTL_MS, mergeTape, TAPE_MAX} from "./live/chainTape";
+import {curveTapeAddress} from "./live/curveTapeAddress";
 import {
   type CoinTape,
   freshCandles,
   freshTrades,
   readCoinTape,
+  staleTrades,
 } from "./live/coinTapes";
 import {candlesFor, deepestPoolFor, tradesFor} from "./live/gecko";
 import {findStonk, listStonks, rowToStonk, searchStonks} from "./live/universeStore";
@@ -158,51 +158,86 @@ function isOnCurveStonk(asset: Asset): boolean {
 }
 
 /** Fewer signatures on a cold curve read — the page is waiting on this. */
-const CURVE_COLD_SIGS = 150;
+const CURVE_COLD_SIGS = 120;
+const CURVE_POLL_MS = 12_000;
 
-/**
- * Account to pass to `getSignaturesForAddress` for curve tape.
- *
- * `rowToStonk` falls back to the mint when `pool` is null; pump.fun's curve
- * PDA is still derivable from the mint.
- */
-function curveTapeAddress(stonk: Stonk): Pubkey | null {
-  if (!samePubkey(stonk.pool, stonk.mint)) return stonk.pool;
-  if (stonk.launchpad === "pumpfun") {
-    return bondingCurvePda(new PublicKey(stonk.mint)).toBase58() as Pubkey;
-  }
-  return null;
+function chainTapePollMs(asset: Asset): number {
+  return asset.kind === "stonk" && isOnCurveStonk(asset) ? CURVE_POLL_MS : 4_000;
 }
+const CURVE_CHAIN_DEGRADED =
+  "Showing saved trades; live chain refresh is temporarily limited.";
 
 function hasCurvePoolAddress(stonk: Stonk): boolean {
-  return curveTapeAddress(stonk) !== null;
+  return curveTapeAddress(stonk.mint, stonk.pool, stonk.launchpad) !== null;
 }
 
-async function curveChainTrades(
-  stonk: Stonk,
-): Promise<{trades: Trade[]; stale: boolean; warning: string | null} | null> {
-  const pool = curveTapeAddress(stonk);
-  if (!pool) return null;
-  const tape = await chainTradesFor(pool, stonk.mint, stonk.quoteMint, CURVE_COLD_SIGS);
-  if (!tape) return null;
-  return tape;
+type CurveChainTape = {trades: Trade[]; stale: boolean; warning: string | null};
+
+const curveChainInflight = new Map<string, Promise<CurveChainTape | null>>();
+
+async function curveChainTrades(stonk: Stonk): Promise<CurveChainTape | null> {
+  const held = curveChainInflight.get(stonk.mint);
+  if (held) return held;
+
+  const work = (async (): Promise<CurveChainTape | null> => {
+    const pool = curveTapeAddress(stonk.mint, stonk.pool, stonk.launchpad);
+    if (!pool) return null;
+    return chainTradesFor(pool, stonk.mint, stonk.quoteMint, CURVE_COLD_SIGS, {
+      ttlMs: CURVE_TTL_MS,
+    });
+  })().finally(() => curveChainInflight.delete(stonk.mint));
+
+  curveChainInflight.set(stonk.mint, work);
+  return work;
+}
+
+function chartPointsFromTrades(trades: readonly Trade[], timeframe: Timeframe): ChartPoint[] {
+  const bucketMs = STEP_MS[timeframe] ?? STEP_MS["5m"];
+  return mergeTradesIntoChart([], [...trades], bucketMs, {complete: true});
+}
+
+async function curveKeptTape(stonk: Stonk, tape: CoinTape | null): Promise<CoinTape | null> {
+  return tape ?? (await readCoinTape(stonk.mint));
+}
+
+function curveStaleFallback(tape: CoinTape | null): CurveChainTape | null {
+  const kept = staleTrades(tape);
+  if (!kept) return null;
+  return {trades: kept, stale: true, warning: CURVE_CHAIN_DEGRADED};
+}
+
+function isRateLimitMessage(message: string): boolean {
+  const lower = message.toLowerCase();
+  return lower.includes("429") || lower.includes("rate limit");
 }
 
 async function fetchChartFromCurve(
   stonk: Stonk,
   timeframe: Timeframe,
+  tape: CoinTape | null = null,
 ): Promise<SourceResult<{points: ChartPoint[]; timeframe: Timeframe}>> {
+  const keptTape = await curveKeptTape(stonk, tape);
   try {
     const chain = await curveChainTrades(stonk);
     if (chain && chain.trades.length > 0) {
-      const bucketMs = STEP_MS[timeframe] ?? STEP_MS["5m"];
-      const points = mergeTradesIntoChart([], chain.trades, bucketMs, {complete: true});
+      const points = chartPointsFromTrades(chain.trades, timeframe);
       return {
         data: {points, timeframe},
         stale: chain.stale,
         error:
           points.length > 0 ? chain.warning : (chain.warning ?? "Not enough curve history yet."),
       };
+    }
+    const fallback = curveStaleFallback(keptTape);
+    if (fallback) {
+      const points = chartPointsFromTrades(fallback.trades, timeframe);
+      if (points.length > 0) {
+        return {
+          data: {points, timeframe},
+          stale: true,
+          error: fallback.warning,
+        };
+      }
     }
     return {
       data: {points: [], timeframe},
@@ -214,10 +249,22 @@ async function fetchChartFromCurve(
           : "Bonding curve pool is not indexed yet.",
     };
   } catch (error) {
+    const message = (error as Error).message;
+    const fallback = curveStaleFallback(keptTape);
+    if (fallback) {
+      const points = chartPointsFromTrades(fallback.trades, timeframe);
+      if (points.length > 0) {
+        return {
+          data: {points, timeframe},
+          stale: true,
+          error: CURVE_CHAIN_DEGRADED,
+        };
+      }
+    }
     return {
       data: {points: [], timeframe},
       stale: true,
-      error: (error as Error).message,
+      error: isRateLimitMessage(message) ? CURVE_CHAIN_DEGRADED : message,
     };
   }
 }
@@ -239,14 +286,14 @@ async function fetchChartForAsset(
   if (kept) return {data: {points: kept, timeframe}, stale: false, error: null};
 
   if (asset.kind === "stonk" && isOnCurveStonk(asset)) {
-    return fetchChartFromCurve(asset, timeframe);
+    return fetchChartFromCurve(asset, timeframe, tape);
   }
 
   try {
     const pool = await poolForAsset(asset);
     if (!pool) {
       if (asset.kind === "stonk" && hasCurvePoolAddress(asset)) {
-        return fetchChartFromCurve(asset, timeframe);
+        return fetchChartFromCurve(asset, timeframe, tape);
       }
       return {
         data: {points: [], timeframe},
@@ -316,7 +363,10 @@ const emptyTrades = (): SourceResult<TradesPayload> => ({
 
 const providerPollMs = () => (process.env.COINGECKO_API_KEY ? 4_000 : 12_000);
 
-const tradesFromTape = (tape: CoinTape | null): SourceResult<TradesPayload> | null => {
+const tradesFromTape = (
+  tape: CoinTape | null,
+  pollMs = 4_000,
+): SourceResult<TradesPayload> | null => {
   const kept = freshTrades(tape);
   if (!kept) return null;
   /*
@@ -325,7 +375,7 @@ const tradesFromTape = (tape: CoinTape | null): SourceResult<TradesPayload> | nu
    * keeps appending until a poll marks the tape complete.
    */
   return {
-    data: {trades: kept, pollMs: 4_000, source: "chain", tapeComplete: false},
+    data: {trades: kept, pollMs, source: "chain", tapeComplete: false},
     stale: false,
     error: null,
   };
@@ -336,8 +386,9 @@ async function fetchTradesFromCurve(
   tape: CoinTape | null,
 ): Promise<SourceResult<TradesPayload>> {
   const empty = emptyTrades();
+  const keptTape = await curveKeptTape(stonk, tape ?? (await readCoinTape(stonk.mint, {live: true})));
   try {
-    const fromTape = tradesFromTape(tape ?? (await readCoinTape(stonk.mint, {live: true})));
+    const fromTape = tradesFromTape(keptTape, CURVE_POLL_MS);
     if (fromTape) return fromTape;
 
     const chain = await curveChainTrades(stonk);
@@ -345,7 +396,7 @@ async function fetchTradesFromCurve(
       return {
         data: {
           trades: chain.trades,
-          pollMs: 4_000,
+          pollMs: CURVE_POLL_MS,
           source: "chain",
           tapeComplete: false,
         },
@@ -353,8 +404,21 @@ async function fetchTradesFromCurve(
         error: chain.warning,
       };
     }
+    const fallback = curveStaleFallback(keptTape);
+    if (fallback) {
+      return {
+        data: {
+          trades: fallback.trades,
+          pollMs: CURVE_POLL_MS,
+          source: "chain",
+          tapeComplete: false,
+        },
+        stale: true,
+        error: fallback.warning,
+      };
+    }
     return {
-      data: empty.data,
+      data: {...empty.data, pollMs: CURVE_POLL_MS},
       stale: chain?.stale ?? false,
       error:
         chain?.warning ??
@@ -365,7 +429,25 @@ async function fetchTradesFromCurve(
             : "Bonding curve pool is not indexed yet."),
     };
   } catch (error) {
-    return {data: empty.data, stale: true, error: (error as Error).message};
+    const message = (error as Error).message;
+    const fallback = curveStaleFallback(keptTape);
+    if (fallback) {
+      return {
+        data: {
+          trades: fallback.trades,
+          pollMs: CURVE_POLL_MS,
+          source: "chain",
+          tapeComplete: false,
+        },
+        stale: true,
+        error: CURVE_CHAIN_DEGRADED,
+      };
+    }
+    return {
+      data: {...empty.data, pollMs: CURVE_POLL_MS},
+      stale: true,
+      error: isRateLimitMessage(message) ? CURVE_CHAIN_DEGRADED : message,
+    };
   }
 }
 
@@ -545,7 +627,7 @@ export async function fetchAssetPageSecondary(
     ? Promise.resolve({
         data: {
           trades: tapeTrades,
-          pollMs: 4_000,
+          pollMs: chainTapePollMs(asset),
           source: "chain" as TapeSource,
           tapeComplete: false,
         },
@@ -620,7 +702,7 @@ export async function fetchAssetPageData(
     ? Promise.resolve({
         data: {
           trades: tapeTrades,
-          pollMs: 4_000,
+          pollMs: chainTapePollMs(assetForSections),
           source: "chain" as TapeSource,
           tapeComplete: false,
         },

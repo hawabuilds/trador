@@ -134,13 +134,14 @@ export function useChart(
   id: string,
   timeframe: Timeframe,
   seed?: Seed<ChartResponse>,
+  options?: {refetchIntervalMs?: number},
 ) {
   // Only when the server read the timeframe this is asking for.
   useSeed(chartQuery(kind, id, timeframe).queryKey, seed?.data?.timeframe === timeframe ? seed : undefined);
   const query = useQuery({
     ...chartQuery(kind, id, timeframe),
     staleTime: 15_000,
-    refetchInterval: 30_000,
+    refetchInterval: options?.refetchIntervalMs ?? 30_000,
     // Keep the previous series on screen while a new timeframe loads. Dropping
     // to an empty chart between two good states reads as a failure.
     placeholderData: (previous) => previous,
