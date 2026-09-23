@@ -12,6 +12,8 @@ import {cache} from "react";
 
 import {asPubkey, type Pubkey} from "@/lib/pubkey";
 import {defaultChartTimeframe} from "@/lib/chartTimeframe";
+import {mergeTradesIntoChart} from "@/lib/chartLive";
+import {STEP_MS} from "@/lib/fillCandles";
 import type {
   Asset,
   AssetPageInitial,
@@ -26,7 +28,7 @@ import type {
 import {hasDatabase} from "./db";
 import {snapshotStock, snapshotStocks, snapshotStonk, snapshotStonks} from "./snapshot";
 import {cached} from "./live/cache";
-import {chainTradesFor, mergeTape} from "./live/chainTape";
+import {chainTradesFor, mergeTape, TAPE_MAX} from "./live/chainTape";
 import {
   type CoinTape,
   freshCandles,
@@ -138,6 +140,19 @@ async function poolForAsset(asset: Asset): Promise<Pubkey | null> {
   return pool?.address ?? null;
 }
 
+/** Still on the bonding curve — no graduated AMM pool, but curve buys are real. */
+function isOnCurveStonk(asset: Asset): asset is Stonk {
+  return asset.kind === "stonk" && asset.status === "pending";
+}
+
+async function curveChainTrades(
+  stonk: Stonk,
+): Promise<{trades: Trade[]; stale: boolean} | null> {
+  const tape = await chainTradesFor(stonk.pool, stonk.mint, stonk.quoteMint);
+  if (!tape) return null;
+  return tape;
+}
+
 /** Mint for a route id without decorating from a provider. */
 function mintForRoute(kind: string, id: string): Pubkey | null {
   if (kind === "stock") {
@@ -153,6 +168,32 @@ async function fetchChartForAsset(
 ): Promise<SourceResult<{points: ChartPoint[]; timeframe: Timeframe}>> {
   const kept = freshCandles(tape ?? (await readCoinTape(asset.mint)), timeframe);
   if (kept) return {data: {points: kept, timeframe}, stale: false, error: null};
+
+  if (isOnCurveStonk(asset)) {
+    try {
+      const chain = await curveChainTrades(asset);
+      if (chain && chain.trades.length > 0) {
+        const bucketMs = STEP_MS[timeframe] ?? STEP_MS["5m"];
+        const points = mergeTradesIntoChart([], chain.trades, bucketMs, {complete: true});
+        return {
+          data: {points, timeframe},
+          stale: chain.stale,
+          error: points.length > 0 ? null : "Not enough curve history yet.",
+        };
+      }
+      return {
+        data: {points: [], timeframe},
+        stale: chain?.stale ?? false,
+        error: chain ? "No curve trades yet." : "Curve history is not configured.",
+      };
+    } catch (error) {
+      return {
+        data: {points: [], timeframe},
+        stale: true,
+        error: (error as Error).message,
+      };
+    }
+  }
 
   try {
     const pool = await poolForAsset(asset);
@@ -253,6 +294,37 @@ async function fetchTradesForAsset(
 ): Promise<SourceResult<TradesPayload>> {
   const empty = emptyTrades();
   const chainFirst = options.chainFirst !== false;
+
+  if (isOnCurveStonk(asset)) {
+    try {
+      const fromTape = tradesFromTape(
+        tape ?? (await readCoinTape(asset.mint, {live: true})),
+      );
+      if (fromTape) return fromTape;
+
+      const chain = await curveChainTrades(asset);
+      if (chain && chain.trades.length > 0) {
+        return {
+          data: {
+            trades: chain.trades,
+            pollMs: 4_000,
+            source: "chain",
+            tapeComplete: false,
+          },
+          stale: chain.stale,
+          error: null,
+        };
+      }
+      return {
+        data: empty.data,
+        stale: chain?.stale ?? false,
+        error: chain ? "No curve trades yet." : "Curve trades are not configured.",
+      };
+    } catch (error) {
+      return {data: empty.data, stale: true, error: (error as Error).message};
+    }
+  }
+
   try {
     const pool = await deepestPoolFor(asset.mint);
     if (!pool) {
@@ -272,7 +344,11 @@ async function fetchTradesForAsset(
               asset.mint,
             );
             const merged = mergeTape(chain.trades, providerTrades);
-            const tapeComplete = !providerBackfilled(chain.trades, merged);
+            // A short chain window is not authoritative for redrawing indexed
+            // candles — only a full chain page with no provider-only backfill is.
+            const tapeComplete =
+              !providerBackfilled(chain.trades, merged) &&
+              chain.trades.length >= TAPE_MAX;
             return {
               data: {
                 trades: merged,
@@ -289,7 +365,7 @@ async function fetchTradesForAsset(
                 trades: chain.trades,
                 pollMs: 4_000,
                 source: "chain",
-                tapeComplete: true,
+                tapeComplete: false,
               },
               stale: chain.stale,
               error: null,

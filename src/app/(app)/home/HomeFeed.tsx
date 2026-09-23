@@ -443,7 +443,7 @@ export function HomeFeed({
 
       {showingGraduating ? (
         graduating.length > 0 ? (
-          <GraduatingList coins={graduating} />
+          <GraduatingList coins={graduating} now={now} />
         ) : (
           <div className="px-6 py-12 text-center">
             <p className="text-[14px] font-bold">Nothing close yet</p>

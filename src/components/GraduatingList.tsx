@@ -6,7 +6,7 @@ import {CurveProgress} from "@/components/CurveProgress";
 import {LaunchpadMark} from "@/components/LaunchpadMark";
 import {Avatar} from "@/components/ui/Avatar";
 import {PairTicker} from "@/components/ui/Badges";
-import {formatMarketCapUsd, isPriced} from "@/lib/priceFormat";
+import {formatMarketCapUsd, isPriced, tokenAge} from "@/lib/priceFormat";
 import type {Stonk} from "@/lib/types";
 
 /**
@@ -28,7 +28,14 @@ import type {Stonk} from "@/lib/types";
  * the curve's seeded virtual reserves, money nobody can trade against, and it
  * is discarded at the indexer rather than shown here.
  */
-export function GraduatingList({coins}: {coins: readonly Stonk[]}) {
+export function GraduatingList({
+  coins,
+  now,
+}: {
+  coins: readonly Stonk[];
+  /** Passed in so age strings match on the server and after hydration. */
+  now?: number;
+}) {
   return (
     <ul className="-mx-[22px]">
       {coins.map((coin) => (
@@ -55,6 +62,9 @@ export function GraduatingList({coins}: {coins: readonly Stonk[]}) {
               <div className="mt-[3px] flex items-center gap-2 truncate text-[12.5px] font-semibold">
                 <LaunchpadMark launchpad={coin.launchpad} size={14} />
                 <span className="truncate text-faint">{coin.name}</span>
+                {coin.listedAt ? (
+                  <span className="text-muted">{tokenAge(coin.listedAt, now)}</span>
+                ) : null}
               </div>
             </div>
 
