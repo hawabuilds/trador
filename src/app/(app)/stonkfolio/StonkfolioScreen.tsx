@@ -418,6 +418,13 @@ export function StonkfolioScreen() {
         </p>
       ) : null}
 
+      {query.data?.stale ? (
+        <p className="mb-3 rounded-2xl bg-[var(--segment-track)] px-3 py-2 text-[11.5px] font-medium leading-[1.45] text-faint shadow-inset-soft">
+          Balances are from cache while Solana RPC catches up. Pull to refresh in
+          a moment.
+        </p>
+      ) : null}
+
       {chartMode === "trend" ? (
         query.isLoading ? (
           <ul>

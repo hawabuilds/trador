@@ -19,7 +19,11 @@ import {hasDatabase} from "@/lib/server/db";
 import type {Asset, Holding} from "@/lib/types";
 import {cached, invalidate} from "./cache";
 import {serverRpcUrl} from "../rpcUrl";
-import {readCachedBalances, writeCachedBalances} from "./walletHoldingsCache";
+import {
+  HOLDINGS_STALE_FALLBACK_MS,
+  readCachedBalances,
+  writeCachedBalances,
+} from "./walletHoldingsCache";
 
 const RPC_URL = serverRpcUrl();
 
@@ -36,17 +40,26 @@ interface ParsedTokenAccount {
   };
 }
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 async function rpc<T>(method: string, params: unknown[]): Promise<T> {
-  const response = await fetch(RPC_URL, {
-    method: "POST",
-    headers: {"content-type": "application/json"},
-    cache: "no-store",
-    body: JSON.stringify({jsonrpc: "2.0", id: 1, method, params}),
-  });
-  if (!response.ok) throw new Error(`RPC returned ${response.status}.`);
-  const body = (await response.json()) as {result?: T; error?: {message: string}};
-  if (body.error) throw new Error(body.error.message);
-  return body.result as T;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const response = await fetch(RPC_URL, {
+      method: "POST",
+      headers: {"content-type": "application/json"},
+      cache: "no-store",
+      body: JSON.stringify({jsonrpc: "2.0", id: 1, method, params}),
+    });
+    if (response.status === 429) {
+      await sleep(Math.min(8_000, 400 * 2 ** attempt));
+      continue;
+    }
+    if (!response.ok) throw new Error(`RPC returned ${response.status}.`);
+    const body = (await response.json()) as {result?: T; error?: {message: string}};
+    if (body.error) throw new Error(body.error.message);
+    return body.result as T;
+  }
+  throw new Error("RPC returned 429.");
 }
 
 export interface Stonkfolio {
@@ -85,6 +98,23 @@ async function stonkfolioFromBalances(
   holdings.sort((a, b) => (b.valueUsd ?? 0) - (a.valueUsd ?? 0));
 
   return {holdings, otherCount, solLamports, totalUsd};
+}
+
+type LoadedHoldings = Omit<Stonkfolio, "stale"> & {fromStaleBalances: boolean};
+
+async function loadHoldings(wallet: Pubkey): Promise<LoadedHoldings> {
+  try {
+    const {byMint, solLamports} = await balancesFromRpc(wallet);
+    void writeCachedBalances(wallet, solLamports, byMint);
+    return {...(await stonkfolioFromBalances(byMint, solLamports)), fromStaleBalances: false};
+  } catch (error) {
+    const pg = await readCachedBalances(wallet, HOLDINGS_STALE_FALLBACK_MS);
+    if (!pg) throw error;
+    return {
+      ...(await stonkfolioFromBalances(pg.byMint, pg.solLamports)),
+      fromStaleBalances: true,
+    };
+  }
 }
 
 async function balancesFromRpc(wallet: Pubkey): Promise<{
@@ -138,13 +168,22 @@ export async function stonkfolioFor(
    * when fresh; this layer still dedupes concurrent reads on one instance.
    */
   const ttl = opts?.force ? 0 : 12_000;
-  const {value, stale} = await cached(`holdings:${wallet}`, ttl, async () => {
-    const {byMint, solLamports} = await balancesFromRpc(wallet);
-    void writeCachedBalances(wallet, solLamports, byMint);
-    return await stonkfolioFromBalances(byMint, solLamports);
-  });
 
-  return {...value, stale};
+  try {
+    const {value, stale} = await cached(`holdings:${wallet}`, ttl, () => loadHoldings(wallet));
+    return {
+      holdings: value.holdings,
+      otherCount: value.otherCount,
+      solLamports: value.solLamports,
+      totalUsd: value.totalUsd,
+      stale: stale || value.fromStaleBalances,
+    };
+  } catch (error) {
+    const pg = await readCachedBalances(wallet, HOLDINGS_STALE_FALLBACK_MS);
+    if (!pg) throw error;
+    const value = await stonkfolioFromBalances(pg.byMint, pg.solLamports);
+    return {...value, stale: true};
+  }
 }
 
 export interface Balances {

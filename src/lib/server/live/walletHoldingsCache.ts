@@ -16,6 +16,9 @@ import {db, hasDatabase} from "@/lib/server/db";
 /** How long a cached balance map may skip RPC. */
 export const HOLDINGS_CACHE_TTL_MS = 90_000;
 
+/** When live RPC rate-limits, serve any row we have rather than erroring. */
+export const HOLDINGS_STALE_FALLBACK_MS = Number.POSITIVE_INFINITY;
+
 export interface CachedBalances {
   solLamports: number;
   byMint: Map<string, number>;
