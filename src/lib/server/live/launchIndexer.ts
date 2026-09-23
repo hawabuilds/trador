@@ -43,10 +43,12 @@ import {
 import {collectLinks} from "./socialLinks";
 import {encodeBase58, type Pubkey} from "@/lib/pubkey";
 import {STOCK_MINTS, stockForMint} from "@/lib/stocks/registry";
+import {computeTrendingScore} from "@/lib/trendingScore";
 import {quoteKindFor, statusFor} from "@/lib/universe";
 import {hasAdminPg} from "../adminPg";
 import {
   type StonkWrite,
+  statsFor,
   updateStonks,
   upsertStats,
   upsertStonks,
@@ -699,6 +701,7 @@ export async function decorateStonks(
   try {
     const {jupTokens} = await import("./jupTokens");
     const tokens = await jupTokens(mints);
+    const existingStats = await statsFor(mints);
 
     const stonkWrites: StonkWrite[] = [];
     const statWrites: Parameters<typeof upsertStats>[0] = [];
@@ -738,6 +741,10 @@ export async function decorateStonks(
       const supply = token.circSupply;
       const curve = onCurve.has(mint);
 
+      const vol1h = token.volume1hUsd;
+      const vol24 = token.volume24hUsd;
+      const prior = existingStats.get(mint);
+
       statWrites.push({
         mint,
         last_price: usd,
@@ -748,7 +755,17 @@ export async function decorateStonks(
           usd !== null && supply !== null ? usd * supply : token.marketCapUsd,
         // Null on a curve, always. See the note on `onCurve` above.
         liquidity_usd: curve ? null : token.liquidity,
-        vol_24h: token.volume24hUsd,
+        vol_24h: vol24,
+        vol_1h: vol1h,
+        txs_24h: token.txs24h,
+        unique_makers_24h: token.uniqueMakers24h,
+        trending_score: computeTrendingScore({
+          vol1hUsd: vol1h,
+          vol24hUsd: vol24,
+          txs24h: token.txs24h,
+          uniqueMakers24h: token.uniqueMakers24h,
+          pageViews: prior?.page_views ?? null,
+        }),
         price_change_24h: token.priceChange24h,
         price_status: usd !== null ? "priced" : "no_pool",
         /*

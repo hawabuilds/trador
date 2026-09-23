@@ -35,6 +35,12 @@ export interface JupToken {
   liquidity: number | null;
   marketCapUsd: number | null;
   volume24hUsd: number | null;
+  /** One-hour USD volume from Jupiter `stats1h` buy + sell. */
+  volume1hUsd: number | null;
+  /** Buys + sells in the 24h window, when Jupiter reports counts. */
+  txs24h: number | null;
+  /** Distinct traders in 24h (`numTraders`). */
+  uniqueMakers24h: number | null;
   priceChange24h: number | null;
   holderCount: number | null;
   createdAt: string | null;
@@ -81,14 +87,27 @@ function httpUrl(value: unknown): string | null {
   }
 }
 
+function windowVolume(day: Record<string, unknown>): number | null {
+  const buy = num(day.buyVolume) ?? 0;
+  const sell = num(day.sellVolume) ?? 0;
+  const volume = buy + sell;
+  return volume > 0 ? volume : null;
+}
+
+function windowTxs(day: Record<string, unknown>): number | null {
+  const buys = num(day.numBuys) ?? 0;
+  const sells = num(day.numSells) ?? 0;
+  const total = buys + sells;
+  return total > 0 ? total : null;
+}
+
 function parse(row: Record<string, unknown>): JupToken | null {
   const mint = str(row.id);
   if (!mint) return null;
 
   const day = (row.stats24h ?? {}) as Record<string, unknown>;
-  const buy = num(day.buyVolume) ?? 0;
-  const sell = num(day.sellVolume) ?? 0;
-  const volume = buy + sell;
+  const hour = (row.stats1h ?? {}) as Record<string, unknown>;
+  const volume = windowVolume(day);
 
   return {
     mint: mint as Pubkey,
@@ -103,7 +122,13 @@ function parse(row: Record<string, unknown>): JupToken | null {
     marketCapUsd: num(row.mcap) ?? num(row.fdv),
     // Zero volume and unknown volume are different facts; only report a number
     // when the window actually carried one.
-    volume24hUsd: volume > 0 ? volume : null,
+    volume24hUsd: volume,
+    volume1hUsd: windowVolume(hour),
+    txs24h: windowTxs(day),
+    uniqueMakers24h: (() => {
+      const traders = num(day.numTraders);
+      return traders !== null && traders > 0 ? traders : null;
+    })(),
     priceChange24h: num(day.priceChange),
     holderCount: num(row.holderCount),
     createdAt: str(row.createdAt),

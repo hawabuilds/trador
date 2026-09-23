@@ -804,7 +804,7 @@ export const stonkFor = cache(async (id: string): Promise<Stonk | null> => {
  * numbers as live.
  */
 export async function fetchFeed(
-  sort: "trending" | "new" | "marketCap" | "rewards",
+  sort: "trending" | "new" | "marketCap",
   options: {limit?: number; cursor?: string | null; quoteTicker?: string | null} = {},
 ): Promise<{
   items: readonly Stonk[];

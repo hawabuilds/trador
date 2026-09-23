@@ -280,6 +280,10 @@ const STAT_COLUMNS = [
   "last_mcap",
   "liquidity_usd",
   "vol_24h",
+  "vol_1h",
+  "txs_24h",
+  "unique_makers_24h",
+  "trending_score",
   "price_change_24h",
   "rewards_24h_usd",
   "price_status",
@@ -427,7 +431,10 @@ export async function pgFeedHead(
   limit: number,
   newMinMcapUsd: number,
 ): Promise<StonkRow[]> {
-  const column = sort === "new" ? "graduated_at" : "vol_24h";
+  const order =
+    sort === "new"
+      ? "graduated_at desc nulls last, mint desc"
+      : "trending_score desc nulls last, vol_24h desc nulls last, mint desc";
   return withClient(async (client) => {
     const recencyCutoff =
       sort === "new" ? new Date(Date.now() - NEW_FEED_RECENCY_MS).toISOString() : null;
@@ -441,11 +448,25 @@ export async function pgFeedHead(
               ? "and (last_mcap >= $2 or last_mcap is null or graduated_at >= $3)"
               : ""
           }
-        order by ${column} desc nulls last, mint desc
+        order by ${order}
         limit $1`,
       sort === "new" ? [limit, newMinMcapUsd, recencyCutoff] : [limit],
     );
     return rows as StonkRow[];
+  });
+}
+
+/** In-app coin page view — bumps engagement used in trending score. */
+export async function pgIncrementPageView(mint: string): Promise<void> {
+  return withClient(async (client) => {
+    await client.query(
+      `insert into public.stonk_stats (mint, page_views, updated_at)
+       values ($1, 1, now())
+       on conflict (mint) do update set
+         page_views = coalesce(public.stonk_stats.page_views, 0) + 1,
+         updated_at = now()`,
+      [mint],
+    );
   });
 }
 

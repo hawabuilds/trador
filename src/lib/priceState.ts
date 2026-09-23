@@ -285,8 +285,8 @@ export function formatVolumeUsd(value: number | null | undefined): string {
 
 /**
  * Live 24h volume for browse lists. Null / non-finite / zero all mean
- * "no trades in the window" — hide from home, New, trending, market cap,
- * and rewards. Search does not use this.
+ * "no trades in the window" — hide from home, New, trending, and market cap.
+ * Search does not use this.
  */
 export function hasVolume24h(volume: number | null | undefined): boolean {
   return volume != null && Number.isFinite(Number(volume)) && Number(volume) > 0;

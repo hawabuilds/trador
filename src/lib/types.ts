@@ -342,7 +342,7 @@ export interface FeedItem {
  * its own tab because it answers the same question as `new` — what is arriving
  * — one step earlier in a coin's life, and the two are read together.
  */
-export type StonkSort = "trending" | "new" | "graduating" | "marketCap" | "rewards";
+export type StonkSort = "trending" | "new" | "graduating" | "marketCap";
 /** Sorts on the Stocks tab. */
 export type StockSort = "launches" | "marketCap" | "movers";
 /** The watchlist's own split. */

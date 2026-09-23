@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
  * `graduating`. Passing it through here would ask the store to sort listed
  * coins by a column only pending ones have.
  */
-const SORTS = ["trending", "new", "marketCap", "rewards"] as const;
+const SORTS = ["trending", "new", "marketCap"] as const;
 type FeedSort = (typeof SORTS)[number];
 
 const INCLUDES = ["stocks", "graduating"] as const;

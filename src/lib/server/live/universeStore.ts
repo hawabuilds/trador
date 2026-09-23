@@ -87,6 +87,11 @@ export interface StatRow {
   last_mcap: number | null;
   liquidity_usd: number | null;
   vol_24h: number | null;
+  vol_1h: number | null;
+  txs_24h: number | null;
+  unique_makers_24h: number | null;
+  trending_score: number | null;
+  page_views: number | null;
   price_change_24h: number | null;
   rewards_24h_usd: number | null;
   price_status: "priced" | "no_pool" | "failed" | null;
@@ -191,7 +196,7 @@ export function rowToStonk(row: StonkRow, stat?: StatRow | null): Stonk {
   };
 }
 
-export type FeedSort = "trending" | "new" | "marketCap" | "rewards";
+export type FeedSort = "trending" | "new" | "marketCap";
 
 export interface FeedQuery {
   sort: FeedSort;
@@ -252,6 +257,7 @@ export async function listStonks(query: FeedQuery): Promise<FeedPageRows> {
   if (query.quoteTicker) request = request.eq("quote_ticker", query.quoteTicker);
 
   const column = SORT_COLUMNS[query.sort];
+  const trending = query.sort === "trending";
 
   /*
    * The New floor, applied in the query rather than after it.
@@ -272,23 +278,25 @@ export async function listStonks(query: FeedQuery): Promise<FeedPageRows> {
     );
   }
 
-  if (query.sort === "rewards") {
-    // Only coins whose launch actually routes rewards. The rest under this
-    // heading would imply they pay out and merely have not yet.
-    request = request.eq("pays_holders", true);
+  if (trending) {
+    request = request
+      .order("trending_score", {ascending: false, nullsFirst: false})
+      .order("vol_24h", {ascending: false, nullsFirst: false})
+      .order("mint", {ascending: false});
+  } else {
+    request = request
+      .order(column, {ascending: false, nullsFirst: false})
+      .order("mint", {ascending: false});
   }
-
-  request = request
-    .order(column, {ascending: false, nullsFirst: false})
-    .order("mint", {ascending: false});
 
   if (query.cursor) {
     const [value, mint] = splitCursor(query.cursor);
+    const cursorColumn = trending ? "trending_score" : column;
     if (value) {
       // PostgREST has no row-value syntax, so this is spelled out: strictly
       // past the cursor, or level with it and a lower mint.
       request = request.or(
-        `${column}.lt.${value},and(${column}.eq.${value},mint.lt.${mint})`,
+        `${cursorColumn}.lt.${value},and(${cursorColumn}.eq.${value},mint.lt.${mint})`,
       );
     }
   }
@@ -303,12 +311,13 @@ export async function listStonks(query: FeedQuery): Promise<FeedPageRows> {
   const stats = new Map<string, StatRow>(joined.map((row) => [row.mint, statFrom(row)]));
 
   const last = joined[joined.length - 1];
+  const cursorColumn = trending ? "trending_score" : column;
   return {
     rows,
     stats,
     cursor:
       joined.length === limit && last
-        ? `${(last as unknown as Record<string, unknown>)[column] ?? ""}|${last.mint}`
+        ? `${(last as unknown as Record<string, unknown>)[cursorColumn] ?? ""}|${last.mint}`
         : null,
   };
 }
@@ -327,6 +336,11 @@ function statFrom(row: StonkRow & StatRow): StatRow {
     last_mcap: row.last_mcap,
     liquidity_usd: row.liquidity_usd,
     vol_24h: row.vol_24h,
+    vol_1h: row.vol_1h,
+    txs_24h: row.txs_24h,
+    unique_makers_24h: row.unique_makers_24h,
+    trending_score: row.trending_score,
+    page_views: row.page_views,
     price_change_24h: row.price_change_24h,
     rewards_24h_usd: row.rewards_24h_usd,
     price_status: row.price_status,
@@ -348,8 +362,7 @@ function statFrom(row: StonkRow & StatRow): StatRow {
 const SORT_COLUMNS: Record<FeedSort, string> = {
   new: "graduated_at",
   marketCap: "last_mcap",
-  trending: "vol_24h",
-  rewards: "rewards_24h_usd",
+  trending: "trending_score",
 };
 
 function splitCursor(cursor: string): [string | null, string] {

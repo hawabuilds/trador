@@ -5,6 +5,7 @@ import {AssetPage} from "@/components/AssetPage";
 import {asPubkey} from "@/lib/pubkey";
 import {fetchAssetPageHeader, stonkFor} from "@/lib/server/sources";
 
+import {CoinPageView} from "./CoinPageView";
 import {CoinSecondaryStream} from "./CoinSecondaryStream";
 
 /**
@@ -57,6 +58,7 @@ export default async function StonkPage({
 
   return (
     <>
+      <CoinPageView mint={mint} />
       <AssetPage
         kind="stonk"
         id={mint}

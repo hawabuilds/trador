@@ -40,7 +40,7 @@ import type {
  * The sort rails under the tabs — the "subheadings" of the feed.
  *
  * Each tab gets the sorts that make sense for what it holds, and only those.
- * A shared rail would have to offer Rewards on the Stocks tab, where the idea
+ * A shared rail would have to offer Graduating on the Stocks tab, where the idea
  * is meaningless.
  */
 /*
@@ -79,11 +79,6 @@ const STONK_SORTS: FilterOption<StonkSort>[] = [
     title: "Still on the bonding curve — closest to graduating first",
   },
   {value: "marketCap", label: "Market cap"},
-  {
-    value: "rewards",
-    label: "Rewards",
-    title: "Coins whose launch routes a share of every trade to holders, in stock",
-  },
 ];
 
 const STONK_SORT_VALUES = STONK_SORTS.map((option) => option.value);
@@ -272,11 +267,9 @@ export function HomeFeed({
     );
 
     switch (stonkSort) {
-      case "rewards":
-        // Only coins that actually route rewards, ranked by what they paid.
-        return list
-          .filter((stonk) => stonk.paysHolders)
-          .sort((a, b) => (b.rewards24hUsd ?? 0) - (a.rewards24hUsd ?? 0));
+      case "trending":
+        // Server order (trending score / vol) — do not re-rank by price.
+        return list;
       case "marketCap":
         return [...list].sort((a, b) => (b.marketCapUsd ?? 0) - (a.marketCapUsd ?? 0));
       case "new":
@@ -303,7 +296,7 @@ export function HomeFeed({
               new Date(b.listedAt ?? 0).getTime() - new Date(a.listedAt ?? 0).getTime(),
           );
       default:
-        return [...list].sort((a, b) => (b.price.usd ?? 0) - (a.price.usd ?? 0));
+        return list;
     }
   }, [stonks.items, quote, stonkSort]);
 
@@ -477,7 +470,7 @@ export function HomeFeed({
             Dimmed while these are the previous chip's rows. They stay on screen
             so the list never blanks, but at full strength they posed as the
             answer to the chip just tapped — a Trending coin appearing under
-            Rewards for half a second, then vanishing.
+            Market cap for half a second, then vanishing.
           */}
           <div
             className="transition-opacity duration-150"
@@ -498,11 +491,7 @@ export function HomeFeed({
       ) : tab === "watchlist" && watchlist.isLoading ? (
         <p className="py-10 text-center text-[13.5px] text-muted">Loading your watchlist…</p>
       ) : (
-        <EmptyFeed
-          tab={tab}
-          reason={tab === "stonks" ? stonkSort : undefined}
-          watching={watchlist.count > 0}
-        />
+        <EmptyFeed tab={tab} watching={watchlist.count > 0} />
       )}
 
       {/*
@@ -525,11 +514,9 @@ export function HomeFeed({
 
 function EmptyFeed({
   tab,
-  reason,
   watching,
 }: {
   tab: HomeTab;
-  reason?: StonkSort;
   /** Whether anything is starred at all, as opposed to filtered out. */
   watching?: boolean;
 }) {
@@ -553,18 +540,6 @@ function EmptyFeed({
         <p className="mt-4 text-[14px] font-bold">Nothing watched yet</p>
         <p className="mx-auto mt-1.5 max-w-[30ch] text-[13px] leading-[1.5] text-muted">
           Tap the star on any coin or stock to keep it here.
-        </p>
-      </div>
-    );
-  }
-
-  if (reason === "rewards") {
-    return (
-      <div className="px-6 py-12 text-center">
-        <p className="text-[14px] font-bold">No stock payouts recorded yet</p>
-        <p className="mx-auto mt-1.5 max-w-[34ch] text-[13px] leading-[1.5] text-muted">
-          These are coins whose launch routes a share of every trade back to
-          holders, paid in the stock they are priced in.
         </p>
       </div>
     );
