@@ -15,6 +15,7 @@ import {Button} from "@/components/ui/Button";
 import {ChevronLeftIcon, UserIcon} from "@/components/ui/Icons";
 import {useSession} from "@/lib/session";
 import {cn} from "@/lib/cn";
+import {fromBaseUnits, lamportsFrom} from "@/lib/amounts";
 import {compact, compactMoney} from "@/lib/format";
 import {shortPubkey} from "@/lib/pubkey";
 import type {Holding, Profile} from "@/lib/types";
@@ -271,7 +272,7 @@ function PublicStonkfolio({wallet, handle, isSelf}: {wallet: string; handle: str
     return split === "all" ? all : all.filter((row) => row.asset.kind === split);
   }, [query.data?.holdings, split]);
 
-  const sol = (query.data?.solLamports ?? 0) / 1_000_000_000;
+  const solLabel = fromBaseUnits(BigInt(lamportsFrom(query.data?.solLamports) ?? 0), 9);
 
   return (
     <section className="mt-5">
@@ -282,7 +283,7 @@ function PublicStonkfolio({wallet, handle, isSelf}: {wallet: string; handle: str
         {query.isLoading ? "—" : compactMoney(query.data?.totalUsd ?? 0)}
       </div>
       <div className="tabular-nums mt-1.5 flex items-center gap-2 text-[12px] font-bold text-faint">
-        <span>{sol.toFixed(3)} SOL</span>
+        <span>{solLabel} SOL</span>
         {query.data && query.data.otherCount > 0 ? (
           <span>· {query.data.otherCount} not priced here</span>
         ) : null}

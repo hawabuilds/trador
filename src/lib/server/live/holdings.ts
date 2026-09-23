@@ -12,6 +12,7 @@
  * so the total never quietly disagrees with a block explorer.
  */
 
+import {lamportsFrom} from "@/lib/amounts";
 import {TOKEN_2022_PROGRAM, TOKEN_PROGRAM} from "@/lib/programs";
 import {type Pubkey} from "@/lib/pubkey";
 import {snapshotStocks, snapshotStonks} from "@/lib/server/snapshot";
@@ -146,7 +147,7 @@ async function balancesFromRpc(wallet: Pubkey): Promise<{
     byMint.set(mint, (byMint.get(mint) ?? 0) + amount);
   }
 
-  return {byMint, solLamports: balance.value};
+  return {byMint, solLamports: lamportsFrom(balance.value) ?? 0};
 }
 
 export async function stonkfolioFor(
@@ -229,7 +230,7 @@ export async function balancesFor(wallet: Pubkey, mints: readonly Pubkey[]): Pro
     tokens[mint] = {amount: total.toString(), decimals};
   });
 
-  return {lamports: String(balance.value), tokens};
+  return {lamports: String(lamportsFrom(balance.value) ?? 0), tokens};
 }
 
 /**

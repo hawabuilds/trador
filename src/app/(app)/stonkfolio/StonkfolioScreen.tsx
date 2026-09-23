@@ -36,6 +36,7 @@ import {
   readSlippageBps,
   writePieTargets,
 } from "@/lib/localStore";
+import {fromBaseUnits, lamportsFrom} from "@/lib/amounts";
 import {compact, compactMoney, stamp} from "@/lib/format";
 import {shortPubkey} from "@/lib/pubkey";
 import type {Holding} from "@/lib/types";
@@ -176,7 +177,7 @@ export function StonkfolioScreen() {
     return split === "all" ? all : all.filter((row) => row.asset.kind === split);
   }, [query.data?.holdings, split]);
 
-  const sol = (query.data?.solLamports ?? 0) / 1_000_000_000;
+  const solLabel = fromBaseUnits(BigInt(lamportsFrom(query.data?.solLamports) ?? 0), 9);
 
   // Cost basis for the gain line — after holdings so the first paint is one RPC batch.
   const trades = useWalletTrades(wallet, {enabled: Boolean(query.data)});
@@ -348,7 +349,7 @@ export function StonkfolioScreen() {
                     className="text-[12px] font-bold"
                   />
                 ) : null}
-                <span>{sol.toFixed(3)} SOL</span>
+                <span>{solLabel} SOL</span>
                 {/*
                   Counted and named rather than folded into the total. The
                   number above is what this app can price, not everything in
@@ -497,7 +498,7 @@ export function StonkfolioScreen() {
             open={sendOpen}
             onClose={() => setSendOpen(false)}
             wallet={wallet}
-            solLamports={query.data?.solLamports ?? 0}
+            solLamports={lamportsFrom(query.data?.solLamports) ?? 0}
             onSent={() => void queryClient.invalidateQueries({queryKey: ["stonkfolio", wallet]})}
           />
           <ReceiveSheet

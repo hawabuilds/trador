@@ -4,6 +4,7 @@ import {test} from "node:test";
 import {
   SOL_FEE_RESERVE_LAMPORTS,
   fromBaseUnits,
+  lamportsFrom,
   shareOf,
   spendableLamports,
   toBaseUnits,
@@ -53,6 +54,15 @@ test("base units format without trailing zeros", () => {
   assert.equal(fromBaseUnits(1n, 6), "0.000001");
   assert.equal(fromBaseUnits(25_000_000n, 6), "25");
   assert.equal(fromBaseUnits(1_500_000_000n, 9), "1.5");
+});
+
+test("lamports from RPC or Postgres coerce to a finite number", () => {
+  assert.equal(lamportsFrom(1_500_000_000), 1_500_000_000);
+  assert.equal(lamportsFrom("2500000000"), 2_500_000_000);
+  assert.equal(lamportsFrom(2_500_000_000n), 2_500_000_000);
+  assert.equal(Number.isFinite(lamportsFrom("2500000000")), true);
+  assert.equal(lamportsFrom(null), null);
+  assert.equal(lamportsFrom(""), null);
 });
 
 test("a SOL-funded buy leaves room for its own fees", () => {

@@ -24,6 +24,33 @@ export function toBaseUnits(text: string, decimals: number): bigint | null {
   return BigInt((whole || "0") + padded);
 }
 
+/**
+ * Lamports from RPC or Postgres.
+ *
+ * `getBalance` and `bigint` columns often arrive as decimal strings. Passing
+ * those through to `Number.isFinite` is false, which made `writeCachedBalances`
+ * skip the write while token balances still cached — Stonkfolio then showed
+ * holdings but `0.000 SOL` on every Postgres hit after RPC recovered.
+ */
+export function lamportsFrom(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+
+  if (typeof value === "bigint") {
+    return value >= 0n && value <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(value) : null;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed === "" || !/^\d+$/.test(trimmed)) return null;
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? Math.floor(value)
+    : null;
+}
+
 /** Base units back to a plain decimal string, with no trailing zeros. */
 export function fromBaseUnits(raw: bigint, decimals: number): string {
   const negative = raw < 0n;

@@ -9,6 +9,7 @@
  * Best-effort writes; a miss or stale row falls through to RPC.
  */
 
+import {lamportsFrom} from "@/lib/amounts";
 import type {Pubkey} from "@/lib/pubkey";
 import {hasAdminPg, withClient} from "@/lib/server/adminPg";
 import {db, hasDatabase} from "@/lib/server/db";
@@ -52,7 +53,7 @@ export async function readCachedBalances(
             : Date.parse(row.refreshed_at);
         if (Date.now() - refreshedAt > maxAgeMs) return null;
         return {
-          solLamports: Number(row.sol_lamports),
+          solLamports: lamportsFrom(row.sol_lamports) ?? 0,
           byMint: balancesToMap(row.balances),
           refreshedAt,
         };
@@ -70,7 +71,7 @@ export async function readCachedBalances(
     const refreshedAt = Date.parse(data.refreshed_at as string);
     if (Date.now() - refreshedAt > maxAgeMs) return null;
     return {
-      solLamports: Number(data.sol_lamports),
+      solLamports: lamportsFrom(data.sol_lamports) ?? 0,
       byMint: balancesToMap(data.balances as Record<string, number> | null),
       refreshedAt,
     };
@@ -85,7 +86,8 @@ export async function writeCachedBalances(
   byMint: ReadonlyMap<string, number>,
 ): Promise<void> {
   if (!hasAdminPg && !hasDatabase) return;
-  if (!Number.isFinite(solLamports) || solLamports < 0) return;
+  const lamports = lamportsFrom(solLamports);
+  if (lamports === null) return;
 
   const balances: Record<string, number> = {};
   for (const [mint, amount] of byMint) {
@@ -104,7 +106,7 @@ export async function writeCachedBalances(
              set refreshed_at = excluded.refreshed_at,
                  sol_lamports = excluded.sol_lamports,
                  balances = excluded.balances`,
-          [wallet, refreshedAt, solLamports, balances],
+          [wallet, refreshedAt, lamports, balances],
         ),
       );
       return;
@@ -113,7 +115,7 @@ export async function writeCachedBalances(
     const {error} = await db().from("wallet_holdings_cache").upsert({
       wallet,
       refreshed_at: refreshedAt,
-      sol_lamports: solLamports,
+      sol_lamports: lamports,
       balances,
     });
     if (error) throw error;
