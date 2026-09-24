@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {describe, it} from "node:test";
 import {
+  gpaDiscoveryLabel,
   getProgramAccountsV2All,
   resetGpaV2FallbackLogForTests,
   type RpcInvoke,
@@ -43,6 +44,11 @@ describe("getProgramAccountsV2All", () => {
   it("falls back to getProgramAccounts when V2 is missing", async () => {
     resetGpaV2FallbackLogForTests();
     const calls: string[] = [];
+    const warnings: string[] = [];
+    const warn = console.warn;
+    console.warn = (...args: unknown[]) => {
+      warnings.push(args.map(String).join(" "));
+    };
     const invoke = (async (method) => {
       calls.push(method);
       if (method === "getProgramAccountsV2") {
@@ -51,8 +57,21 @@ describe("getProgramAccountsV2All", () => {
       return [{pubkey: "legacy", account: {data: ["", "base64"]}}];
     }) as RpcInvoke;
 
-    const rows = await getProgramAccountsV2All(invoke, "Prog111", {encoding: "base64"});
-    assert.equal(rows.length, 1);
-    assert.deepEqual(calls, ["getProgramAccountsV2", "getProgramAccounts"]);
+    try {
+      const rows = await getProgramAccountsV2All(invoke, "Prog111", {encoding: "base64"});
+      assert.equal(rows.length, 1);
+      assert.deepEqual(calls, ["getProgramAccountsV2", "getProgramAccounts"]);
+      assert.ok(warnings.some((line) => line.includes("falling back to getProgramAccounts")));
+
+      resetGpaV2FallbackLogForTests();
+      warnings.length = 0;
+      calls.length = 0;
+      await getProgramAccountsV2All(invoke, "Prog222", {encoding: "base64"});
+      assert.equal(warnings.length, 1);
+      assert.ok(warnings[0].includes("Prog222"));
+      assert.equal(gpaDiscoveryLabel(), "gpa-v1");
+    } finally {
+      console.warn = warn;
+    }
   });
 });

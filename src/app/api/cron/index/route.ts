@@ -1,8 +1,12 @@
+import {gpaDiscoveryLabel} from "@/lib/server/getProgramAccountsV2";
 import {json} from "@/lib/server/http";
 import {cronAuthorized, cronRefused} from "@/lib/server/cron";
 import {hasDatabase} from "@/lib/server/db";
 import {indexAll} from "@/lib/server/live/launchIndexer";
 import {readIndexerState} from "@/lib/server/live/universeStore";
+import {cronIndexerUsesSharedHelius, indexerRpcUrl, rpcUrlForLog} from "@/lib/server/rpcUrl";
+
+let warnedCronSharedHelius = false;
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -33,6 +37,17 @@ export async function GET(request: Request) {
     }
   }
 
+  if (cronIndexerUsesSharedHelius() && !warnedCronSharedHelius) {
+    warnedCronSharedHelius = true;
+    console.warn(
+      "Cron index on Vercel is using HELIUS_RPC_URL (no INDEXER_RPC_URL). Prefer a dedicated indexer key on Railway only; this route skips when the worker heartbeat is fresh.",
+    );
+  }
+
   const result = await indexAll();
-  return json(result);
+  return json({
+    ...result,
+    discovery: gpaDiscoveryLabel(),
+    indexerRpc: rpcUrlForLog(indexerRpcUrl()),
+  });
 }

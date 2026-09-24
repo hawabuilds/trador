@@ -14,9 +14,11 @@
  *   npm run worker
  */
 
+import {gpaDiscoveryLabel} from "@/lib/server/getProgramAccountsV2";
 import {indexAll} from "@/lib/server/live/launchIndexer";
 import {keepTapes} from "@/lib/server/live/tapeKeeper";
 import {readIndexerState, storeReady} from "@/lib/server/live/universeStore";
+import {indexerRpcUrl, rpcUrlForLog} from "@/lib/server/rpcUrl";
 
 /** How often to sweep. A reconciler is idempotent, so this is a cost dial. */
 const INTERVAL_MS = Number(process.env.INDEX_INTERVAL_MS ?? 90_000);
@@ -53,7 +55,7 @@ async function pass(): Promise<void> {
   log(
     `decorated ${decorated.named} named / ${decorated.priced} priced` +
       (decorated.error ? ` — ${decorated.error}` : "") +
-      ` in ${Date.now() - started}ms`,
+      ` in ${Date.now() - started}ms; discovery=${gpaDiscoveryLabel()}`,
   );
 
   if (!discoveryOk) {
@@ -87,7 +89,20 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  log(`starting, sweeping every ${INTERVAL_MS}ms`);
+  const commit =
+    process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) ??
+    process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ??
+    null;
+  log(
+    `indexer rpc=${rpcUrlForLog(indexerRpcUrl())}, getProgramAccountsV2 enabled` +
+      (commit ? `, commit=${commit}` : "") +
+      `, sweeping every ${INTERVAL_MS}ms`,
+  );
+  if (process.env.RAILWAY_ENVIRONMENT) {
+    log(
+      "Railway: keep numReplicas=1 for this service (see RAILWAY.md). A second replica doubles sweep cost.",
+    );
+  }
 
   // Its own loop: a sweep takes a minute or more, and the tapes cannot wait on it.
   if (process.env.KEEP_TAPES !== "0") void tapeLoop();

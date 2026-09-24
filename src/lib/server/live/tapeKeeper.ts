@@ -23,6 +23,7 @@ import {candlesFor, deepestPoolFor} from "./gecko";
 import {NEW_FEED_MIN_MCAP_USD} from "@/config/feed";
 import {hasAdminPg, pgFeedHead, pgListGraduating} from "../adminPg";
 import {curveTapeFromRow} from "./curveTapeAddress";
+import {enhancedParseMetrics, resetEnhancedParseMetrics} from "./helius";
 import {listStonks, type StonkRow} from "./universeStore";
 
 interface HotCoin {
@@ -222,6 +223,7 @@ export interface KeepResult {
 
 /** One round: refresh what is due, then write it in one batch. */
 export async function keepTapes(): Promise<KeepResult> {
+  resetEnhancedParseMetrics();
   const coins = await readHotSet();
 
   /*
@@ -261,5 +263,11 @@ export async function keepTapes(): Promise<KeepResult> {
   }
 
   await writeCoinTapes(writes);
+  const parseStats = enhancedParseMetrics();
+  if (parseStats.calls > 0) {
+    console.warn(
+      `[keepTapes] Helius Enhanced parse: ${parseStats.calls} call(s), ${parseStats.signatures} signature(s)`,
+    );
+  }
   return {coins: due.length, written: writes.length, failed, firstError};
 }

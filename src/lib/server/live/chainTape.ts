@@ -28,6 +28,7 @@ import {cached, peek} from "./cache";
 import {
   heliusKey,
   HeliusRateLimited,
+  PARSE_MAX_PER_ROUND,
   type SignatureRow,
   parseTransactionsInBatches,
   signaturesFor,
@@ -229,9 +230,13 @@ async function decode(signatures: string[], key: string | null): Promise<DecodeR
     if (!key) {
       if (read.size === 0) throw new Error("No way to read transactions is configured.");
     } else {
+      let toParse = missing;
+      if (PARSE_MAX_PER_ROUND > 0 && toParse.length > PARSE_MAX_PER_ROUND) {
+        toParse = toParse.slice(0, PARSE_MAX_PER_ROUND);
+      }
       const batchSize = read.size === 0 ? COLD_BATCH : Math.min(15, COLD_BATCH);
       try {
-        const parsed = await parseTransactionsInBatches(missing, key, batchSize);
+        const parsed = await parseTransactionsInBatches(toParse, key, batchSize);
         for (const tx of parsed) read.set(tx.signature, tx);
       } catch (error) {
         if (!(error instanceof HeliusRateLimited) || read.size === 0) throw error;

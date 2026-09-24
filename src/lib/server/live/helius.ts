@@ -13,6 +13,24 @@ export const HELIUS_API = process.env.HELIUS_API_URL ?? "https://api-mainnet.hel
 /** Parsed transactions are requested at most this many at a time. */
 export const PARSE_BATCH = 100;
 
+/** Cap Enhanced parse signatures per tape round (worker `keepTapes`). */
+export const PARSE_MAX_PER_ROUND = Math.max(
+  0,
+  Number(process.env.HELIUS_PARSE_MAX_PER_ROUND ?? 50),
+);
+
+let roundEnhancedParseCalls = 0;
+let roundEnhancedParseSignatures = 0;
+
+export function resetEnhancedParseMetrics(): void {
+  roundEnhancedParseCalls = 0;
+  roundEnhancedParseSignatures = 0;
+}
+
+export function enhancedParseMetrics(): {calls: number; signatures: number} {
+  return {calls: roundEnhancedParseCalls, signatures: roundEnhancedParseSignatures};
+}
+
 /** Parse calls in flight at once — pool tape and wallet history share this. */
 const PARSE_SLOTS = 2;
 let parseInFlight = 0;
@@ -93,6 +111,10 @@ export async function asParsed(response: Response): Promise<ParsedTx[]> {
 }
 
 async function fetchParsedBatch(signatures: string[], key: string): Promise<ParsedTx[]> {
+  if (signatures.length > 0) {
+    roundEnhancedParseCalls += 1;
+    roundEnhancedParseSignatures += signatures.length;
+  }
   const url = `${HELIUS_API}/v0/transactions?api-key=${key}`;
   return withParseSlot(async () => {
     for (let attempt = 0; attempt < 5; attempt++) {

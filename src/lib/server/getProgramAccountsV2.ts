@@ -28,7 +28,34 @@ type V2Page = {
 
 export type RpcInvoke = <T>(method: string, params: unknown[]) => Promise<T>;
 
-let loggedGpaV2Fallback = false;
+let roundUsedClassicGpa = false;
+
+function indexerRpcHost(): string | null {
+  const raw =
+    process.env.INDEXER_RPC_URL?.trim() ||
+    process.env.HELIUS_RPC_URL?.trim() ||
+    "";
+  if (!raw) return null;
+  try {
+    return new URL(raw).hostname;
+  } catch {
+    return null;
+  }
+}
+
+function warnClassicGpaFallback(programId: string, error: unknown): void {
+  roundUsedClassicGpa = true;
+  const message = error instanceof Error ? error.message : String(error);
+  console.warn(
+    `getProgramAccountsV2 failed for ${programId}; falling back to getProgramAccounts. ${message}`,
+  );
+  const host = indexerRpcHost();
+  if (host && !/helius/i.test(host)) {
+    console.warn(
+      "Indexer RPC is not Helius — use a Helius URL in INDEXER_RPC_URL for V2 sweeps (~1 credit/page vs ~10 for classic GPA).",
+    );
+  }
+}
 
 function isGpaV2Unsupported(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
@@ -55,6 +82,16 @@ function pageLimit(config: ProgramAccountGpaConfig): number {
   const limit = config.limit;
   if (typeof limit === "number" && limit >= 1 && limit <= 10_000) return limit;
   return DEFAULT_PAGE_LIMIT;
+}
+
+/** Reset per `indexAll` pass — worker logs `discovery=gpa-v2|gpa-v1` from this. */
+export function resetGpaDiscoveryMetrics(): void {
+  roundUsedClassicGpa = false;
+}
+
+/** Label for worker / cron logs after a discovery pass. */
+export function gpaDiscoveryLabel(): "gpa-v2" | "gpa-v1" {
+  return roundUsedClassicGpa ? "gpa-v1" : "gpa-v2";
 }
 
 /**
@@ -91,12 +128,7 @@ export async function getProgramAccountsV2All(
   } catch (error) {
     if (!isGpaV2Unsupported(error)) throw error;
 
-    if (!loggedGpaV2Fallback) {
-      loggedGpaV2Fallback = true;
-      console.warn(
-        "getProgramAccountsV2 unavailable on indexer RPC; falling back to getProgramAccounts. Use a Helius URL for INDEXER_RPC_URL to enable V2 sweeps.",
-      );
-    }
+    warnClassicGpaFallback(programId, error);
 
     return invoke<ProgramAccountEntry[]>("getProgramAccounts", [
       programId,
@@ -105,7 +137,7 @@ export async function getProgramAccountsV2All(
   }
 }
 
-/** Test hook: reset one-shot fallback log. */
+/** @deprecated use resetGpaDiscoveryMetrics */
 export function resetGpaV2FallbackLogForTests(): void {
-  loggedGpaV2Fallback = false;
+  resetGpaDiscoveryMetrics();
 }

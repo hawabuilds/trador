@@ -55,7 +55,7 @@ import {
   writeIndexerState,
 } from "./universeStore";
 
-import {getProgramAccountsV2All} from "../getProgramAccountsV2";
+import {getProgramAccountsV2All, resetGpaDiscoveryMetrics} from "../getProgramAccountsV2";
 import {indexerRpcUrl} from "../rpcUrl";
 
 const RPC_URL = indexerRpcUrl();
@@ -874,6 +874,7 @@ export async function indexAll(): Promise<{
   /** True when at least one listed-coin discovery pass succeeded. */
   discoveryOk: boolean;
 }> {
+  resetGpaDiscoveryMetrics();
   const stonkfun = await indexStonkfun();
   const direct = await indexStonkfunClmm();
   const pumpfun = await indexPumpCustomPairs();

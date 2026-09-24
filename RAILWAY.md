@@ -58,14 +58,23 @@ disagree on a version check, so it waits.
 | `INDEXER_RPC_URL` or `HELIUS_RPC_URL` | Discovery sweeps (`getProgramAccountsV2` on Helius; falls back to classic GPA elsewhere). A public RPC rate-limits the pump.fun sweep — 9 of 29 calls failed. Helius took a full pass from minutes to 36 seconds. **Do not set `SOLANA_RPC_URL` here** unless you intend to keep paying Alchemy for indexer traffic. |
 | `RAW_TX_RPC_URL` | Signature lists and raw transaction reads for trade tapes. Set to `https://api.mainnet-beta.solana.com` so Helius quota stays on sweeps and wallet-shaped reads, not one `getSignaturesForAddress` per coin per round. Defaults to that public URL when unset. |
 | `HELIUS_API_KEY` | Parsed transaction batches (when tapes are not served from `coin_tapes` in Postgres). Optional if `HELIUS_RPC_URL` embeds `api-key=`. |
+| `HELIUS_PARSE_MAX_PER_ROUND` | Optional. Caps Enhanced parse signatures per `keepTapes` round (default `50`). Tapes prefer `RAW_TX_RPC_URL` + `getTransaction`; Helius parse is fallback only. |
 | `COINGECKO_API_KEY`, `COINGECKO_API_PLAN` | Decoration only. Absent, prices fall down the ladder. |
 | `INDEX_INTERVAL_MS` | Optional. Defaults to 90s. A reconciler is idempotent, so this is a cost dial. |
 | `GRADUATING_EVERY` | Optional. Defaults to `20`. How often the expensive graduating pump sweep runs (every N worker passes). |
 
-**Helius-only split (recommended):**
+**Two Helius keys (required for ~60k credits/day on V2 sweeps):**
 
-- **Railway worker:** `INDEXER_RPC_URL` or `HELIUS_RPC_URL`, `RAW_TX_RPC_URL=https://api.mainnet-beta.solana.com`, `DATABASE_URL`, CoinGecko keys. Unset `SOLANA_RPC_URL`.
-- **Vercel app:** `SERVER_RPC_URL` or `HELIUS_RPC_URL` for `/api/rpc`, launch confirm, holdings. Unset `INDEXER_RPC_URL` and `SOLANA_RPC_URL`. Charts stay fast when `KEEP_TAPES` + `coin_tapes` are populated on the worker; CoinGecko remains the candle fallback.
+| Host | Set | Do **not** set |
+| --- | --- | --- |
+| **Railway** `trador-indexer` | `INDEXER_RPC_URL` (Helius key A), `RAW_TX_RPC_URL=https://api.mainnet-beta.solana.com`, `DATABASE_URL`, CoinGecko | `SERVER_RPC_URL`, `SOLANA_RPC_URL` (unless you intend Alchemy for sweeps) |
+| **Vercel** app | `SERVER_RPC_URL` or `SOLANA_RPC_URL` (Helius key B or Alchemy) for `/api/rpc`, launch, **wallet balances** | `INDEXER_RPC_URL` — discovery sweeps belong on Railway only |
+
+Wallet balances (`walletBalanceRpcUrls`) never use `INDEXER_RPC_URL` and avoid `HELIUS_RPC_URL` unless nothing else is configured (one-time warning). On Vercel, set **`SOLANA_RPC_URL`** (or `SERVER_RPC_URL`) so Stonkfolio reads do not share the indexer key.
+
+The worker logs `discovery=gpa-v2` when every sweep used Helius V2, or `discovery=gpa-v1` if any pass fell back to classic `getProgramAccounts`. Startup logs `indexer rpc=…` and reminds you to keep **`numReplicas = 1`** in `railway.toml`.
+
+`/api/cron/index` on Vercel defers to a fresh worker heartbeat and warns if it would index using `HELIUS_RPC_URL` without `INDEXER_RPC_URL`.
 
 **Not on Railway:** `SERVER_RPC_URL` is for the Next app. The worker does not serve pages.
 
