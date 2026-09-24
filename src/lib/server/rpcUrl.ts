@@ -51,12 +51,16 @@ function isIndexerRpc(url: string): boolean {
 /**
  * Wallet proxy, launch confirm, registration, portfolio reads.
  *
- * Skips `HELIUS_RPC_URL` when it is the same string as `INDEXER_RPC_URL` so a
- * mis-set Vercel env does not spend indexer credits on `/api/rpc`.
+ * Order: `SERVER_RPC_URL`, then `SOLANA_RPC_URL`, then `HELIUS_RPC_URL`.
+ * Skips URLs that match `INDEXER_RPC_URL` so a mis-set Vercel env does not
+ * spend indexer credits on `/api/rpc`.
  */
 export function serverRpcUrl(): string {
   const server = trimmed(process.env.SERVER_RPC_URL);
   if (server) return server;
+
+  const solana = trimmed(process.env.SOLANA_RPC_URL);
+  if (solana && !isIndexerRpc(solana)) return solana;
 
   const helius = heliusUrl();
   const sharedWithIndexer = helius && isIndexerRpc(helius);
@@ -69,7 +73,9 @@ export function serverRpcUrl(): string {
     );
   }
 
-  return trimmed(process.env.SOLANA_RPC_URL) || "https://api.mainnet-beta.solana.com";
+  if (solana) return solana;
+
+  return "https://api.mainnet-beta.solana.com";
 }
 
 /**
