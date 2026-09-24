@@ -55,7 +55,7 @@ disagree on a version check, so it waits.
 | Variable | Why |
 | --- | --- |
 | `DATABASE_URL` | The worker writes in batches, so it takes the direct Postgres path, not PostgREST. **Must be the pooler host — see below.** |
-| `INDEXER_RPC_URL` or `HELIUS_RPC_URL` | Discovery sweeps (`getProgramAccounts`). A public RPC rate-limits the pump.fun sweep — 9 of 29 calls failed. Helius took a full pass from minutes to 36 seconds. **Do not set `SOLANA_RPC_URL` here** unless you intend to keep paying Alchemy for indexer traffic. |
+| `INDEXER_RPC_URL` or `HELIUS_RPC_URL` | Discovery sweeps (`getProgramAccountsV2` on Helius; falls back to classic GPA elsewhere). A public RPC rate-limits the pump.fun sweep — 9 of 29 calls failed. Helius took a full pass from minutes to 36 seconds. **Do not set `SOLANA_RPC_URL` here** unless you intend to keep paying Alchemy for indexer traffic. |
 | `RAW_TX_RPC_URL` | Signature lists and raw transaction reads for trade tapes. Set to `https://api.mainnet-beta.solana.com` so Helius quota stays on sweeps and wallet-shaped reads, not one `getSignaturesForAddress` per coin per round. Defaults to that public URL when unset. |
 | `HELIUS_API_KEY` | Parsed transaction batches (when tapes are not served from `coin_tapes` in Postgres). Optional if `HELIUS_RPC_URL` embeds `api-key=`. |
 | `COINGECKO_API_KEY`, `COINGECKO_API_PLAN` | Decoration only. Absent, prices fall down the ladder. |

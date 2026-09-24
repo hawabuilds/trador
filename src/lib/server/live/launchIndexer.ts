@@ -55,6 +55,7 @@ import {
   writeIndexerState,
 } from "./universeStore";
 
+import {getProgramAccountsV2All} from "../getProgramAccountsV2";
 import {indexerRpcUrl} from "../rpcUrl";
 
 const RPC_URL = indexerRpcUrl();
@@ -167,26 +168,20 @@ export async function indexStonkfun(): Promise<IndexPass> {
 
   try {
     for (const platform of STONKFUN_PLATFORMS) {
-      const accounts = await rpcWithRetry<{pubkey: string; account: {data: [string, string]}}[]>(
-        "getProgramAccounts",
-        [
-          RAYDIUM_LAUNCHPAD,
+      const accounts = await getProgramAccountsV2All(rpcWithRetry, RAYDIUM_LAUNCHPAD, {
+        encoding: "base64",
+        commitment: "finalized",
+        filters: [
+          {dataSize: LAUNCHPAD_POOL.SPAN},
+          {memcmp: {offset: LAUNCHPAD_POOL.PLATFORM_ID, bytes: platform.platformId}},
           {
-            encoding: "base64",
-            commitment: "finalized",
-            filters: [
-              {dataSize: LAUNCHPAD_POOL.SPAN},
-              {memcmp: {offset: LAUNCHPAD_POOL.PLATFORM_ID, bytes: platform.platformId}},
-              {
-                memcmp: {
-                  offset: LAUNCHPAD_POOL.STATUS,
-                  bytes: byteFilter(POOL_STATUS.TRADE),
-                },
-              },
-            ],
+            memcmp: {
+              offset: LAUNCHPAD_POOL.STATUS,
+              bytes: byteFilter(POOL_STATUS.TRADE),
+            },
           },
         ],
-      );
+      });
 
       scanned += accounts.length;
 
@@ -298,18 +293,12 @@ export async function indexStonkfunClmm(): Promise<IndexPass> {
   const writes: StonkWrite[] = [];
 
   try {
-    const accounts = await rpcWithRetry<{pubkey: string; account: {data: [string, string]}}[]>(
-      "getProgramAccounts",
-      [
-        CLMM_POOL.PROGRAM,
-        {
-          encoding: "base64",
-          commitment: "finalized",
-          dataSlice: CLMM_MINTS_SLICE,
-          filters: stonkfunClmmFilters(),
-        },
-      ],
-    );
+    const accounts = await getProgramAccountsV2All(rpcWithRetry, CLMM_POOL.PROGRAM, {
+      encoding: "base64",
+      commitment: "finalized",
+      dataSlice: CLMM_MINTS_SLICE,
+      filters: stonkfunClmmFilters(),
+    });
 
     scanned = accounts.length;
 
@@ -421,23 +410,16 @@ export async function indexGraduating(): Promise<IndexPass> {
     const platforms = new Set<string>(STONKFUN_PLATFORMS.map((p) => p.platformId));
 
     for (const stock of STOCK_MINTS) {
-      const accounts = await rpcWithRetry<
-        {pubkey: string; account: {data: [string, string]}}[]
-      >("getProgramAccounts",
-        [
-          RAYDIUM_LAUNCHPAD,
-          {
-            encoding: "base64",
-            commitment: "finalized",
-            dataSlice: {offset: SLICE_FROM, length: SLICE_TO - SLICE_FROM},
-            filters: [
-              {dataSize: LAUNCHPAD_POOL.SPAN},
-              {memcmp: {offset: LAUNCHPAD_POOL.STATUS, bytes: byteFilter(POOL_STATUS.FUND)}},
-              {memcmp: {offset: LAUNCHPAD_POOL.MINT_B, bytes: stock.mint}},
-            ],
-          },
+      const accounts = await getProgramAccountsV2All(rpcWithRetry, RAYDIUM_LAUNCHPAD, {
+        encoding: "base64",
+        commitment: "finalized",
+        dataSlice: {offset: SLICE_FROM, length: SLICE_TO - SLICE_FROM},
+        filters: [
+          {dataSize: LAUNCHPAD_POOL.SPAN},
+          {memcmp: {offset: LAUNCHPAD_POOL.STATUS, bytes: byteFilter(POOL_STATUS.FUND)}},
+          {memcmp: {offset: LAUNCHPAD_POOL.MINT_B, bytes: stock.mint}},
         ],
-      );
+      });
 
       scanned += accounts.length;
 
@@ -576,17 +558,11 @@ export async function indexPumpCustomPairs(): Promise<IndexPass> {
        */
       if (index > 0) await sleep(PUMP_SWEEP_GAP_MS);
 
-      const accounts = await rpcWithRetry<{pubkey: string; account: {data: [string, string]}}[]>(
-        "getProgramAccounts",
-        [
-          PUMP_AMM,
-          {
-            encoding: "base64",
-            commitment: "finalized",
-            filters: [{memcmp: {offset: PUMPSWAP_POOL.QUOTE_MINT, bytes: stock.mint}}],
-          },
-        ],
-      );
+      const accounts = await getProgramAccountsV2All(rpcWithRetry, PUMP_AMM, {
+        encoding: "base64",
+        commitment: "finalized",
+        filters: [{memcmp: {offset: PUMPSWAP_POOL.QUOTE_MINT, bytes: stock.mint}}],
+      });
 
       scanned += accounts.length;
 
