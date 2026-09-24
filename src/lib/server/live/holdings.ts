@@ -19,14 +19,12 @@ import {snapshotStocks, snapshotStonks} from "@/lib/server/snapshot";
 import {hasDatabase} from "@/lib/server/db";
 import type {Asset, Holding} from "@/lib/types";
 import {cached, invalidate} from "./cache";
-import {serverRpcUrl} from "../rpcUrl";
+import {walletBalanceRpcUrls} from "../rpcUrl";
 import {
   HOLDINGS_STALE_FALLBACK_MS,
   readCachedBalances,
   writeCachedBalances,
 } from "./walletHoldingsCache";
-
-const RPC_URL = serverRpcUrl();
 
 interface ParsedTokenAccount {
   account: {
@@ -43,9 +41,9 @@ interface ParsedTokenAccount {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function rpc<T>(method: string, params: unknown[]): Promise<T> {
+async function rpcAt<T>(url: string, method: string, params: unknown[]): Promise<T> {
   for (let attempt = 0; attempt < 5; attempt++) {
-    const response = await fetch(RPC_URL, {
+    const response = await fetch(url, {
       method: "POST",
       headers: {"content-type": "application/json"},
       cache: "no-store",
@@ -61,6 +59,39 @@ async function rpc<T>(method: string, params: unknown[]): Promise<T> {
     return body.result as T;
   }
   throw new Error("RPC returned 429.");
+}
+
+async function rpc<T>(method: string, params: unknown[]): Promise<T> {
+  const urls = walletBalanceRpcUrls();
+  let last: Error | undefined;
+  for (let index = 0; index < urls.length; index += 1) {
+    try {
+      return await rpcAt<T>(urls[index], method, params);
+    } catch (error) {
+      last = error as Error;
+      const rateLimited = last.message === "RPC returned 429.";
+      if (!rateLimited || index === urls.length - 1) throw last;
+    }
+  }
+  throw last ?? new Error("RPC returned 429.");
+}
+
+function tokenUiAmount(
+  tokenAmount:
+    | {amount?: string; decimals?: number; uiAmount?: number | null}
+    | undefined,
+): number | null {
+  if (!tokenAmount) return null;
+  if (typeof tokenAmount.uiAmount === "number" && tokenAmount.uiAmount > 0) {
+    return tokenAmount.uiAmount;
+  }
+  const raw = tokenAmount.amount;
+  const decimals = tokenAmount.decimals;
+  if (typeof raw !== "string" || !/^\d+$/.test(raw) || typeof decimals !== "number") {
+    return null;
+  }
+  const value = Number(raw) / 10 ** decimals;
+  return Number.isFinite(value) && value > 0 ? value : null;
 }
 
 export interface Stonkfolio {
@@ -142,8 +173,8 @@ async function balancesFromRpc(wallet: Pubkey): Promise<{
   for (const entry of [...classic.value, ...token2022.value]) {
     const info = entry.account.data.parsed?.info;
     const mint = info?.mint;
-    const amount = info?.tokenAmount?.uiAmount;
-    if (!mint || typeof amount !== "number" || amount <= 0) continue;
+    const amount = tokenUiAmount(info?.tokenAmount);
+    if (!mint || amount === null) continue;
     byMint.set(mint, (byMint.get(mint) ?? 0) + amount);
   }
 
