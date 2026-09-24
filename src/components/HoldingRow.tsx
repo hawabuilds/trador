@@ -31,11 +31,7 @@ export function HoldingRow({holding, position}: {holding: Holding; position?: Po
       {...prefetchPage}
       className="flex items-center gap-3 px-[22px] py-[13px] transition-colors hover:bg-[var(--overlay-wash)]"
     >
-      {stock ? (
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[var(--overlay-wash)] text-[12px] font-extrabold text-muted">
-          {symbol.slice(0, 2).toUpperCase()}
-        </span>
-      ) : (
+      {stock ? null : (
         // The feed row passes the art and this row didn't, so a coin showed
         // its picture everywhere except the screen listing what you own.
         <Avatar name={symbol} src={asset.imageUrl} seed={asset.mint} size={40} />
