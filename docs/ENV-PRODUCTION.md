@@ -76,9 +76,13 @@ CRON_SECRET=<paste long random secret>
 COINGECKO_API_KEY=<paste CoinGecko key>
 COINGECKO_API_PLAN=analyst
 
-# Fees (optional until collector wSOL ATA exists)
+# Fees — Jupiter platform fee via API only (no Trador contract). BPS can stay set;
+# omit NEXT_PUBLIC_FEE_WALLET until the collector wSOL ATA is initialized on mainnet.
 NEXT_PUBLIC_FEE_BPS=50
 # NEXT_PUBLIC_FEE_WALLET=<collector wallet OR initialized wSOL token account>
+#
+# Until the collector is ready: do **not** set NEXT_PUBLIC_FEE_WALLET on Vercel
+# Production (remove it if present and redeploy). Swaps simulate cleanly with no fee.
 
 # Push notifications (optional)
 # NEXT_PUBLIC_VAPID_PUBLIC_KEY=

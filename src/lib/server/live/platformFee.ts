@@ -1,15 +1,21 @@
 /**
  * Platform fee token account for Jupiter swaps.
  *
- * Jupiter takes `platformFeeBps` on the quote and a matching, **initialized**
- * `feeAccount` on the build. The account's mint must be the input or output of
- * the swap (ExactIn). Passing a wallet address, an uninitialized ATA, or a
- * wSOL account on a route that prices the fee in the output token fails
- * simulation with Jupiter error 6025 — Privy surfaces that as "your transaction
- * will likely fail."
+ * No Trador smart contract is involved. Jupiter's hosted API accepts
+ * `platformFeeBps` on the quote and a matching, **initialized** `feeAccount`
+ * on the build; the fee lands in that token account. Until you are ready, leave
+ * `NEXT_PUBLIC_FEE_WALLET` unset — swaps price and simulate with no platform
+ * fee.
  *
- * OrderSheet only trades SOL ↔ token, so fees are always collected in wSOL:
- * one ATA for the collector, not one per stock mint.
+ * When you turn fees on: set the collector **wallet** (base58) and initialize
+ * its wSOL associated token account once (OrderSheet routes are SOL ↔ token, so
+ * fees are always wSOL). You may paste an existing wSOL token account instead
+ * of the wallet. Unset env, invalid base58, placeholders, or a missing ATA all
+ * mean "no fee" — never a user-facing error.
+ *
+ * Passing a wallet with no wSOL ATA, or a `feeAccount` whose mint is not on the
+ * swap leg, fails simulation with Jupiter error 6025 — Privy surfaces that as
+ * "your transaction will likely fail."
  */
 
 import {Connection, PublicKey} from "@solana/web3.js";
@@ -21,11 +27,36 @@ import {
 
 import {FEE_BPS} from "@/config/fees";
 import {TOKEN_2022_PROGRAM, TOKEN_PROGRAM, WSOL_MINT} from "@/lib/programs";
-import {type Pubkey, assertPubkey, asPubkey, samePubkey} from "@/lib/pubkey";
+import {
+  type Pubkey,
+  assertPubkey,
+  asPubkey,
+  isDefaultPubkey,
+  samePubkey,
+} from "@/lib/pubkey";
 import {serverRpcUrl} from "@/lib/server/rpcUrl";
 
+/** Parse fee collector from env; invalid or placeholder values mean no fee. */
+export function feeCollectorFromEnv(): Pubkey | null {
+  const raw = process.env.NEXT_PUBLIC_FEE_WALLET?.trim();
+  if (!raw) return null;
+  const lower = raw.toLowerCase();
+  if (
+    lower === "unset" ||
+    lower === "none" ||
+    lower === "tbd" ||
+    lower === "changeme" ||
+    lower === "placeholder"
+  ) {
+    return null;
+  }
+  const parsed = asPubkey(raw);
+  if (!parsed || isDefaultPubkey(parsed)) return null;
+  return parsed;
+}
+
 /** Fee collector: owner wallet, or an existing wSOL token account. */
-export const FEE_COLLECTOR = asPubkey(process.env.NEXT_PUBLIC_FEE_WALLET ?? "");
+export const FEE_COLLECTOR = feeCollectorFromEnv();
 
 const TOKEN_PROGRAMS = [
   new PublicKey(TOKEN_PROGRAM),

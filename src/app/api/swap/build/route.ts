@@ -1,6 +1,6 @@
 import {badRequest, json} from "@/lib/server/http";
 import {asPubkey} from "@/lib/pubkey";
-import {buildSwap, type SwapQuote} from "@/lib/server/live/jupiter";
+import {buildSwap, quote as priceQuote, type SwapQuote} from "@/lib/server/live/jupiter";
 import {resolvePlatformFeeAccount} from "@/lib/server/live/platformFee";
 
 export const dynamic = "force-dynamic";
@@ -29,21 +29,32 @@ export async function POST(request: Request) {
     const outputMint = asPubkey(body.quote.outputMint);
     if (!inputMint || !outputMint) return badRequest("Quote is missing mints.");
 
-    const feeAccount = body.quote.platformFee
+    let swapQuote: SwapQuote = body.quote;
+    let feeAccount = swapQuote.platformFee
       ? await resolvePlatformFeeAccount({inputMint, outputMint})
       : null;
-    if (body.quote.platformFee && !feeAccount) {
-      return json(
-        {
-          error:
-            "Platform fee was priced but the fee account is missing. Retry the quote, or fund the collector wSOL ATA.",
-        },
-        {status: 502},
-      );
+
+    // Stale quote or collector not ready — re-price without fee so Jupiter build
+    // and simulation stay aligned (no platformFee in raw, no feeAccount).
+    if (swapQuote.platformFee && !feeAccount) {
+      const raw = swapQuote.raw as Record<string, unknown> | undefined;
+      const amount = swapQuote.inAmount ?? String(raw?.inAmount ?? "");
+      const slippageBps = swapQuote.slippageBps ?? Number(raw?.slippageBps ?? 100);
+      if (!/^\d+$/.test(amount) || amount === "0") {
+        return badRequest("Quote is missing input amount.");
+      }
+      swapQuote = await priceQuote({
+        inputMint,
+        outputMint,
+        amount,
+        slippageBps,
+        feeAccount: null,
+      });
+      feeAccount = null;
     }
 
     const built = await buildSwap({
-      quote: body.quote,
+      quote: swapQuote,
       userPublicKey,
       feeAccount,
     });
