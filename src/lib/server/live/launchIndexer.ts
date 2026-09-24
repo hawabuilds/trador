@@ -167,7 +167,7 @@ export async function indexStonkfun(): Promise<IndexPass> {
 
   try {
     for (const platform of STONKFUN_PLATFORMS) {
-      const accounts = await rpc<{pubkey: string; account: {data: [string, string]}}[]>(
+      const accounts = await rpcWithRetry<{pubkey: string; account: {data: [string, string]}}[]>(
         "getProgramAccounts",
         [
           RAYDIUM_LAUNCHPAD,
@@ -298,7 +298,7 @@ export async function indexStonkfunClmm(): Promise<IndexPass> {
   const writes: StonkWrite[] = [];
 
   try {
-    const accounts = await rpc<{pubkey: string; account: {data: [string, string]}}[]>(
+    const accounts = await rpcWithRetry<{pubkey: string; account: {data: [string, string]}}[]>(
       "getProgramAccounts",
       [
         CLMM_POOL.PROGRAM,
@@ -895,6 +895,8 @@ export async function decorateStonks(
 export async function indexAll(): Promise<{
   passes: IndexPass[];
   decorated: {priced: number; named: number; error: string | null};
+  /** True when at least one listed-coin discovery pass succeeded. */
+  discoveryOk: boolean;
 }> {
   const stonkfun = await indexStonkfun();
   const direct = await indexStonkfunClmm();
@@ -981,9 +983,10 @@ export async function indexAll(): Promise<{
    * stale rows, which is the failure that presents as a feed that simply stops
    * growing.
    */
-  if ([stonkfun, direct, pumpfun].some((pass) => !pass.error)) {
+  const discoveryOk = [stonkfun, direct, pumpfun].some((pass) => !pass.error);
+  if (discoveryOk) {
     await writeIndexerState("live-tip", {heartbeat_at: new Date().toISOString()});
   }
 
-  return {passes, decorated};
+  return {passes, decorated, discoveryOk};
 }

@@ -16,11 +16,7 @@
 
 import {indexAll} from "@/lib/server/live/launchIndexer";
 import {keepTapes} from "@/lib/server/live/tapeKeeper";
-import {
-  readIndexerState,
-  storeReady,
-  writeIndexerState,
-} from "@/lib/server/live/universeStore";
+import {readIndexerState, storeReady} from "@/lib/server/live/universeStore";
 
 /** How often to sweep. A reconciler is idempotent, so this is a cost dial. */
 const INTERVAL_MS = Number(process.env.INDEX_INTERVAL_MS ?? 90_000);
@@ -44,9 +40,7 @@ function log(message: string): void {
 
 async function pass(): Promise<void> {
   const started = Date.now();
-  const {passes, decorated} = await indexAll();
-
-  const failed = passes.filter((entry) => entry.error);
+  const {passes, decorated, discoveryOk} = await indexAll();
 
   for (const entry of passes) {
     log(
@@ -62,9 +56,12 @@ async function pass(): Promise<void> {
       ` in ${Date.now() - started}ms`,
   );
 
-  if (failed.length === passes.length) {
-    // Every pass failed, so this is the provider rather than one launchpad.
-    throw new Error(failed.map((entry) => entry.error).join("; "));
+  if (!discoveryOk) {
+    const errors = passes
+      .filter((entry) => entry.error)
+      .map((entry) => entry.error)
+      .join("; ");
+    throw new Error(errors || "Every discovery pass failed.");
   }
 
   consecutiveFailures = 0;
@@ -109,7 +106,7 @@ async function main(): Promise<void> {
   while (running) {
     try {
       await pass();
-      await writeIndexerState("live-tip", {heartbeat_at: new Date().toISOString()});
+      // Heartbeat is written inside indexAll when a discovery pass succeeds.
     } catch (error) {
       consecutiveFailures += 1;
       const backoff = Math.min(
