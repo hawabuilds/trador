@@ -8,14 +8,14 @@
  * fee.
  *
  * When you turn fees on: set the collector **wallet** (base58) and initialize
- * its wSOL associated token account once (OrderSheet routes are SOL ↔ token, so
- * fees are always wSOL). You may paste an existing wSOL token account instead
- * of the wallet. Unset env, invalid base58, placeholders, or a missing ATA all
- * mean "no fee" — never a user-facing error.
+ * its wSOL associated token account once. Fees apply on **sells** (token → SOL)
+ * only — Jupiter takes ExactIn platform fees from the output mint, so wSOL
+ * collection on buys would need a per-stock collector ATA. You may paste an
+ * existing wSOL token account instead of the wallet. Unset env, invalid base58,
+ * placeholders, or a missing ATA all mean "no fee" — never a user-facing error.
  *
- * Passing a wallet with no wSOL ATA, or a `feeAccount` whose mint is not on the
- * swap leg, fails simulation with Jupiter error 6025 — Privy surfaces that as
- * "your transaction will likely fail."
+ * Passing a wSOL `feeAccount` on a buy (SOL → token) fails simulation with
+ * Jupiter 6014/6025 — Privy surfaces that as "your transaction will likely fail."
  */
 
 import {Connection, PublicKey} from "@solana/web3.js";
@@ -89,6 +89,16 @@ async function initializedTokenAccount(address: Pubkey): Promise<boolean> {
   return (await readTokenAccount(address)) !== null;
 }
 
+/** Whether this pair can take a wSOL platform fee (ExactIn: fee mint is output). */
+export function platformFeePairEligible(params: {
+  inputMint: Pubkey;
+  outputMint: Pubkey;
+}): boolean {
+  const wsolLeg =
+    samePubkey(params.inputMint, WSOL_MINT) || samePubkey(params.outputMint, WSOL_MINT);
+  return wsolLeg && samePubkey(params.outputMint, WSOL_MINT);
+}
+
 /**
  * Initialized wSOL ATA that can receive the platform fee for this pair, or null
  * when fees should not be priced (missing collector config or ATA).
@@ -98,10 +108,7 @@ export async function resolvePlatformFeeAccount(params: {
   outputMint: Pubkey;
 }): Promise<Pubkey | null> {
   if (FEE_BPS <= 0 || !FEE_COLLECTOR) return null;
-
-  const wsolLeg =
-    samePubkey(params.inputMint, WSOL_MINT) || samePubkey(params.outputMint, WSOL_MINT);
-  if (!wsolLeg) return null;
+  if (!platformFeePairEligible(params)) return null;
 
   const configured = await readTokenAccount(FEE_COLLECTOR);
   if (configured && samePubkey(configured.mint, WSOL_MINT)) {

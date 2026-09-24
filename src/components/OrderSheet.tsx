@@ -386,10 +386,16 @@ export function OrderSheet({
       const body = (await response.json()) as {
         swap?: {transactionBase64: string};
         error?: string;
+        simulationLogs?: string[];
       };
 
       if (!response.ok || !body.swap) {
-        throw new Error(body.error ?? "Could not build the transaction.");
+        const detail =
+          body.error ??
+          (body.simulationLogs?.length
+            ? body.simulationLogs.slice(-2).join(" ")
+            : undefined);
+        throw new Error(detail ?? "Could not build the transaction.");
       }
 
       setStatus("Waiting for your signature…");

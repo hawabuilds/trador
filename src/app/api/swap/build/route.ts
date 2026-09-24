@@ -2,6 +2,7 @@ import {badRequest, json} from "@/lib/server/http";
 import {asPubkey} from "@/lib/pubkey";
 import {buildSwap, quote as priceQuote, type SwapQuote} from "@/lib/server/live/jupiter";
 import {resolvePlatformFeeAccount} from "@/lib/server/live/platformFee";
+import {simulateSwapTransaction} from "@/lib/server/live/simulateSwap";
 
 export const dynamic = "force-dynamic";
 
@@ -53,12 +54,48 @@ export async function POST(request: Request) {
       feeAccount = null;
     }
 
-    const built = await buildSwap({
+    let built = await buildSwap({
       quote: swapQuote,
       userPublicKey,
       feeAccount,
     });
-    return json({swap: built});
+
+    let simulation = await simulateSwapTransaction(built.transactionBase64);
+    let platformFeeStripped = false;
+
+    if (!simulation.ok && feeAccount && swapQuote.platformFee) {
+      const amount = swapQuote.inAmount;
+      swapQuote = await priceQuote({
+        inputMint,
+        outputMint,
+        amount,
+        slippageBps: swapQuote.slippageBps,
+        feeAccount: null,
+      });
+      feeAccount = null;
+      platformFeeStripped = true;
+      built = await buildSwap({
+        quote: swapQuote,
+        userPublicKey,
+        feeAccount: null,
+      });
+      simulation = await simulateSwapTransaction(built.transactionBase64);
+    }
+
+    if (!simulation.ok) {
+      return json(
+        {
+          error: simulation.message,
+          simulationLogs: simulation.logs.slice(-20),
+        },
+        {status: 502},
+      );
+    }
+
+    return json({
+      swap: built,
+      ...(platformFeeStripped ? {platformFeeStripped: true} : {}),
+    });
   } catch (error) {
     // No transaction is ever returned alongside an error. Fail closed.
     return json({error: (error as Error).message}, {status: 502});

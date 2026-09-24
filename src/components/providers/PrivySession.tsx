@@ -228,14 +228,24 @@ function PrivyBridge({children}: {children: React.ReactNode}) {
        * polls for the status through our own RPC proxy, so confirmation runs
        * over the same working path as everything else.
        */
-      const {signature} = await signAndSendTransaction({
-        transaction,
-        wallet,
-        chain: CHAIN,
-        options: {optimisticBroadcast: true},
-      });
-      // Solana signatures are base58, everywhere — explorers, RPC, logs.
-      return encodeBase58(signature);
+      try {
+        const {signature} = await signAndSendTransaction({
+          transaction,
+          wallet,
+          chain: CHAIN,
+          options: {optimisticBroadcast: true},
+        });
+        // Solana signatures are base58, everywhere — explorers, RPC, logs.
+        return encodeBase58(signature);
+      } catch (caught) {
+        const raw = caught instanceof Error ? caught.message : String(caught);
+        if (/preparing your transaction|will likely fail|simulation failed/i.test(raw)) {
+          throw new Error(
+            "The network rejected this transaction in simulation. Refresh the quote, keep ~0.01 SOL for fees and rent, or try a smaller size.",
+          );
+        }
+        throw caught instanceof Error ? caught : new Error(raw);
+      }
     },
     [signAndSendTransaction, wallet],
   );
