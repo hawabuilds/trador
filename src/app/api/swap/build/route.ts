@@ -1,6 +1,7 @@
 import {badRequest, json} from "@/lib/server/http";
 import {asPubkey} from "@/lib/pubkey";
-import {FEE_WALLET, buildSwap, type SwapQuote} from "@/lib/server/live/jupiter";
+import {buildSwap, type SwapQuote} from "@/lib/server/live/jupiter";
+import {resolvePlatformFeeAccount} from "@/lib/server/live/platformFee";
 
 export const dynamic = "force-dynamic";
 
@@ -24,10 +25,27 @@ export async function POST(request: Request) {
   if (!body.quote?.raw) return badRequest("A quote is required.");
 
   try {
+    const inputMint = asPubkey(body.quote.inputMint);
+    const outputMint = asPubkey(body.quote.outputMint);
+    if (!inputMint || !outputMint) return badRequest("Quote is missing mints.");
+
+    const feeAccount = body.quote.platformFee
+      ? await resolvePlatformFeeAccount({inputMint, outputMint})
+      : null;
+    if (body.quote.platformFee && !feeAccount) {
+      return json(
+        {
+          error:
+            "Platform fee was priced but the fee account is missing. Retry the quote, or fund the collector wSOL ATA.",
+        },
+        {status: 502},
+      );
+    }
+
     const built = await buildSwap({
       quote: body.quote,
       userPublicKey,
-      feeAccount: FEE_WALLET,
+      feeAccount,
     });
     return json({swap: built});
   } catch (error) {

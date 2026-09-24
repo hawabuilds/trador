@@ -13,13 +13,14 @@
  * emitted as a pair here or not at all.
  */
 
-import {type Pubkey, asPubkey} from "@/lib/pubkey";
+import {type Pubkey} from "@/lib/pubkey";
 import {FEE_BPS} from "@/config/fees";
+import {FEE_COLLECTOR} from "@/lib/server/live/platformFee";
 
 const BASE = process.env.JUPITER_API_URL ?? "https://lite-api.jup.ag";
 
-/** Where the platform fee lands. Unset means no fee is taken at all. */
-export const FEE_WALLET = asPubkey(process.env.NEXT_PUBLIC_FEE_WALLET ?? "");
+/** @deprecated Use `FEE_COLLECTOR` from `platformFee.ts`. */
+export const FEE_WALLET = FEE_COLLECTOR;
 
 export interface QuoteRequest {
   inputMint: Pubkey;
