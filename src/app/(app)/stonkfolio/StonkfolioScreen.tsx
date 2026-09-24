@@ -379,7 +379,7 @@ export function StonkfolioScreen() {
             onChange={setChartMode}
             className="mb-0 min-w-0 flex-1 !mx-0 !px-0"
           />
-          {chartMode === "trend" && history.ready ? (
+          {chartMode === "trend" && (history.ready || history.points.length > 0) ? (
             <RangePills value={range} onChange={setRange} />
           ) : chartMode === "pie" ? (
             <button
@@ -625,23 +625,26 @@ function ChartSection({
             </p>
           ) : null}
         </>
-      ) : ready ? (
-        <>
-          {points.length >= 2 ? (
-            <BalanceChart points={points} onScrub={onScrub} className="-mx-[22px]" />
-          ) : loading ? (
-            <div className="h-[132px] rounded-2xl bg-[var(--segment-track)] shadow-inset-soft" />
-          ) : (
-            <div className="grid h-[132px] place-items-center rounded-2xl bg-[var(--segment-track)] px-6 text-center shadow-inset-soft">
-              <p className="max-w-[34ch] text-[12px] leading-[1.5] text-faint">
-                Your balance chart starts from the first time Trador sees this
-                wallet. Check back shortly — there is no way to know what it was
-                worth before then.
-              </p>
-            </div>
-          )}
-        </>
-      ) : null}
+      ) : points.length >= 1 ? (
+        <BalanceChart points={points} onScrub={onScrub} className="-mx-[22px]" />
+      ) : loading ? (
+        <div className="h-[132px] rounded-2xl bg-[var(--segment-track)] shadow-inset-soft" />
+      ) : !ready ? (
+        <div className="grid h-[132px] place-items-center rounded-2xl bg-[var(--segment-track)] px-6 text-center shadow-inset-soft">
+          <p className="max-w-[34ch] text-[12px] leading-[1.5] text-faint">
+            Balance history is not available in this environment. Your live
+            total above still reflects what the chain holds right now.
+          </p>
+        </div>
+      ) : (
+        <div className="grid h-[132px] place-items-center rounded-2xl bg-[var(--segment-track)] px-6 text-center shadow-inset-soft">
+          <p className="max-w-[34ch] text-[12px] leading-[1.5] text-faint">
+            Your balance chart starts from the first time Trador sees this
+            wallet. Check back shortly — there is no way to know what it was
+            worth before then.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

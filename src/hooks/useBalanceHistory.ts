@@ -27,6 +27,21 @@ interface HistoryResponse {
  * it rather than being appended, so a refetch cannot stack two points on the
  * same instant and put a vertical segment at the end of the line.
  */
+/** Pure merge used by the hook — exported for tests. */
+export function balancePointsWithLive(
+  snapshots: BalancePoint[],
+  liveTotal: number | null,
+): BalancePoint[] {
+  if (liveTotal === null) return snapshots;
+
+  const live: BalancePoint = {t: Date.now(), value: liveTotal};
+  const last = snapshots[snapshots.length - 1];
+
+  if (!last) return [live];
+  if (live.t - last.t < 60_000) return [...snapshots.slice(0, -1), live];
+  return [...snapshots, live];
+}
+
 export function useBalanceHistory(
   wallet: string | null | undefined,
   range: BalanceRange,
@@ -47,17 +62,10 @@ export function useBalanceHistory(
     },
   });
 
-  const points = useMemo<BalancePoint[]>(() => {
-    const snapshots = query.data?.snapshots ?? [];
-    if (liveTotal === null) return snapshots;
-
-    const live: BalancePoint = {t: Date.now(), value: liveTotal};
-    const last = snapshots[snapshots.length - 1];
-
-    if (!last) return [live];
-    if (live.t - last.t < 60_000) return [...snapshots.slice(0, -1), live];
-    return [...snapshots, live];
-  }, [query.data?.snapshots, liveTotal]);
+  const points = useMemo<BalancePoint[]>(
+    () => balancePointsWithLive(query.data?.snapshots ?? [], liveTotal),
+    [query.data?.snapshots, liveTotal],
+  );
 
   const change = useMemo(() => {
     // One point is a reading, not a change. Reporting 0% for it would claim the

@@ -79,7 +79,7 @@ export async function readSnapshots(
 
   try {
     if (hasAdminPg) {
-      return withClient(async (client) => {
+      return await withClient(async (client) => {
         const {rows} = await client.query(
           `select at, total_usd from public.portfolio_snapshots
             where wallet = $1 and at >= $2
