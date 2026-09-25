@@ -37,3 +37,6 @@ unknown-quotes.json
 # Scratch probe scripts.
 .p*.mjs
 .probe*.mjs
+
+# Pitch deck lives outside the repo (sibling folder).
+docs/pitch-deck/
