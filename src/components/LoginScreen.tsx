@@ -4,8 +4,8 @@ import {useEffect, useSyncExternalStore, useState} from "react";
 import Link from "next/link";
 import {useRouter} from "next/navigation";
 
-import {APP_NAME} from "@/config/app";
 import {TradorMark} from "@/components/ui/TradorMark";
+import {TradorWordmark} from "@/components/ui/TradorWordmark";
 import {useUser} from "@/hooks/useUser";
 import {readReferral, saveReferral, visitorId} from "@/lib/referral";
 import {readSignedInHint} from "@/lib/signedInHint";
@@ -84,7 +84,7 @@ export function LoginScreen() {
       <div className="flex flex-1 flex-col justify-center">
       <div className="mb-[1em] flex items-center gap-2.5 text-ink">
         <TradorMark size={40} className="text-brand-500" />
-        <span className="text-[28px] font-extrabold tracking-[-0.04em]">{APP_NAME}</span>
+        <TradorWordmark className="text-[28px]" />
       </div>
 
       <h1 className="display-light text-[clamp(38px,11vw,46px)] font-light leading-[1.02] tracking-[-0.045em]">
