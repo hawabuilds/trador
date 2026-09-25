@@ -12,6 +12,11 @@ Two launchpads now let a creator pick a tokenized stock as the quote asset —
 a coin can be denominated in NVDAx instead of SOL, and a StonkFun reward launch
 routes a share of every trade back to holders in stock.
 
+![Trador users by day, 20–24 September 2026](docs/screenshots/traction-users.png)
+
+Live since Sunday 20 September 2026. Users went from 36 at launch to 62 by
+Thursday 24 September, by UK signup date.
+
 ```bash
 cp .env.local.example .env.local
 npm install
@@ -35,6 +40,11 @@ that. Your holdings are your **Stonkfolio**.
 
 ## Screens
 
+![The Stonks feed, the NVDAx stock page, and a Stonkfolio in pie view with targets](docs/screenshots/screens-feed-stock-stonkfolio.jpg)
+
+Left to right: `/home` on the Stonks tab, the NVDAx stock page, and
+`/stonkfolio` in pie view, each holding shown as actual share against target.
+
 | Route | What it is |
 | --- | --- |
 | `/` | Landing, with real counts from the universe |
@@ -46,7 +56,7 @@ that. Your holdings are your **Stonkfolio**.
 | `/news` | Coverage of the companies behind the stocks being traded against |
 | `/learn` | Three lessons. Finishing them unlocks Create |
 | `/stonkfolio` | On-chain holdings, split into stocks and stonks |
-| `/create` | Plan a launch against live chain state |
+| `/create` | Plan, build and sign a launch against live chain state |
 
 ## What is live
 
@@ -59,7 +69,7 @@ that. Your holdings are your **Stonkfolio**.
 | News | Yahoo per-ticker RSS, keyless |
 | Stonkfolio | `getTokenAccountsByOwner` across both token programs |
 | Quotes and swaps | Jupiter, 50 bps when the fee wallet is set, one signature. Leave the wallet unset and swaps run with no platform fee |
-| Create | Plans against chain state; does not sign — see below |
+| Create | Plans, builds and signs against chain state — see below |
 
 The chain decides what exists. The store keeps it. Providers only decorate it.
 If every provider is down the feed still renders without live prices.
@@ -139,13 +149,9 @@ already includes the family.
 | `npm run worker` | Always-on indexer loop (Railway) |
 | `npm run db:migrate` | Apply `supabase/migrations/` in filename order |
 | `npm run index:once` | One indexer pass into the store |
-| `npm run backfill:launches` | Backfill launch rows |
-| `npm run backfill:prices` | Backfill prices |
 | `npm run backfill:graduated-at` | Pull `graduated_at` back to the pair's open time |
-| `npm run create:dry-run` | Exercise Create planning without signing |
 | `npm run cron` | Hit the deployed app's `/api/cron/*` routes |
 | `npm run probe:accounts` | Read the mainnet accounts the build depends on |
-| `npm run probe:pump` | Probe pump.fun / PumpSwap account layouts |
 | `npm run probe:quotes` | Census every quote asset StonkFun launches use |
 | `npm run sync:stocks` | Regenerate the stock registry (`--write` to commit it) |
 | `npm run seed:snapshot` | Recapture the universe snapshot |
@@ -172,6 +178,7 @@ files, in order:
 14. `0014_coin_tapes.sql`
 15. `0015_wallet_holdings_cache.sql`
 16. `0016_trending_metrics.sql`
+17. `0017_launch_signature.sql`
 
 Without a database the app still runs on the captured snapshot. After migrate:
 `npm run index:once` to fill the store.
@@ -213,22 +220,19 @@ must not be filtered by `dataSize`. Pinning 245, the size the SDK types suggest,
 would find the 4,368 oldest pools and silently miss 97% of the program including
 every Custom Pair.
 
-## Why Create plans but does not sign
+## Why Create signs on mainnet only
 
 The Create screen resolves a real plan from chain state — the program, the
 config that governs it, whether that config is owned by LaunchLab and names
-StonkFun, the quote mint, the rent and fees — and then says it will not sign.
+StonkFun, the quote mint, the rent and fees — builds the instruction, and
+signs. It is wired for both **StonkFun / LaunchLab** and **pump.fun Custom
+Pairs**.
 
-That is not an unfinished feature. **pump.fun is not deployed on devnet**, so its
-create instruction cannot be exercised anywhere except mainnet with real money.
-LaunchLab has a devnet deployment, but its devnet configs do not mirror
-mainnet's, so the stock-quoted path is not meaningfully testable there either.
-An instruction that has never once executed successfully, behind a button that
-spends SOL, is not a feature — it is a way to lose someone else's money while
-looking finished.
+**pump.fun is not deployed on devnet**, so its create path can only be exercised
+on mainnet with real SOL. LaunchLab has a devnet deployment, but its devnet
+configs do not mirror mainnet's, so the stock-quoted path is not meaningfully
+testable there either. That is why Create is not something you dry-run against a
+free cluster: the only place the full path exists is mainnet.
 
-One check is also still genuinely open: whether StonkFun's platform config
-permits a third party to launch under it. The config exists, is owned by
-LaunchLab and names StonkFun, but the restriction flags have not been decoded
-from a source worth trusting, so the screen reports that as **not verified**
-rather than guessing.
+No launch has gone through it yet. The path is built and the wallet will sign;
+it has not yet created a coin on chain.
