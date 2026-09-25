@@ -84,7 +84,9 @@ export function LoginScreen() {
       <div className="flex flex-1 flex-col justify-center">
       <div className="mb-[1em] flex items-center gap-2.5 text-ink">
         <TradorMark size={40} className="text-brand-500" />
-        <TradorWordmark className="text-[28px]" />
+        <span className="text-[28px]">
+          <TradorWordmark />
+        </span>
       </div>
 
       <h1 className="display-light text-[clamp(38px,11vw,46px)] font-light leading-[1.02] tracking-[-0.045em]">
