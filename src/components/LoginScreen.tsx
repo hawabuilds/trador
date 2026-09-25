@@ -9,6 +9,7 @@ import {TradorMark} from "@/components/ui/TradorMark";
 import {useUser} from "@/hooks/useUser";
 import {readReferral, saveReferral, visitorId} from "@/lib/referral";
 import {readSignedInHint} from "@/lib/signedInHint";
+import {TradorSocialLinks} from "./TradorSocialLinks";
 import {Avatar} from "./ui/Avatar";
 import {Button} from "./ui/Button";
 import {AppleIcon, ArrowRightIcon, XIcon} from "./ui/Icons";
@@ -79,7 +80,8 @@ export function LoginScreen() {
   };
 
   return (
-    <div className="flex h-full flex-col justify-center bg-surface-base px-8 pb-[max(48px,env(safe-area-inset-bottom))]">
+    <div className="flex h-full flex-col bg-surface-base px-8 pb-[max(48px,env(safe-area-inset-bottom))]">
+      <div className="flex flex-1 flex-col justify-center">
       <div className="mb-[1em] flex items-center gap-2.5 text-ink">
         <TradorMark size={40} className="text-brand-500" />
         <span className="text-[28px] font-extrabold tracking-[-0.04em]">{APP_NAME}</span>
@@ -142,6 +144,9 @@ export function LoginScreen() {
           </p>
         ) : null}
       </div>
+      </div>
+
+      <TradorSocialLinks className="justify-center pt-4" />
 
       <Modal
         open={modalOpen}

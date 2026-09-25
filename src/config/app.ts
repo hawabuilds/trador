@@ -39,6 +39,12 @@ export const TABS = [
 
 export type TabKey = (typeof TABS)[number]["key"];
 
+/** Official Trador community profiles. */
+export const TRADOR_SOCIAL = {
+  x: "https://x.com/Tradorone",
+  discord: "https://discord.gg/DpKacvGSx",
+} as const;
+
 /** The home feed's three tabs. */
 export const HOME_TABS = [
   {key: "watchlist", label: "Watchlist"},
