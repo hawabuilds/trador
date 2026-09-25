@@ -2,6 +2,8 @@
 
 **Live:** [https://www.trador.one](https://www.trador.one)
 
+**Demo video:** [https://youtu.be/Xe4WDS4D5uo](https://youtu.be/Xe4WDS4D5uo)
+
 ![Trador — Stock app for trenchers](docs/screenshots/cover.png)
 
 Coins priced in stocks, on Solana. Trador is the feed, chart, order ticket and
@@ -11,6 +13,8 @@ Two launchpads now let a creator pick a tokenized stock as the quote asset —
 **StonkFun**, which runs on Raydium LaunchLab, and **pump.fun Custom Pairs**. So
 a coin can be denominated in NVDAx instead of SOL, and a StonkFun reward launch
 routes a share of every trade back to holders in stock.
+
+[![Trador demo](https://img.youtube.com/vi/Xe4WDS4D5uo/maxresdefault.jpg)](https://youtu.be/Xe4WDS4D5uo)
 
 ![Trador users by day, 20–24 September 2026](docs/screenshots/traction-users.png)
 
