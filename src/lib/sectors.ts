@@ -8,17 +8,16 @@
  * people actually trade against instead — AI and semis apart from software,
  * crypto-linked equities apart from both.
  *
- * **These are HODL's twelve, exactly**: same ids, same labels, same
- * descriptions, same rail order. Two apps over the same kind of universe
- * disagreeing about what "Internet & Media" contains is a difference nobody
- * benefits from, and the alternative was a set invented here that had already
- * started to drift.
+ * **Twelve sectors**, fixed: same ids, same labels, same descriptions, same
+ * rail order. Inventing a parallel set for the same kind of universe had
+ * already started to drift — disagreeing about what "Internet & Media"
+ * contains is a difference nobody benefits from.
  *
- * One consequence worth stating: there is **no pre-IPO bucket**, because HODL
- * has none. The pre-IPO names are classified by what the company does, so
- * OpenAI sits under AI & Data with the rest of the AI names rather than in a
- * bucket about its funding stage. That a name is not publicly listed is said on
- * its own page, where there is room to explain what it means for the price.
+ * One consequence worth stating: there is **no pre-IPO bucket**. The pre-IPO
+ * names are classified by what the company does, so OpenAI sits under AI & Data
+ * with the rest of the AI names rather than in a bucket about its funding
+ * stage. That a name is not publicly listed is said on its own page, where
+ * there is room to explain what it means for the price.
  */
 
 export type SectorId =
@@ -72,7 +71,7 @@ export const SECTOR_DESCRIPTION: ReadonlyMap<SectorId, string> = new Map(
  * Keyed by the ticker exactly as its issuer spells it, which is why the same
  * company can appear twice: Backed's wrapper is `INTCx` and Backpack's is
  * `INTC`, and they are different mints with different transfer fees. Where a
- * ticker matches one HODL already classifies, it is placed in the same bucket.
+ * ticker is already classified elsewhere in this map, it stays in that bucket.
  *
  * Every entry here is covered by a test — a stock added without a sector fails
  * it, rather than quietly rendering the issuer's product string in the slot
@@ -155,7 +154,7 @@ const BY_TICKER: Record<string, SectorId> = {
   PTN: "health",
   NEURALINK: "health",
 
-  // Consumer — retail, autos and leisure, which is where HODL puts all three.
+  // Consumer — retail, autos and leisure together.
   AAPLx: "consumer",
   MCDx: "consumer",
   KOx: "consumer",

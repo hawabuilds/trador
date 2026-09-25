@@ -13,9 +13,9 @@
  * "no socials".
  *
  * So the **host decides**, and the creator's label is only consulted when the
- * host is not one we recognise. This is HODL's rule from `tokenSocials.ts`,
- * kept because the failure it prevents is silent on both sides: nothing throws,
- * the link still works, it is just filed under the wrong icon.
+ * host is not one we recognise. The failure that rule prevents is silent on
+ * both sides: nothing throws, the link still works, it is just filed under the
+ * wrong icon.
  */
 
 import type {SocialLinks} from "@/lib/types";

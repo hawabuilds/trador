@@ -11,7 +11,7 @@ import {Sheet, SheetTitle} from "./ui/Sheet";
  * Export: a confirmation, then Privy's own screen.
  *
  * The key is revealed inside Privy's iframe on Privy's domain. This sheet only
- * says what is about to happen and hands off — the same shape as HODL's.
+ * says what is about to happen and hands off.
  */
 export function ExportWalletSheet({
   open,

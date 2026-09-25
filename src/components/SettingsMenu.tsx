@@ -27,23 +27,21 @@ import {
 } from "./ui/Icons";
 
 /**
- * Settings, as a compact menu anchored to the gear — HODL's layout.
+ * Settings, as a compact menu anchored to the gear.
  *
  * This was a full-height sheet of grouped rows: wallet, an inline notifications
  * panel with every toggle expanded, lesson progress, the platform fee, and sign
- * out. It scrolled. HODL's is a small panel that grows out of its own control,
+ * out. It scrolled. It is now a small panel that grows out of its own control,
  * which keeps the connection between the gear and what it opened, and puts one
  * row per thing rather than every setting at once.
  *
  * So, in order: who you are, your wallet, then one row each for the things that
  * open something bigger — export, import, notifications — and sign out. The
  * notification toggles live behind their row in their own sheet, where there is
- * room for them. HODL's appearance switch has no counterpart: this app is dark
- * only.
+ * room for them. There is no appearance switch: this app is dark only.
  *
- * Lesson progress and the platform fee are gone from here. Neither is in
- * HODL's menu, and both are said where they matter — the fee on every order
- * ticket, progress on the Learn tab.
+ * Lesson progress and the platform fee are gone from here. Both are said where
+ * they matter — the fee on every order ticket, progress on the Learn tab.
  */
 export function SettingsMenu() {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -220,8 +218,8 @@ export function SettingsMenu() {
           ) : null}
           {/*
             A switch rather than a row that opens something, so the menu stays
-            open and the change is visible where it was made. HODL's default:
-            on, until someone chooses otherwise.
+            open and the change is visible where it was made. Default: on, until
+            someone chooses otherwise.
           */}
           {me.handle ? (
             <div className="mx-1 flex items-center gap-2 rounded-[10px] px-2.5 py-2">

@@ -93,9 +93,9 @@ export function PrivySessionProvider({children}: {children: React.ReactNode}) {
         solana: {rpcs},
         appearance: {
           // Dark, unconditionally — the app has one theme, and Privy's modal
-          // opens over it. The accent is Solana purple, matching `--accent`;
-          // it was still HODL's violet, which showed on the one screen every
-          // new user sees first.
+          // opens over it. The accent is Solana purple, matching `--accent`,
+          // so the one screen every new user sees first matches the rest of
+          // the app.
           theme: THEME,
           accentColor: "#9945FF",
           walletChainType: "solana-only",

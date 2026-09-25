@@ -233,7 +233,7 @@ interface StonkfolioResponse {
 }
 
 /**
- * Someone's Stonkfolio, on their profile — HODL's public holdings.
+ * Someone's Stonkfolio, on their profile — public holdings when they allow it.
  *
  * Only rendered when the profile came back with a wallet, which the server
  * withholds for anyone who opted out (their own view excepted). The numbers are

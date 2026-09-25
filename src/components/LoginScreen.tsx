@@ -15,16 +15,15 @@ import {AppleIcon, ArrowRightIcon, XIcon} from "./ui/Icons";
 import {Modal} from "./ui/Modal";
 
 /**
- * The landing page, laid out the way HODL's is.
+ * The landing page.
  *
  * One claim, one line of explanation, one thing to press. The wordmark sits on
  * dark with clear space above the headline; the headline is light, large and on
  * two lines, with the payoff on the second in the accent colour.
  *
- * **"Stock app for trenchers."** HODL's own shape — "RWA app for trenchers" —
- * pointed at this app's universe, so the two read as siblings. The line under
- * it says what the app actually holds, which a tagline aimed at an audience
- * does not.
+ * **"Stock app for trenchers."** The shape is deliberate: a short identity claim
+ * on two lines, then one muted line under it. That line says what the app
+ * actually holds, which a tagline aimed at an audience does not.
  *
  * The counts that used to sit here are gone. They read from the bundled
  * snapshot and said 140 coins while the live universe held thousands, and a
