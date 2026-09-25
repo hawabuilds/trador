@@ -17,9 +17,9 @@ probe-output/
 !.env.*.example
 !.env.local.example
 
-# Cursor IDE — keep project rules tracked; ignore the rest.
-.cursor/*
-!.cursor/rules/
+# Editor and agent config.
+.cursor/
+.claude/
 
 # Keypair / secret material
 id.json
