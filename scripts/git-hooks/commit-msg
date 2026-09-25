@@ -1,0 +1,24 @@
+#!/bin/sh
+# Strip AI co-author and attribution trailers from the commit message, in place.
+# Installed as both commit-msg and prepare-commit-msg; prepare-commit-msg still
+# runs under --no-verify.
+
+msg="$1"
+[ -f "$msg" ] || exit 0
+tmp="$msg.strip.$$"
+
+awk '
+{
+  l = tolower($0)
+  if (l ~ /^(co-authored-by|generated-by|assisted-by|made-with):.*(cursor|claude|anthropic|openai|copilot|gpt|ai agent)/) next
+  if (index(l, "cursoragent@cursor.com") || index(l, "noreply@anthropic.com")) next
+  lines[++n] = $0
+}
+END {
+  while (n > 0 && lines[n] ~ /^[ \t]*$/) n--
+  for (i = 1; i <= n; i++) print lines[i]
+}
+' "$msg" > "$tmp" && cat "$tmp" > "$msg"
+status=$?
+rm -f "$tmp"
+exit $status
