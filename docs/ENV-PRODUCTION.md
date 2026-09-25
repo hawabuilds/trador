@@ -20,12 +20,13 @@ DATABASE_URL=<paste Supabase pooler URL: postgres.<project-ref>@aws-0-<region>.p
 # Helius key A — getProgramAccounts V2 sweeps only
 INDEXER_RPC_URL=<paste Helius indexer key URL, e.g. https://mainnet.helius-rpc.com/?api-key=...>
 
-# Free mainnet for signature lists + raw getTransaction (spares Helius quota)
-RAW_TX_RPC_URL=https://api.mainnet-beta.solana.com
+# Alchemy — tape signature lists + raw getTransaction (not the indexer Helius key)
+RAW_TX_RPC_URL=<paste same Alchemy mainnet URL as Vercel SOLANA_RPC_URL>
 
-# Optional: parsed tx fallback when tapes are not in Postgres (key can match URL api-key=)
-HELIUS_API_KEY=<paste Helius API key if separate from INDEXER_RPC_URL>
-# HELIUS_RPC_URL=<same as indexer URL only if you rely on embedded api-key= and omit HELIUS_API_KEY>
+# Optional: parsed tx fallback — must be a *different* Helius key than INDEXER_RPC_URL.
+# The same key 429s getProgramAccounts and the New feed stops growing.
+# HELIUS_API_KEY=<paste a non-indexer Helius key>
+# Do not set HELIUS_RPC_URL on Railway when it would embed the indexer api-key.
 
 # Decoration (prices, metadata)
 COINGECKO_API_KEY=<paste CoinGecko key>
@@ -76,6 +77,10 @@ CRON_SECRET=<paste long random secret>
 COINGECKO_API_KEY=<paste CoinGecko key>
 COINGECKO_API_PLAN=analyst
 
+# Jupiter (quotes + swaps). Omit both to use the keyless lite host (strict limits).
+JUPITER_API_KEY=<paste Jupiter portal key>
+# JUPITER_API_URL=https://api.jup.ag
+
 # Fees — Jupiter platform fee via API only (no Trador contract). BPS can stay set;
 # omit NEXT_PUBLIC_FEE_WALLET until the collector wSOL ATA is initialized on mainnet.
 NEXT_PUBLIC_FEE_BPS=50
@@ -104,6 +109,30 @@ is healthy.
 
 ---
 
+## Vercel — `trador-phone` (desktop phone showcase)
+
+Separate project, same repo. Production URL: `https://trador-phone.vercel.app`.
+
+**Copy the `trador` block above**, then:
+
+```env
+NEXT_PUBLIC_APP_URL=https://trador-phone.vercel.app
+NEXT_PUBLIC_DESKTOP_PHONE=1
+```
+
+**Required overrides vs main `trador`:**
+
+| Action | Why |
+| --- | --- |
+| **Remove** `DATABASE_URL` / `POSTGRES_URL` if present | Stale direct host breaks `/api/stonkfolio` with `getaddrinfo ENOTFOUND db.*`. |
+| **Set** `SOLANA_RPC_URL` (same Alchemy URL as `trador`) | Wallet reads; without it, public RPC rate-limits Stonkfolio. |
+| **Ensure** `NEXT_PUBLIC_SUPABASE_URL` is `https://<ref>.supabase.co` | Not a Postgres URL, not a JWT — PostgREST only. |
+| **Privy allowed origins** | Add `https://trador-phone.vercel.app` alongside `https://trador.fun` (same app id as `trador`). `NEXT_PUBLIC_DESKTOP_PHONE=1` only affects the iPhone frame — auth is still Privy when `NEXT_PUBLIC_PRIVY_APP_ID` is set. |
+
+You do **not** need a second Supabase project or indexer — point at the same keys as production.
+
+---
+
 ## Local vs production split (RPC)
 
 | Variable | Local `.env.local` | Railway indexer | Vercel app |
@@ -112,7 +141,7 @@ is healthy.
 | `SERVER_RPC_URL` | same as Alchemy | omit | optional, same as Alchemy |
 | `INDEXER_RPC_URL` | Helius key A (worker) | Helius key A | **unset** |
 | `HELIUS_RPC_URL` | Helius (parse / scripts) | optional alias | optional, not indexer key |
-| `RAW_TX_RPC_URL` | public mainnet | public mainnet | omit unless needed |
+| `RAW_TX_RPC_URL` | Alchemy | Alchemy | omit unless needed |
 
 If you only maintain one Helius URL locally, set `INDEXER_RPC_URL` and leave
 `HELIUS_RPC_URL` equal to it for `npm run worker`; the worker accepts either name.

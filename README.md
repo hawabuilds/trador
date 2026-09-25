@@ -1,15 +1,21 @@
 # Trador
 
-Coins priced in stocks, on Solana.
+**Live:** [https://www.trador.one](https://www.trador.one)
+
+![Trador — Stock app for trenchers](docs/screenshots/cover.png)
+
+Coins priced in stocks, on Solana. Trador is the feed, chart, order ticket and
+launchpad for that.
 
 Two launchpads now let a creator pick a tokenized stock as the quote asset —
 **StonkFun**, which runs on Raydium LaunchLab, and **pump.fun Custom Pairs**. So
 a coin can be denominated in NVDAx instead of SOL, and a StonkFun reward launch
-routes a share of every trade back to holders in stock. Trador is the feed,
-chart, order ticket and launchpad for that.
+routes a share of every trade back to holders in stock.
 
 ```bash
+cp .env.local.example .env.local
 npm install
+npm run db:migrate   # needs DATABASE_URL; skip if you are staying on the snapshot
 npm run dev
 ```
 
@@ -35,6 +41,7 @@ that. Your holdings are your **Stonkfolio**.
 | `/home` | Watchlist / Stonks / Stocks, with per-tab sort rails |
 | `/stonk/[mint]` | Chart, timeframes, live tape, comments, info, Buy/Sell |
 | `/stock/[ticker]` | Same, plus issuer, sector and price-source honesty |
+| `/u/[handle]` | Public profile and invite link |
 | `/search` | Stocks and coins; a pasted mint resolves directly |
 | `/news` | Coverage of the companies behind the stocks being traded against |
 | `/learn` | Three lessons. Finishing them unlocks Create |
@@ -51,11 +58,33 @@ that. Your holdings are your **Stonkfolio**.
 | Market caps | Price × supply measured on chain. Never a guess |
 | News | Yahoo per-ticker RSS, keyless |
 | Stonkfolio | `getTokenAccountsByOwner` across both token programs |
-| Quotes and swaps | Jupiter, 50 bps platform fee, one signature |
+| Quotes and swaps | Jupiter, 50 bps when the fee wallet is set, one signature. Leave the wallet unset and swaps run with no platform fee |
 | Create | Plans against chain state; does not sign — see below |
 
 The chain decides what exists. The store keeps it. Providers only decorate it.
 If every provider is down the feed still renders without live prices.
+
+## How it's built
+
+| Piece | Role |
+| --- | --- |
+| Next.js | App Router UI and API routes, deployed on Vercel |
+| Privy | Sign-in and transaction signing |
+| Jupiter | Quotes and swaps |
+| Supabase | Postgres store; the app reads through PostgREST, the worker writes over `DATABASE_URL` |
+| Helius | Indexer RPC (`getProgramAccounts`) and parsed transactions |
+| Railway | Always-on worker that discovers launches and keeps the universe growing |
+
+### Program IDs
+
+Printed exactly as `src/lib/programs.ts` spells them — case is meaning.
+
+| What | Address |
+| --- | --- |
+| Raydium LaunchLab | `LanMV9sAd7wArD4vJFi2qDdfnVhFxYSUg6eADduJ3uj` |
+| PumpSwap AMM | `pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA` |
+| StonkFun platform (rewards) | `6BwHHDg3u1854jC8PDLXvR4spTcLNaoBxLJNGC4nTESt` |
+| StonkFun platform (standard) | `4E876qZTE9FJMrBzgVtBrSrzz2TLivB5Y5QXPjB4gZL7` |
 
 ## Membership
 
@@ -83,17 +112,22 @@ candidate's mint account, groups by **mint authority**, and emits only the
 families whose authority is recognised. Two findings from that census are why
 the authority is the test rather than a name or an address prefix:
 
-- `xSOL` ("Hylo Leveraged SOL") is quoted against by 718 launches and would pass
-  any prefix rule aimed at xStocks. It is a leveraged SOL derivative.
+- `xSOL` ("Hylo Leveraged SOL") is quoted against by 718 launches (as of
+  2026-09-12) and would pass any prefix rule aimed at xStocks. It is a
+  leveraged SOL derivative.
 - `tOpenAI` sits in the census beside PreStocks' `OPENAI` under a different
-  authority. Two tokens offering OpenAI exposure, one issuer verified and one
-  not. Names cannot separate them; authorities can, immediately.
+  authority. Two tokens offering OpenAI exposure from two issuers. Names cannot
+  separate them; authorities can, immediately.
 
-Currently verified: 23 xStocks (one Backed authority) and 6 PreStocks (one
-PreStocks authority). Backpack Securities equities are real and excluded by
-default, because each of their mints carries its own authority — membership
-would be a maintained allowlist rather than one key that proves the family.
-`INCLUDE_BACKPACK=1` on a sync run admits them.
+Currently verified in the committed registry: **24** xStocks (one Backed mint
+authority), **9** PreStocks (one PreStocks mint authority), **3** Tessera
+(one Tessera mint authority — the same key mints and updates all three; a
+second key freezes all three), and **52** Backpack Securities. Backpack is
+proved by a single control key shared across freeze authority, Token-2022
+metadata update authority, and permanent delegate on every mint — not by mint
+authority, which is per-mint. The sync used to gate Backpack behind
+`INCLUDE_BACKPACK=1`; it no longer reads that flag, and the committed JSON
+already includes the family.
 
 ## Scripts
 
@@ -102,10 +136,45 @@ would be a maintained allowlist rather than one key that proves the family.
 | `npm run dev` | Dev server |
 | `npm test` | Full suite, no network |
 | `npm run typecheck` | `tsc --noEmit` |
+| `npm run worker` | Always-on indexer loop (Railway) |
+| `npm run db:migrate` | Apply `supabase/migrations/` in filename order |
+| `npm run index:once` | One indexer pass into the store |
+| `npm run backfill:launches` | Backfill launch rows |
+| `npm run backfill:prices` | Backfill prices |
+| `npm run backfill:graduated-at` | Pull `graduated_at` back to the pair's open time |
+| `npm run create:dry-run` | Exercise Create planning without signing |
+| `npm run cron` | Hit the deployed app's `/api/cron/*` routes |
 | `npm run probe:accounts` | Read the mainnet accounts the build depends on |
+| `npm run probe:pump` | Probe pump.fun / PumpSwap account layouts |
 | `npm run probe:quotes` | Census every quote asset StonkFun launches use |
 | `npm run sync:stocks` | Regenerate the stock registry (`--write` to commit it) |
 | `npm run seed:snapshot` | Recapture the universe snapshot |
+
+## Migrations
+
+SQL lives in `supabase/migrations/`. Apply with `npm run db:migrate` against
+`DATABASE_URL` (filename order, one transaction per file, safe to re-run). The
+files, in order:
+
+1. `0001_init.sql`
+2. `0002_feed_view.sql`
+3. `0003_portfolio_snapshots.sql`
+4. `0004_curve_progress.sql`
+5. `0005_notifications.sql`
+6. `0006_graduated_at.sql`
+7. `0007_discord.sql`
+8. `0008_reclassify_links.sql`
+9. `0009_wallet_trades.sql`
+10. `0010_pool_kind.sql`
+11. `0011_comment_likes.sql`
+12. `0012_portfolio_public.sql`
+13. `0013_referrals.sql`
+14. `0014_coin_tapes.sql`
+15. `0015_wallet_holdings_cache.sql`
+16. `0016_trending_metrics.sql`
+
+Without a database the app still runs on the captured snapshot. After migrate:
+`npm run index:once` to fill the store.
 
 ## Two rules that are not negotiable
 
@@ -133,14 +202,16 @@ and `quote_mint` side by side, so a coin priced in NVDAx is a PumpSwap pool whos
 quote mint is the stock.
 
 Offsets were derived from the IDL and then confirmed against mainnet: a `memcmp`
-for WSOL at `quote_mint` returns 146,685 pools, and the same filter for a stock
-mint returns real stock-quoted pools whose base mint is a pump.fun coin.
+for WSOL at `quote_mint` returns 146,685 pools (as of 2026-09-12), and the same
+filter for a stock mint returns real stock-quoted pools whose base mint is a
+pump.fun coin.
 
-**Two account sizes are live and both matter.** 301 is current (142,317 pools),
-245 is legacy (4,368). Fields were appended rather than inserted, so the offsets
-are shared — which is exactly why pump pools must not be filtered by `dataSize`.
-Pinning 245, the size the SDK types suggest, would find the 4,368 oldest pools
-and silently miss 97% of the program including every Custom Pair.
+**Two account sizes are live and both matter.** 301 is current (142,317 pools as
+of 2026-09-12), 245 is legacy (4,368 as of 2026-09-12). Fields were appended
+rather than inserted, so the offsets are shared — which is exactly why pump pools
+must not be filtered by `dataSize`. Pinning 245, the size the SDK types suggest,
+would find the 4,368 oldest pools and silently miss 97% of the program including
+every Custom Pair.
 
 ## Why Create plans but does not sign
 

@@ -1,7 +1,7 @@
 node_modules
 .next
 out
-.env*.local
+dist/
 *.tsbuildinfo
 next-env.d.ts
 .next-*
@@ -10,7 +10,24 @@ next-env.d.ts
 scripts/.cursor-*.json
 probe-output/
 
-.vercel
+# Env files with secrets — keep example templates tracked.
+.env
+.env.*
+!.env.example
+!.env.*.example
+!.env.local.example
+
+# Cursor IDE — keep project rules tracked; ignore the rest.
+.cursor/*
+!.cursor/rules/
+
+# Keypair / secret material
+id.json
+*-keypair.json
+
+# OS junk
+**/.DS_Store
+.DS_Store
 
 # Scratch output from scripts/sync-stocks and ad-hoc census runs.
 *-candidates.json
