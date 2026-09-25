@@ -25,6 +25,15 @@ const URL = process.env.DATABASE_URL ?? process.env.POSTGRES_URL ?? "";
 
 export const hasAdminPg = Boolean(URL);
 
+/**
+ * Direct Postgres from Vercel serverless.
+ *
+ * `DATABASE_URL` on a Next deployment opens a `pg` pool per concurrent
+ * invocation and exhausts Supabase; a stale URL also breaks Stonkfolio reads
+ * that touch the wallet cache. PostgREST (`hasDatabase`) is the app path.
+ */
+export const useDirectPg = hasAdminPg && process.env.VERCEL !== "1";
+
 let pool: Pool | null = null;
 
 async function getPool(): Promise<Pool> {
@@ -152,16 +161,19 @@ export async function pgUpsertStonks(writes: StonkWrite[]): Promise<number> {
   );
 
   /*
-   * Columns where the **first** value wins, not the newest.
+   * `graduated_at` keeps the **earliest** real time, not the newest write.
+   *
+   * The reconciler still stamps `now` when it first sees a TRADE pool — that
+   * is right for a live graduation caught within one sweep, and wrong for a
+   * gap-fill that discovers coins which graduated hours or days ago. A later
+   * decorate pass can supply the pool's open time (DexScreener pairCreatedAt);
+   * LEAST lets that earlier stamp replace the indexer-write time, and never
+   * lets a fresher `now` pull an already-corrected coin forward again.
    *
    * Every other optional column uses `coalesce(excluded, stored)` so a later
-   * pass that knows more can fill a blank. `graduated_at` is the opposite: the
-   * sweep stamps it on every pass, so that direction overwrites it every ninety
-   * seconds and every coin reads as having graduated seconds ago. It records
-   * when the pool was *first* seen graduated, so the stored value is the one to
-   * keep and the incoming one is only a fallback.
+   * pass that knows more can fill a blank.
    */
-  const keepFirst = new Set(["graduated_at"]);
+  const earliestWins = new Set(["graduated_at"]);
 
   const sql = `
     insert into public.stonks (${columns.join(", ")})
@@ -172,8 +184,12 @@ export async function pgUpsertStonks(writes: StonkWrite[]): Promise<number> {
         .map((column) => `${column} = excluded.${column}`)
         .concat(
           preserved.map((column) =>
-            keepFirst.has(column)
-              ? `${column} = coalesce(public.stonks.${column}, excluded.${column})`
+            earliestWins.has(column)
+              ? `${column} = case
+                  when excluded.${column} is null then public.stonks.${column}
+                  when public.stonks.${column} is null then excluded.${column}
+                  else least(public.stonks.${column}, excluded.${column})
+                end`
               : `${column} = coalesce(excluded.${column}, public.stonks.${column})`,
           ),
         )
@@ -255,11 +271,16 @@ export async function pgUpdateStonks(writes: StonkWrite[]): Promise<number> {
   const sql = `
     update public.stonks as s set
       ${columns
-        // Same keep-first rule as the upsert: an enrichment pass may fill a
-        // blank `graduated_at` but must never move one already recorded.
+        // Same earliest-wins rule as the upsert: decoration may fill a blank
+        // `graduated_at` or pull it earlier toward the real graduation time,
+        // but must never make a coin look younger than what is already stored.
         .map((column) =>
           column === "graduated_at"
-            ? `${column} = coalesce(s.${column}, v.${column})`
+            ? `${column} = case
+                when v.${column} is null then s.${column}
+                when s.${column} is null then v.${column}
+                else least(s.${column}, v.${column})
+              end`
             : `${column} = coalesce(v.${column}, s.${column})`,
         )
         .join(", ")},
@@ -340,6 +361,29 @@ export async function pgWriteIndexerState(
       [name, patch.last_slot ?? null, patch.slots_behind ?? null, patch.heartbeat_at ?? null],
     ),
   );
+}
+
+const BY_MINT_TABLES = ["stonks", "stonk_stats"] as const;
+
+/**
+ * `select * where mint in (...)` for the worker, which has `DATABASE_URL` and
+ * no PostgREST keys. `statsFor` / holdings lookups used to call `db()` here
+ * and throw "No database configured" on Railway.
+ */
+export async function pgSelectByMints<T>(
+  table: (typeof BY_MINT_TABLES)[number],
+  mints: readonly string[],
+): Promise<T[]> {
+  if (mints.length === 0) return [];
+  if (!(BY_MINT_TABLES as readonly string[]).includes(table)) {
+    throw new Error(`Refusing to select from ${table}.`);
+  }
+  return withClient(async (client) => {
+    const {rows} = await client.query(`select * from public.${table} where mint = any($1::text[])`, [
+      mints,
+    ]);
+    return rows as T[];
+  });
 }
 
 export async function pgReadIndexerState(

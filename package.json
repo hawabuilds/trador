@@ -19,6 +19,7 @@
     "probe:quotes": "node --import ./test/resolver.mjs scripts/probe-quote-mints.ts",
     "backfill:launches": "node --import ./test/resolver.mjs --env-file=.env.local scripts/backfill-launches.ts",
     "backfill:prices": "node --import ./test/resolver.mjs --env-file=.env.local scripts/backfill-prices.ts",
+    "backfill:graduated-at": "node --import ./test/resolver.mjs scripts/backfill-graduated-at.ts",
     "create:dry-run": "CREATE_DRY_RUN=1 node --import ./test/resolver.mjs --env-file=.env.local scripts/create-dry-run.ts",
     "cron:railway": "node --import ./test/resolver.mjs scripts/railway-cron.ts",
     "vapid": "node --import ./test/resolver.mjs scripts/vapid-keys.ts",

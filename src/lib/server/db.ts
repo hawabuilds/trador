@@ -16,7 +16,12 @@ import {createClient, type SupabaseClient} from "@supabase/supabase-js";
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 
-export const hasDatabase = Boolean(URL && SERVICE_KEY);
+/** PostgREST lives on `https://*.supabase.co`, not the direct `db.*` host. */
+function supabaseRestUrl(url: string): boolean {
+  return url.startsWith("https://") && url.includes(".supabase.co");
+}
+
+export const hasDatabase = Boolean(supabaseRestUrl(URL) && SERVICE_KEY);
 
 let client: SupabaseClient | null = null;
 

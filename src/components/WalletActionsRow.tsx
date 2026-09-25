@@ -15,7 +15,7 @@ export function WalletActionsRow({
   disabled?: boolean;
 }) {
   return (
-    <div className="mt-3 grid grid-cols-2 gap-2">
+    <div className="mt-3 flex gap-2">
       <ActionButton label="Send" icon={<ArrowUpIcon className="h-3.5 w-3.5" />} onClick={onSend} disabled={disabled} />
       <ActionButton label="Receive" icon={<ArrowDownIcon className="h-3.5 w-3.5" />} onClick={onReceive} disabled={disabled} />
     </div>
@@ -39,7 +39,7 @@ function ActionButton({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "flex items-center justify-center gap-1.5 rounded-[14px] bg-[var(--overlay-wash)] py-2.5",
+        "flex h-[42px] flex-1 items-center justify-center gap-1.5 rounded-[21px] bg-[var(--overlay-wash)]",
         "text-[13px] font-bold text-ink transition-[background-color,transform] duration-200",
         disabled
           ? "cursor-not-allowed opacity-45"

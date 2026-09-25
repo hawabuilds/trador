@@ -7,6 +7,7 @@ import type {ParsedTx} from "@/lib/server/live/helius";
 import {
   SOL_MINT,
   holdingProfit,
+  portfolioUnrealizedPnl,
   positionsFrom,
   signedMoney,
   tradesFromTx,
@@ -150,6 +151,53 @@ test("units that arrived without a purchase are left out and flagged", () => {
   assert.deepEqual(holdingProfit(200, 40, position(100, 10)), {usd: 10, partial: true});
   assert.equal(holdingProfit(100, 25, undefined), null);
   assert.equal(holdingProfit(100, null, position(100, 9)), null);
+});
+
+test("profit stays hidden when the history has quantity but no priced cost", () => {
+  assert.equal(holdingProfit(50, 100, position(50, 0)), null);
+});
+
+test("tokenized stocks paid in another stock pick up spot when mintUsd is given", () => {
+  const spcx = "Xs3oZwbHvqis4NYcf4YKWmEia2eC84wSiVrcYcTqpH8";
+  const msft = "XspzcW1PRtgf6Wj92HCiZdjzKCyFekVD8P5Ueh3dRMX";
+  const mintUsd = new Map<string, number>([[spcx, 50]]);
+  const buy = valueTrade(
+    {
+      signature: "sig",
+      at: "2026-09-16T12:00:00Z",
+      mint: msft,
+      side: "buy",
+      amount: 2,
+      paidMint: spcx,
+      paidAmount: 1,
+    },
+    null,
+    mintUsd,
+  );
+  close(buy.valueUsd!, 50);
+});
+
+test("portfolio unrealized P&L sums holdings with positions and skips the rest", () => {
+  const mintA = SHOEDOG;
+  const mintB = ALLINU;
+  const positions = new Map<string, Position>([
+    [mintA, position(100, 9)],
+    [mintB, position(50, 20)],
+  ]);
+  const total = portfolioUnrealizedPnl(
+    [
+      {mint: mintA, amount: 100, valueUsd: 25},
+      {mint: mintB, amount: 50, valueUsd: 30},
+      {mint: USDC, amount: 10, valueUsd: 100},
+      {mint: mintA, amount: 5, valueUsd: null},
+    ],
+    positions,
+  );
+  assert.deepEqual(total, {usd: 16 + 10, pct: ((16 + 10) / (9 + 20)) * 100, partial: false});
+  assert.equal(
+    portfolioUnrealizedPnl([{mint: mintA, amount: 100, valueUsd: 25}], new Map()),
+    null,
+  );
 });
 
 test("profit reads as signed dollars", () => {

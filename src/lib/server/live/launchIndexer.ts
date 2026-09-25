@@ -49,6 +49,7 @@ import {hasAdminPg, pgClearCurveProgress} from "../adminPg";
 import {
   type StonkWrite,
   statsFor,
+  stonksByMints,
   updateStonks,
   upsertStats,
   upsertStonks,
@@ -61,8 +62,21 @@ import {indexerRpcUrl} from "../rpcUrl";
 const RPC_URL = indexerRpcUrl();
 
 let rpcCalls = 0;
+/** After a 429, do not hit the indexer key again until this time. */
+let rpcCooldownUntil = 0;
+const RPC_429_COOLDOWN_MS = 5 * 60_000;
+
+class RpcCoolingDown extends Error {
+  constructor() {
+    super("RPC rate limited.");
+  }
+}
 
 async function rpc<T>(method: string, params: unknown[]): Promise<T> {
+  if (Date.now() < rpcCooldownUntil) {
+    throw new RpcCoolingDown();
+  }
+
   rpcCalls += 1;
   const response = await fetch(RPC_URL, {
     method: "POST",
@@ -72,6 +86,12 @@ async function rpc<T>(method: string, params: unknown[]): Promise<T> {
   });
 
   if (!response.ok) {
+    if (response.status === 429) {
+      rpcCooldownUntil = Date.now() + RPC_429_COOLDOWN_MS;
+      console.warn(
+        `indexer rpc 429 — cooling down ${Math.round(RPC_429_COOLDOWN_MS / 1000)}s (no further Helius calls)`,
+      );
+    }
     throw new Error(
       response.status === 429
         ? "RPC rate limited."
@@ -94,26 +114,15 @@ const PUMP_SWEEP_GAP_MS =
     : 700;
 
 /**
- * `rpc`, but it waits out a rate limit instead of failing the pass.
+ * `rpc` with a circuit breaker, not a retry storm.
  *
- * A throttle mid-sweep would otherwise lose every stock after the one that hit
- * it, and the pass would report a clean partial result — the universe would
- * just be quietly missing coins with no error to explain why.
+ * Five quick 429 retries kept the indexer key in Helius's penalty box.
+ * One 429 now cools the key for five minutes; later sweeps in the same
+ * pass fail immediately instead of hitting the key again. The worker
+ * backoff is what waits, not another stack of RPC calls.
  */
 async function rpcWithRetry<T>(method: string, params: unknown[]): Promise<T> {
-  let lastError: Error | null = null;
-
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    try {
-      return await rpc<T>(method, params);
-    } catch (error) {
-      lastError = error as Error;
-      if (!/rate limit/i.test(lastError.message)) throw lastError;
-      await sleep(1_500 * 2 ** attempt);
-    }
-  }
-
-  throw lastError ?? new Error("RPC failed.");
+  return await rpc<T>(method, params);
 }
 
 /** How many coins one full pass will decorate, and in what batch size. */
@@ -208,13 +217,14 @@ export async function indexStonkfun(): Promise<IndexPass> {
           reward_stock: launch.paysHolders ? launch.stock.ticker : null,
           status: statusFor({graduated: launch.pool.graduated}),
           /*
-           * Stamped on every pass, and kept by the upsert's coalesce.
+           * Provisional: "when this sweep saw the pool at TRADE".
            *
-           * `pgUpsertStonks` writes `coalesce(excluded.col, stonks.col)` for
-           * this column, so the *first* sweep that sees a pool graduated is the
-           * one that sticks and later passes leave it alone. That makes it
-           * "when Trador first saw this graduate" — which is what the New feed
-           * wants, and is not `listed_at`, the token's mint date.
+           * Right for a live graduation caught within one pass. Wrong for a
+           * gap-fill that discovers coins which graduated earlier — those get
+           * corrected by decorate from the trading pair's open time
+           * (`pairCreatedAt`), and the writer keeps the earlier stamp.
+           *
+           * Distinct from `listed_at`, the token's mint date.
            */
           graduated_at: now,
           /*
@@ -716,7 +726,9 @@ export async function decorateStonks(
         // and goes depending on how recently it was indexed.
         ...jupiterLinks(token),
         listed_at: token.createdAt,
-        // Kept-first by the writer, so this fills a blank and never moves one.
+        // Direct CLMM: mint and pool share a transaction, so createdAt is the
+        // launch. Curve grads get the trading-pair open time from Dex below —
+        // createdAt would sort them by mint date and bury a fresh graduate.
         ...(direct.has(mint) && token.createdAt ? {graduated_at: token.createdAt} : {}),
       });
 
@@ -793,7 +805,8 @@ export async function decorateStonks(
     );
 
     /*
-     * Asked about a coin missing *either* piece.
+     * Asked about a coin missing *either* piece, or any listed coin that still
+     * needs a real graduation time.
      *
      * Jupiter's `stats24h` omits `priceChange` entirely for about a fifth of
      * the universe — not zero, absent — while still returning price, volume and
@@ -801,14 +814,43 @@ export async function decorateStonks(
      * neighbour had a percentage, which reads as a broken row rather than as
      * missing data. DexScreener has the number, and it is already being called
      * here for links, so it costs the same request.
+     *
+     * Curve graduates also need Dex for `pairCreatedAt`: LaunchLab pool state
+     * has no graduation timestamp, and a gap-fill that stamps `now` would
+     * otherwise leave every recovered coin looking minutes old on New.
      */
+    const existingRows = await stonksByMints(mints);
+    /*
+     * Ask Dex for a trading-pair open time when graduation still looks
+     * provisional: blank, or stamped within the last half hour (the reconciler
+     * writes `now` on first sight — right for a live catch, wrong for a
+     * gap-fill). Once decorate has pulled that earlier to the real open time,
+     * the coin drops out of this set and we stop asking.
+     */
+    const GRADUATION_PROVISIONAL_MS = 30 * 60_000;
+    const nowMs = Date.now();
+    const needGraduation = new Set<string>();
+    for (const write of stonkWrites) {
+      if (onCurve.has(write.mint) || direct.has(write.mint)) continue;
+      const stored = existingRows.get(write.mint)?.row.graduated_at ?? null;
+      if (!stored) {
+        needGraduation.add(write.mint);
+        continue;
+      }
+      const stamped = Date.parse(stored);
+      if (Number.isFinite(stamped) && nowMs - stamped <= GRADUATION_PROVISIONAL_MS) {
+        needGraduation.add(write.mint);
+      }
+    }
+
     const needFill = stonkWrites
       .filter(
         (write) =>
           !write.twitter ||
           !write.website ||
           !write.image_url ||
-          missingChange.has(write.mint),
+          missingChange.has(write.mint) ||
+          needGraduation.has(write.mint),
       )
       .map((write) => write.mint as Pubkey);
 
@@ -829,6 +871,10 @@ export async function decorateStonks(
           if (!write.image_url && fill.imageUrl) {
             write.image_url = fill.imageUrl;
             write.image_source = "dexscreener";
+          }
+          // Earliest-wins in the writer; a gap-fill `now` yields to this.
+          if (fill.pairCreatedAt && needGraduation.has(write.mint)) {
+            write.graduated_at = fill.pairCreatedAt;
           }
         }
 

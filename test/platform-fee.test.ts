@@ -6,6 +6,7 @@ import {
   feeCollectorFromEnv,
   platformFeePairEligible,
 } from "@/lib/server/live/platformFee";
+import {quoteWithoutPlatformFee} from "@/lib/server/live/jupiter";
 import {assertPubkey} from "@/lib/pubkey";
 
 const MSFT = assertPubkey(
@@ -38,6 +39,28 @@ describe("platformFeePairEligible", () => {
       platformFeePairEligible({inputMint: WSOL_MINT, outputMint: STONK}),
       false,
     );
+  });
+});
+
+describe("quoteWithoutPlatformFee", () => {
+  it("removes fee fields from the opaque quote payload", () => {
+    const quote = quoteWithoutPlatformFee({
+      inputMint: MSFT,
+      outputMint: WSOL_MINT,
+      inAmount: "1000",
+      outAmount: "900",
+      otherAmountThreshold: "850",
+      priceImpactPct: 0,
+      slippageBps: 100,
+      platformFee: {amount: "9", feeBps: 100},
+      routeLabels: [],
+      raw: {platformFeeBps: 100, platformFee: {amount: "9"}, inAmount: "1000"},
+    });
+    assert.equal(quote.platformFee, null);
+    const raw = quote.raw as Record<string, unknown>;
+    assert.equal(raw.platformFee, undefined);
+    assert.equal(raw.platformFeeBps, undefined);
+    assert.equal(raw.inAmount, "1000");
   });
 });
 

@@ -41,17 +41,52 @@ interface ParsedTokenAccount {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** Per-URL ceiling — fail over to the next host rather than hang on one. */
+const WALLET_RPC_TIMEOUT_MS = 12_000;
+
+function rpcFailoverError(message: string): boolean {
+  return (
+    message === "RPC returned 429." ||
+    message === "RPC timed out." ||
+    /^RPC returned 5\d\d\.$/.test(message)
+  );
+}
+
+function rpcFetchError(error: unknown): Error {
+  if (error instanceof Error) {
+    if (error.name === "TimeoutError" || error.name === "AbortError") {
+      return new Error("RPC timed out.");
+    }
+    return error;
+  }
+  return new Error("RPC request failed.");
+}
+
 async function rpcAt<T>(url: string, method: string, params: unknown[]): Promise<T> {
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {"content-type": "application/json"},
-      cache: "no-store",
-      body: JSON.stringify({jsonrpc: "2.0", id: 1, method, params}),
-    });
+  /*
+   * One quick retry on 429, then fail over. Five backoffs on a single URL
+   * blocked the order ticket for tens of seconds while `walletBalanceRpcUrls`
+   * still had Alchemy, public mainnet, or Helius left to try.
+   */
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        headers: {"content-type": "application/json"},
+        cache: "no-store",
+        body: JSON.stringify({jsonrpc: "2.0", id: 1, method, params}),
+        signal: AbortSignal.timeout(WALLET_RPC_TIMEOUT_MS),
+      });
+    } catch (error) {
+      throw rpcFetchError(error);
+    }
     if (response.status === 429) {
-      await sleep(Math.min(8_000, 400 * 2 ** attempt));
-      continue;
+      if (attempt === 0) {
+        await sleep(250);
+        continue;
+      }
+      throw new Error("RPC returned 429.");
     }
     if (!response.ok) throw new Error(`RPC returned ${response.status}.`);
     const body = (await response.json()) as {result?: T; error?: {message: string}};
@@ -69,8 +104,7 @@ async function rpc<T>(method: string, params: unknown[]): Promise<T> {
       return await rpcAt<T>(urls[index], method, params);
     } catch (error) {
       last = error as Error;
-      const rateLimited = last.message === "RPC returned 429.";
-      if (!rateLimited || index === urls.length - 1) throw last;
+      if (!rpcFailoverError(last.message) || index === urls.length - 1) throw last;
     }
   }
   throw last ?? new Error("RPC returned 429.");

@@ -16,8 +16,7 @@
 import {type Pubkey} from "@/lib/pubkey";
 import {FEE_BPS} from "@/config/fees";
 import {FEE_COLLECTOR} from "@/lib/server/live/platformFee";
-
-const BASE = process.env.JUPITER_API_URL ?? "https://lite-api.jup.ag";
+import {JUPITER_API_BASE, jupiterFetchHeaders} from "@/lib/server/live/jupiterEnv";
 
 /** @deprecated Use `FEE_COLLECTOR` from `platformFee.ts`. */
 export const FEE_WALLET = FEE_COLLECTOR;
@@ -62,18 +61,14 @@ export async function quote(request: QuoteRequest): Promise<SwapQuote> {
     params.set("platformFeeBps", String(FEE_BPS));
   }
 
-  const response = await fetch(`${BASE}/swap/v1/quote?${params}`, {
+  const response = await fetch(`${JUPITER_API_BASE}/swap/v1/quote?${params}`, {
     cache: "no-store",
-    headers: {accept: "application/json"},
+    headers: jupiterFetchHeaders(),
   });
 
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(
-      response.status === 429
-        ? "The router is rate limited. Try again in a moment."
-        : parseJupError(body) ?? `Could not price this trade (${response.status}).`,
-    );
+    throw jupiterHttpError(response.status, body, "price");
   }
 
   const body = (await response.json()) as Record<string, unknown>;
@@ -114,9 +109,9 @@ export interface BuiltSwap {
 }
 
 export async function buildSwap(request: BuildRequest): Promise<BuiltSwap> {
-  const response = await fetch(`${BASE}/swap/v1/swap`, {
+  const response = await fetch(`${JUPITER_API_BASE}/swap/v1/swap`, {
     method: "POST",
-    headers: {"content-type": "application/json", accept: "application/json"},
+    headers: jupiterFetchHeaders({"content-type": "application/json"}),
     cache: "no-store",
     body: JSON.stringify({
       quoteResponse: request.quote.raw,
@@ -133,10 +128,8 @@ export async function buildSwap(request: BuildRequest): Promise<BuiltSwap> {
   });
 
   if (!response.ok) {
-    throw new Error(
-      parseJupError(await response.text()) ??
-        `Could not build this transaction (${response.status}).`,
-    );
+    const body = await response.text();
+    throw jupiterHttpError(response.status, body, "build");
   }
 
   const body = (await response.json()) as Record<string, unknown>;
@@ -157,6 +150,34 @@ export async function buildSwap(request: BuildRequest): Promise<BuiltSwap> {
         ? body.prioritizationFeeLamports
         : null,
   };
+}
+
+/** Drop platform fee fields so build can run without a fee account (same route, no re-quote). */
+export function quoteWithoutPlatformFee(quote: SwapQuote): SwapQuote {
+  const raw = {...(quote.raw as Record<string, unknown>)};
+  delete raw.platformFee;
+  delete raw.platformFeeBps;
+  return {...quote, platformFee: null, raw};
+}
+
+export function isJupiterRateLimitError(message: string): boolean {
+  return /rate limited/i.test(message);
+}
+
+function jupiterHttpError(
+  status: number,
+  body: string,
+  step: "price" | "build",
+): Error {
+  if (status === 429) {
+    return new Error("The router is rate limited. Try again in a moment.");
+  }
+  const parsed =
+    parseJupError(body) ??
+    (step === "price"
+      ? `Could not price this trade (${status}).`
+      : `Could not build this transaction (${status}).`);
+  return new Error(parsed);
 }
 
 /** Jupiter reports its own reasons in the body; surface them rather than a code. */

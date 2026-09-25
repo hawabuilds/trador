@@ -11,6 +11,8 @@ import {persistFeedCache, restoreFeedCache} from "@/lib/feedCache";
 import {SERVICE_WORKER} from "@/config/flags";
 import {isPrivyConfigured} from "@/lib/session";
 
+const usePrivy = isPrivyConfigured;
+
 /**
  * Privy is a large dependency and the landing page does not need it, so it is
  * only loaded when an app id is actually configured. Without one the app runs
@@ -62,7 +64,7 @@ export function Providers({children}: {children: React.ReactNode}) {
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
-        {isPrivyConfigured ? (
+        {usePrivy ? (
           <PrivySessionProvider>{children}</PrivySessionProvider>
         ) : (
           <DemoSessionProvider>{children}</DemoSessionProvider>

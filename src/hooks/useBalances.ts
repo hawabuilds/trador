@@ -27,7 +27,7 @@ export function useBalances(
 ) {
   return useQuery({
     queryKey: balancesKey(wallet, mints),
-    enabled: enabled && wallet !== null && mints.length > 0,
+    enabled: enabled && wallet !== null,
     staleTime: 5_000,
     refetchInterval: enabled ? 15_000 : false,
     queryFn: async (): Promise<BalancesResponse> => {

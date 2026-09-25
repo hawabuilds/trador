@@ -17,7 +17,7 @@
  * the decoration.
  */
 
-import {hasAdminPg, withClient} from "@/lib/server/adminPg";
+import {useDirectPg, withClient} from "@/lib/server/adminPg";
 import {db, hasDatabase} from "@/lib/server/db";
 import type {Pubkey} from "@/lib/pubkey";
 
@@ -37,7 +37,7 @@ export interface Snapshot {
   value: number;
 }
 
-export const snapshotsReady = hasAdminPg || hasDatabase;
+export const snapshotsReady = useDirectPg || hasDatabase;
 
 /**
  * Record a wallet's value, if enough time has passed since the last point.
@@ -78,7 +78,7 @@ export async function readSnapshots(
   const since = new Date(Date.now() - sinceMs).toISOString();
 
   try {
-    if (hasAdminPg) {
+    if (useDirectPg) {
       return await withClient(async (client) => {
         const {rows} = await client.query(
           `select at, total_usd from public.portfolio_snapshots
@@ -116,7 +116,7 @@ function toSnapshot(row: {at: string | Date; total_usd: string | number}): Snaps
 }
 
 async function newestAt(wallet: Pubkey): Promise<number | null> {
-  if (hasAdminPg) {
+  if (useDirectPg) {
     return withClient(async (client) => {
       const {rows} = await client.query(
         "select at from public.portfolio_snapshots where wallet = $1 order by at desc limit 1",
@@ -153,7 +153,7 @@ async function insert(
     sol_usd: parts?.solUsd ?? null,
   };
 
-  if (hasAdminPg) {
+  if (useDirectPg) {
     await withClient((client) =>
       client.query(
         `insert into public.portfolio_snapshots

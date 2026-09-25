@@ -22,6 +22,8 @@ interface FilterRailProps<T extends string> {
   /** Slot at the head of the rail, used for the sort control on the feed. */
   lead?: ReactNode;
   className?: string;
+  /** Extra classes merged onto each chip button (e.g. smaller Stonkfolio chart row). */
+  chipClassName?: string;
 }
 
 /**
@@ -38,6 +40,7 @@ export function FilterRail<T extends string>({
   label,
   lead,
   className,
+  chipClassName,
 }: FilterRailProps<T>) {
   const railRef = useRef<HTMLDivElement>(null);
 
@@ -85,6 +88,7 @@ export function FilterRail<T extends string>({
             onClick={() => onChange(option.value)}
             className={cn(
               "shrink-0 whitespace-nowrap rounded-full px-3.5 py-2 text-[13.5px] leading-none",
+              chipClassName,
               "transition-[background-color,color,opacity] duration-150",
               active
                 ? "bg-[var(--bg-input)] font-extrabold text-ink shadow-tab-active"

@@ -29,6 +29,8 @@ interface DexPair {
   baseToken?: {address?: string};
   liquidity?: {usd?: number};
   priceChange?: {h24?: number};
+  /** Unix ms when the trading pair opened — post-migrate pool for curve grads. */
+  pairCreatedAt?: number;
   info?: {
     imageUrl?: string;
     websites?: {url?: string}[];
@@ -43,6 +45,14 @@ export interface DexFill {
   priceChange24h: number | null;
   /** Artwork, for the handful of coins the token API has none for. */
   imageUrl: string | null;
+  /**
+   * When the deepest reported pair opened, as an ISO timestamp.
+   *
+   * For a LaunchLab curve that graduated into Raydium, this is the CPMM open
+   * time — the actual graduation — not the mint date and not when an indexer
+   * first wrote the row. LaunchLab pool state does not store that time.
+   */
+  pairCreatedAt: string | null;
 }
 
 /**
@@ -102,7 +112,12 @@ export async function dexscreenerFill(
         if (!mint) continue;
 
         const current =
-          found.get(mint) ?? {links: {}, priceChange24h: null, imageUrl: null};
+          found.get(mint) ?? {
+            links: {},
+            priceChange24h: null,
+            imageUrl: null,
+            pairCreatedAt: null,
+          };
 
         const links = socialsFrom(pair);
         for (const [slot, url] of Object.entries(links)) {
@@ -117,11 +132,22 @@ export async function dexscreenerFill(
 
         const change = pair.priceChange?.h24;
         const depth = pair.liquidity?.usd ?? 0;
-        if (typeof change === "number" && Number.isFinite(change)) {
-          if (!deepest.has(mint) || depth > (deepest.get(mint) ?? 0)) {
-            deepest.set(mint, depth);
+        const createdMs = pair.pairCreatedAt;
+        const createdAt =
+          typeof createdMs === "number" &&
+          Number.isFinite(createdMs) &&
+          createdMs > 0
+            ? new Date(createdMs).toISOString()
+            : null;
+
+        if (!deepest.has(mint) || depth > (deepest.get(mint) ?? 0)) {
+          deepest.set(mint, depth);
+          if (typeof change === "number" && Number.isFinite(change)) {
             current.priceChange24h = change;
           }
+          // Deepest pair wins the open time too — thin secondary markets are
+          // often created later and would make a coin look younger than it is.
+          if (createdAt) current.pairCreatedAt = createdAt;
         }
 
         found.set(mint, current);
@@ -133,6 +159,7 @@ export async function dexscreenerFill(
         const empty =
           fill.priceChange24h === null &&
           fill.imageUrl === null &&
+          fill.pairCreatedAt === null &&
           !fill.links.x &&
           !fill.links.telegram &&
           !fill.links.discord &&

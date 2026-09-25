@@ -8,15 +8,14 @@
  *   npm run index:once
  */
 
-import {hasDatabase} from "@/lib/server/db";
 import {indexAll} from "@/lib/server/live/launchIndexer";
-import {universeCount} from "@/lib/server/live/universeStore";
+import {storeReady, universeCount} from "@/lib/server/live/universeStore";
 
 async function main(): Promise<void> {
-  if (!hasDatabase) {
+  if (!storeReady) {
     throw new Error(
-      "No database configured. Set NEXT_PUBLIC_SUPABASE_URL and " +
-        "SUPABASE_SERVICE_ROLE_KEY in .env.local.",
+      "No database configured. Set DATABASE_URL, or " +
+        "NEXT_PUBLIC_SUPABASE_URL together with SUPABASE_SERVICE_ROLE_KEY.",
     );
   }
 

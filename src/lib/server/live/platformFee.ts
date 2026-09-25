@@ -99,11 +99,14 @@ export function platformFeePairEligible(params: {
   return wsolLeg && samePubkey(params.outputMint, WSOL_MINT);
 }
 
-/**
- * Initialized wSOL ATA that can receive the platform fee for this pair, or null
- * when fees should not be priced (missing collector config or ATA).
- */
-export async function resolvePlatformFeeAccount(params: {
+const FEE_ACCOUNT_CACHE_MS = 30_000;
+const feeAccountCache = new Map<string, {at: number; value: Pubkey | null}>();
+
+function feeAccountCacheKey(inputMint: Pubkey, outputMint: Pubkey): string {
+  return `${inputMint}\0${outputMint}`;
+}
+
+async function resolvePlatformFeeAccountUncached(params: {
   inputMint: Pubkey;
   outputMint: Pubkey;
 }): Promise<Pubkey | null> {
@@ -128,4 +131,21 @@ export async function resolvePlatformFeeAccount(params: {
 
   if (await initializedTokenAccount(wsolAta)) return wsolAta;
   return null;
+}
+
+/**
+ * Initialized wSOL ATA that can receive the platform fee for this pair, or null
+ * when fees should not be priced (missing collector config or ATA).
+ */
+export async function resolvePlatformFeeAccount(params: {
+  inputMint: Pubkey;
+  outputMint: Pubkey;
+}): Promise<Pubkey | null> {
+  const key = feeAccountCacheKey(params.inputMint, params.outputMint);
+  const hit = feeAccountCache.get(key);
+  if (hit && Date.now() - hit.at < FEE_ACCOUNT_CACHE_MS) return hit.value;
+
+  const value = await resolvePlatformFeeAccountUncached(params);
+  feeAccountCache.set(key, {at: Date.now(), value});
+  return value;
 }

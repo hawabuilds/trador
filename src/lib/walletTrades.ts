@@ -19,6 +19,7 @@
  */
 
 import type {ParsedTx} from "@/lib/server/live/helius";
+import {samePubkey} from "@/lib/pubkey";
 import {
   ASSOCIATED_TOKEN_PROGRAM,
   TOKEN_2022_PROGRAM,
@@ -181,15 +182,28 @@ export function tradesFromTx(tx: ParsedTx, wallet: string): RawTrade[] {
 /**
  * Dollar value of a trade at the time, given SOL's price then.
  *
- * Stables are worth their face; SOL at its price that minute; anything else is
- * unknown, and left null rather than guessed.
+ * Stables are worth their face; SOL at its price that minute; verified stocks
+ * at the spot passed in `mintUsd` (pool aggregate at sync time). Anything else
+ * is left null rather than guessed.
  */
-export function valueTrade(trade: RawTrade, solUsd: number | null): WalletTrade {
+export function valueTrade(
+  trade: RawTrade,
+  solUsd: number | null,
+  mintUsd: ReadonlyMap<string, number> = new Map(),
+): WalletTrade {
   let valueUsd: number | null = null;
   if (STABLES.has(trade.paidMint)) valueUsd = trade.paidAmount;
   else if (STABLES.has(trade.mint)) valueUsd = trade.amount;
   else if (trade.paidMint === SOL_MINT && solUsd !== null) valueUsd = trade.paidAmount * solUsd;
   else if (trade.mint === SOL_MINT && solUsd !== null) valueUsd = trade.amount * solUsd;
+  else {
+    const paid = mintUsd.get(trade.paidMint);
+    if (paid !== undefined) valueUsd = trade.paidAmount * paid;
+    else {
+      const received = mintUsd.get(trade.mint);
+      if (received !== undefined) valueUsd = trade.amount * received;
+    }
+  }
 
   return {
     ...trade,
@@ -271,17 +285,75 @@ const QTY_TOLERANCE = 0.02;
  * history shows were bought (a transfer in, an airdrop) have no known cost, so
  * only the covered part is measured and the result is marked partial.
  */
+function holdingPnl(
+  held: number,
+  valueUsd: number | null,
+  position: Position | undefined,
+): {usd: number; costUsd: number; partial: boolean} | null {
+  if (!position || valueUsd === null || !(held > 0) || !(position.qty > 0)) return null;
+  const covered = Math.min(held, position.qty);
+  const coveredValue = valueUsd * (covered / held);
+  const coveredCost = position.costUsd * (covered / position.qty);
+  // No priced buys in the history for this slice — only transfers/airdrops.
+  if (!(coveredCost > 0)) return null;
+  const partial = !position.complete || held > position.qty * (1 + QTY_TOLERANCE);
+  return {usd: coveredValue - coveredCost, costUsd: coveredCost, partial};
+}
+
+/** Look up cost basis by mint — keys are stored exactly as base58 spells them. */
+export function positionByMint(
+  positions: ReadonlyMap<string, Position>,
+  mint: string,
+): Position | undefined {
+  const direct = positions.get(mint);
+  if (direct) return direct;
+  for (const [key, row] of positions) {
+    if (key !== mint && samePubkey(key, mint)) return row;
+  }
+  return undefined;
+}
+
 export function holdingProfit(
   held: number,
   valueUsd: number | null,
   position: Position | undefined,
 ): {usd: number; partial: boolean} | null {
-  if (!position || valueUsd === null || !(held > 0) || !(position.qty > 0)) return null;
-  const covered = Math.min(held, position.qty);
-  const coveredValue = valueUsd * (covered / held);
-  const coveredCost = position.costUsd * (covered / position.qty);
-  const partial = !position.complete || held > position.qty * (1 + QTY_TOLERANCE);
-  return {usd: coveredValue - coveredCost, partial};
+  const row = holdingPnl(held, valueUsd, position);
+  return row ? {usd: row.usd, partial: row.partial} : null;
+}
+
+/** One row the portfolio total can sum — mint ties it to a cost-basis position. */
+export interface HoldingForPnl {
+  mint: string;
+  amount: number;
+  valueUsd: number | null;
+}
+
+/**
+ * Unrealised P&L across every holding that has a known purchase price.
+ *
+ * Omits coins with no trade history or no price. When nothing qualifies, null.
+ */
+export function portfolioUnrealizedPnl(
+  holdings: readonly HoldingForPnl[],
+  positions: ReadonlyMap<string, Position>,
+): {usd: number; pct: number | null; partial: boolean} | null {
+  let usd = 0;
+  let costUsd = 0;
+  let partial = false;
+  let any = false;
+
+  for (const holding of holdings) {
+    const row = holdingPnl(holding.amount, holding.valueUsd, positionByMint(positions, holding.mint));
+    if (!row) continue;
+    any = true;
+    usd += row.usd;
+    costUsd += row.costUsd;
+    if (row.partial) partial = true;
+  }
+
+  if (!any) return null;
+  return {usd, pct: costUsd > 0 ? (usd / costUsd) * 100 : null, partial};
 }
 
 /** "+$16.52" / "−$3.10" — the sign is part of the number. */

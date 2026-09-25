@@ -1,7 +1,7 @@
 import {badRequest, json} from "@/lib/server/http";
 import {asPubkey} from "@/lib/pubkey";
 import {USDC_MINT, WSOL_MINT} from "@/lib/programs";
-import {quote} from "@/lib/server/live/jupiter";
+import {isJupiterRateLimitError, quote} from "@/lib/server/live/jupiter";
 import {resolvePlatformFeeAccount} from "@/lib/server/live/platformFee";
 
 export const dynamic = "force-dynamic";
@@ -49,6 +49,7 @@ export async function GET(request: Request) {
       stableMint: USDC_MINT,
     });
   } catch (error) {
-    return json({error: (error as Error).message}, {status: 502});
+    const message = (error as Error).message;
+    return json({error: message}, {status: isJupiterRateLimitError(message) ? 429 : 502});
   }
 }

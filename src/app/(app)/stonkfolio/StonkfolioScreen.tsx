@@ -40,15 +40,23 @@ import {fromBaseUnits, lamportsFrom} from "@/lib/amounts";
 import {compact, compactMoney, stamp} from "@/lib/format";
 import {shortPubkey} from "@/lib/pubkey";
 import type {Holding} from "@/lib/types";
+import {positionByMint} from "@/lib/walletTrades";
+
+/** Compact enough that 3–4 holdings clear the floating nav on the phone frame. */
+const CHART_HEIGHT = 88;
 
 const AllocationChart = dynamic(
   () => import("@/components/AllocationChart").then((m) => ({default: m.AllocationChart})),
-  {ssr: false, loading: () => <div className="h-[180px] animate-pulse rounded-panel bg-wash" />},
+  {ssr: false, loading: () => <div className="h-[88px] animate-pulse rounded-panel bg-wash" />},
 );
 const BalanceChart = dynamic(
   () => import("@/components/BalanceChart").then((m) => ({default: m.BalanceChart})),
-  {ssr: false, loading: () => <div className="h-[180px] animate-pulse rounded-panel bg-wash" />},
+  {ssr: false, loading: () => <div className="h-[88px] animate-pulse rounded-panel bg-wash" />},
 );
+
+/** Clears the floating tab bar (14px offset + pill) when scrolled to the end. */
+const HOLDINGS_SCROLL_PAD =
+  "pb-[calc(96px+env(safe-area-inset-bottom,0px))]" as const;
 
 type Split = "all" | "stonk" | "stock";
 
@@ -180,7 +188,7 @@ export function StonkfolioScreen() {
   const solLabel = fromBaseUnits(BigInt(lamportsFrom(query.data?.solLamports) ?? 0), 9);
 
   // Cost basis for the gain line — after holdings so the first paint is one RPC batch.
-  const trades = useWalletTrades(wallet, {enabled: Boolean(query.data)});
+  const trades = useWalletTrades(wallet, {enabled: Boolean(wallet)});
   const positions = useMemo(
     () => new Map(trades.positions.map((position) => [position.mint, position])),
     [trades.positions],
@@ -206,7 +214,7 @@ export function StonkfolioScreen() {
   }
 
   return (
-    <div>
+    <div className="min-w-0">
       <StickyPageHeader>
         <div className="flex items-center gap-3">
           {/*
@@ -219,7 +227,7 @@ export function StonkfolioScreen() {
             name={displayName ?? handle ?? "?"}
             src={pfpUrl}
             seed={wallet ?? "demo"}
-            size={42}
+            size={46}
           />
           <div className="min-w-0 flex-1">
             {/*
@@ -230,33 +238,38 @@ export function StonkfolioScreen() {
               signed in with is what makes this read as *your* page rather than
               a generic wallet view. The handle sits beside the address below.
             */}
-            <h1 className="truncate text-[18px] font-extrabold tracking-[-0.03em]">
+            <h1 className="truncate text-[19px] font-extrabold tracking-[-0.03em]">
               {displayName ?? handle ?? "Stonkfolio"}
             </h1>
-            {handle ? (
-              <span className="mr-2 text-[12px] font-semibold text-faint">
-                @{handle}
-              </span>
-            ) : null}
-            {wallet ? (
-              <button
-                type="button"
-                onClick={() => {
-                  void navigator.clipboard.writeText(wallet).then(
-                    () => {
-                      setCopied(true);
-                      window.setTimeout(() => setCopied(false), 1600);
-                    },
-                    () => setCopied(false),
-                  );
-                }}
-                className="mt-0.5 inline-flex items-center gap-1 text-[12px] font-semibold text-faint transition-colors hover:text-muted"
-              >
-                <span className="font-mono">
-                  {copied ? "Copied" : shortPubkey(wallet, 5, 5)}
-                </span>
-                <CopyIcon className="h-3 w-3" />
-              </button>
+            {handle || wallet ? (
+              <div className="mt-0.5 flex min-w-0 items-center text-[12px] font-semibold text-faint">
+                {handle ? (
+                  <span className="min-w-0 truncate">@{handle}</span>
+                ) : null}
+                {handle && wallet ? (
+                  <span className="shrink-0 px-1">·</span>
+                ) : null}
+                {wallet ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(wallet).then(
+                        () => {
+                          setCopied(true);
+                          window.setTimeout(() => setCopied(false), 1600);
+                        },
+                        () => setCopied(false),
+                      );
+                    }}
+                    className="inline-flex min-w-0 shrink items-center gap-1 transition-colors hover:text-muted"
+                  >
+                    <span className="truncate font-mono">
+                      {copied ? "Copied" : shortPubkey(wallet, 5, 5)}
+                    </span>
+                    <CopyIcon className="h-3 w-3 shrink-0" />
+                  </button>
+                ) : null}
+              </div>
             ) : null}
           </div>
 
@@ -275,12 +288,12 @@ export function StonkfolioScreen() {
           list anchors to the stat that opened it, so it reads as belonging to
           that number rather than as a new screen.
         */}
-        <div className="mt-3 flex items-center gap-4">
+        <div className="mt-3 flex min-w-0 items-center gap-2">
           <button
             ref={followersRef}
             type="button"
             onClick={() => setConnections(connections === "followers" ? null : "followers")}
-            className="tabular-nums text-[12.5px] font-semibold text-faint transition-colors hover:text-ink"
+            className="tabular-nums shrink-0 whitespace-nowrap text-[13px] font-semibold text-faint transition-colors hover:text-ink"
           >
             <span className="font-extrabold text-ink">
               {compact(me.followerCount)}
@@ -291,7 +304,7 @@ export function StonkfolioScreen() {
             ref={followingRef}
             type="button"
             onClick={() => setConnections(connections === "following" ? null : "following")}
-            className="tabular-nums text-[12.5px] font-semibold text-faint transition-colors hover:text-ink"
+            className="tabular-nums shrink-0 whitespace-nowrap text-[13px] font-semibold text-faint transition-colors hover:text-ink"
           >
             <span className="font-extrabold text-ink">
               {compact(me.followingCount)}
@@ -304,12 +317,25 @@ export function StonkfolioScreen() {
             profile, and Share is the one that grows the app — every sign-up
             through the link is credited to whoever shared it.
           */}
-          <div className="ml-auto flex items-center gap-1.5">
-            {handle ? <ShareProfileButton handle={handle} displayName={displayName} /> : null}
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+            {/*
+              Only the server handle. Privy's X username is known at login, but
+              until `/api/me` inserts the `users` row the public `/u/…` page is
+              a 404 — sharing that link is how someone can "have a profile URL"
+              with no account.
+            */}
+            {me.profileHandle ? (
+              <ShareProfileButton
+                handle={me.profileHandle}
+                displayName={displayName}
+                iconOnly
+                className="px-[14px] py-2 text-[13px]"
+              />
+            ) : null}
             <button
               type="button"
               onClick={() => setEditOpen(true)}
-              className="shrink-0 whitespace-nowrap rounded-full bg-[var(--overlay-wash)] px-3 py-1.5 text-[12px] font-extrabold text-ink transition-colors hover:bg-[var(--overlay-wash-hover)]"
+              className="shrink-0 whitespace-nowrap rounded-full bg-[var(--overlay-wash)] px-[14px] py-2 text-[13px] font-extrabold text-ink transition-colors hover:bg-[var(--overlay-wash-hover)]"
             >
               Edit profile
             </button>
@@ -317,46 +343,46 @@ export function StonkfolioScreen() {
         </div>
 
         {me.bio ? (
-          <p className="mt-2 text-[13px] leading-[1.5] text-muted">{me.bio}</p>
+          <p className="mt-3 text-[13px] leading-[1.5] text-muted">{me.bio}</p>
         ) : null}
 
         {me.socials.x || me.socials.telegram || me.socials.website ? (
-          <SocialRow socials={me.socials} className="-ml-1.5 mt-1" />
+          <SocialRow socials={me.socials} className="-ml-1.5 mt-3" />
         ) : null}
 
-        <div className="mt-4">
+        <div className="mt-3">
           <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-faint">
             {scrubbed ? "Value at" : "Stonkfolio value"}
           </div>
-          <div className="tabular-nums mt-0.5 text-[30px] font-extrabold leading-none tracking-[-0.035em]">
+          <div className="tabular-nums mt-0.5 text-[38px] font-extrabold leading-none tracking-[-0.035em]">
             {query.isLoading
               ? "—"
               : compactMoney(scrubbed?.value ?? query.data?.totalUsd ?? 0)}
           </div>
-          <div className="tabular-nums mt-1.5 flex items-center gap-2 text-[12px] font-bold text-faint">
+          <div className="tabular-nums mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] font-bold text-faint">
             {/*
               While scrubbing, the line under the number is the time being
               pointed at rather than the wallet's composition — the composition
               shown is today's and would be wrong for a point last week.
             */}
             {scrubbed ? (
-              <span>{stamp(new Date(scrubbed.t).toISOString())}</span>
+              <span className="tabular-nums">{stamp(new Date(scrubbed.t).toISOString())}</span>
             ) : (
               <>
                 {history.change ? (
                   <PriceDelta
                     value={history.change.pct}
-                    className="text-[12px] font-bold"
+                    className="text-[13px] font-bold tabular-nums"
                   />
                 ) : null}
-                <span>{solLabel} SOL</span>
+                <span className="tabular-nums">{solLabel} SOL</span>
                 {/*
                   Counted and named rather than folded into the total. The
                   number above is what this app can price, not everything in
                   the wallet.
                 */}
                 {query.data && query.data.otherCount > 0 ? (
-                  <span>· {query.data.otherCount} not priced here</span>
+                  <span className="tabular-nums">· {query.data.otherCount} not priced here</span>
                 ) : null}
               </>
             )}
@@ -371,13 +397,14 @@ export function StonkfolioScreen() {
           />
         ) : null}
 
-        <div className="mt-3 flex items-center gap-2">
+        <div className="mt-2 flex items-center gap-2">
           <FilterRail
             label="Chart view"
             options={CHART_MODES}
             value={chartMode}
             onChange={setChartMode}
             className="mb-0 min-w-0 flex-1 !mx-0 !px-0"
+            chipClassName="px-3 py-1.5 text-[12px]"
           />
           {chartMode === "trend" && (history.ready || history.points.length > 0) ? (
             <RangePills value={range} onChange={setRange} />
@@ -408,8 +435,15 @@ export function StonkfolioScreen() {
       />
 
       {chartMode === "trend" ? (
-        <div className="pb-3.5 pt-1">
-          <FilterRail label="Split holdings" options={SPLITS} value={split} onChange={setSplit} />
+        <div className="mt-2">
+          <FilterRail
+            label="Split holdings"
+            options={SPLITS}
+            value={split}
+            onChange={setSplit}
+            className="mb-0"
+            chipClassName="px-3 py-1.5 text-[12px]"
+          />
         </div>
       ) : null}
 
@@ -428,10 +462,10 @@ export function StonkfolioScreen() {
 
       {chartMode === "trend" ? (
         query.isLoading ? (
-          <ul>
+          <ul className={cn("flex flex-col gap-2.5 pt-0.5", HOLDINGS_SCROLL_PAD)}>
             {Array.from({length: 5}).map((_unused, index) => (
-              <li key={index} className="flex items-center gap-3 py-3.5">
-                <div className="h-10 w-10 animate-pulse rounded-full bg-wash" />
+              <li key={index} className="flex items-center gap-3">
+                <div className="h-9 w-9 shrink-0 animate-pulse rounded-full bg-wash" />
                 <div className="flex-1">
                   <div className="h-3.5 w-20 animate-pulse rounded bg-wash" />
                   <div className="mt-2 h-3 w-14 animate-pulse rounded bg-wash" />
@@ -458,12 +492,18 @@ export function StonkfolioScreen() {
             </Link>
           </div>
         ) : (
-          <ul className="-mx-[22px]">
+          <ul
+            className={cn(
+              "-mx-[22px] flex flex-col gap-2.5 pt-0.5",
+              HOLDINGS_SCROLL_PAD,
+            )}
+          >
             {holdings.map((holding) => (
               <li key={`${holding.asset.kind}:${holding.asset.id}`}>
                 <HoldingRow
                   holding={holding}
-                  position={positions.get(holding.asset.mint)}
+                  position={positionByMint(positions, holding.asset.mint)}
+                  compact
                 />
               </li>
             ))}
@@ -557,7 +597,7 @@ function RangePills({
             aria-pressed={active}
             onClick={() => onChange(option.value)}
             className={cn(
-              "rounded-full px-2 py-0.5 text-[10.5px] font-extrabold leading-none transition-colors",
+              "rounded-full px-2 py-0.5 text-[11px] font-extrabold leading-none transition-colors",
               active
                 ? "bg-[var(--bg-input)] text-ink shadow-tab-active"
                 : "bg-[var(--overlay-wash)] font-semibold text-faint hover:text-muted",
@@ -598,7 +638,7 @@ function ChartSection({
   onRebalance: () => void;
 }) {
   return (
-    <div className="mt-3">
+    <div className="mt-2">
       {mode === "pie" ? (
         <>
           <AllocationChart
@@ -607,6 +647,7 @@ function ChartSection({
             driftRows={driftRows}
             targetsActive={hasTargets}
             showTargetsHint
+            height={CHART_HEIGHT}
             className="-mx-[22px]"
           />
           {hasTargets && allocationScore >= REBALANCE_THRESHOLD ? (
@@ -626,18 +667,23 @@ function ChartSection({
           ) : null}
         </>
       ) : points.length >= 1 ? (
-        <BalanceChart points={points} onScrub={onScrub} className="-mx-[22px]" />
+        <BalanceChart
+          points={points}
+          onScrub={onScrub}
+          height={CHART_HEIGHT}
+          className="-mx-[22px]"
+        />
       ) : loading ? (
-        <div className="h-[132px] rounded-2xl bg-[var(--segment-track)] shadow-inset-soft" />
+        <div className="h-[88px] rounded-2xl bg-[var(--segment-track)] shadow-inset-soft" />
       ) : !ready ? (
-        <div className="grid h-[132px] place-items-center rounded-2xl bg-[var(--segment-track)] px-6 text-center shadow-inset-soft">
+        <div className="grid h-[88px] place-items-center rounded-2xl bg-[var(--segment-track)] px-6 text-center shadow-inset-soft">
           <p className="max-w-[34ch] text-[12px] leading-[1.5] text-faint">
             Balance history is not available in this environment. Your live
             total above still reflects what the chain holds right now.
           </p>
         </div>
       ) : (
-        <div className="grid h-[132px] place-items-center rounded-2xl bg-[var(--segment-track)] px-6 text-center shadow-inset-soft">
+        <div className="grid h-[88px] place-items-center rounded-2xl bg-[var(--segment-track)] px-6 text-center shadow-inset-soft">
           <p className="max-w-[34ch] text-[12px] leading-[1.5] text-faint">
             Your balance chart starts from the first time Trador sees this
             wallet. Check back shortly — there is no way to know what it was

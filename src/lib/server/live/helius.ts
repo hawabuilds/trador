@@ -7,6 +7,7 @@
  */
 
 import type {Pubkey} from "@/lib/pubkey";
+import {sharesIndexerHeliusKey, signatureListRpcUrls} from "../rpcUrl";
 
 export const HELIUS_API = process.env.HELIUS_API_URL ?? "https://api-mainnet.helius-rpc.com";
 
@@ -59,14 +60,20 @@ export class HeliusRateLimited extends Error {
 }
 
 export function heliusKey(): string | null {
-  if (process.env.HELIUS_API_KEY) return process.env.HELIUS_API_KEY;
-  const rpc = process.env.HELIUS_RPC_URL;
-  if (!rpc) return null;
-  try {
-    return new URL(rpc).searchParams.get("api-key");
-  } catch {
-    return null;
+  let key: string | null = process.env.HELIUS_API_KEY?.trim() || null;
+  if (!key) {
+    const rpc = process.env.HELIUS_RPC_URL;
+    if (!rpc) return null;
+    try {
+      key = new URL(rpc).searchParams.get("api-key");
+    } catch {
+      return null;
+    }
   }
+  // Enhanced parse on the indexer key is what 429s getProgramAccounts
+  // and stops the New feed from growing.
+  if (sharesIndexerHeliusKey(key)) return null;
+  return key;
 }
 
 export interface TokenBalanceChange {
@@ -202,13 +209,7 @@ export async function signaturesFor(
    * node took forty at once without refusing any. Helius is the fallback,
    * which is what this ordering is for.
    */
-  const rpcs = [
-    process.env.RAW_TX_RPC_URL,
-    "https://api.mainnet-beta.solana.com",
-    process.env.HELIUS_RPC_URL,
-  ].filter(
-    (url, index, all): url is string => Boolean(url) && all.indexOf(url) === index,
-  );
+  const rpcs = signatureListRpcUrls();
   if (rpcs.length === 0) throw new Error("No RPC is configured.");
 
   let lastError = "Signature list failed.";

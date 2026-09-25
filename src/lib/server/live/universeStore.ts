@@ -24,6 +24,8 @@ import {db, hasDatabase} from "../db";
 import {
   hasAdminPg,
   pgReadIndexerState,
+  pgSelectByMints,
+  pgUniverseCount,
   pgUpsertStats,
   pgUpdateStonks,
   pgUpsertStonks,
@@ -71,11 +73,14 @@ export interface StonkRow {
   website: string | null;
   listed_at: string | null;
   /**
-   * When this app first saw the pool graduated.
+   * When the coin actually graduated into a tradeable pool.
    *
    * Distinct from `listed_at`, which is the token's mint date. A token minted
    * ten days ago that bonded twenty minutes ago is the newest thing on the
    * launchpad, and sorting the New feed by mint date buried it.
+   *
+   * The reconciler may stamp "now" on first sight; decorate pulls that earlier
+   * toward the trading pair's open time when a gap-fill wrote the wrong clock.
    */
   graduated_at: string | null;
   /**
@@ -507,10 +512,12 @@ export function chunk<T>(items: readonly T[], size: number): T[][] {
 
 /** Run `select * where mint in (...)` over any number of mints. */
 async function selectByMints<T>(
-  table: string,
+  table: "stonks" | "stonk_stats",
   mints: readonly string[],
   label: string,
 ): Promise<T[]> {
+  if (hasAdminPg) return pgSelectByMints<T>(table, mints);
+
   const slices = chunk(mints, IN_FILTER_CHUNK);
   const rows: T[] = [];
   for (const batch of chunk(slices, IN_FILTER_CONCURRENCY)) {
@@ -533,6 +540,14 @@ export async function statsFor(mints: string[]): Promise<Map<string, StatRow>> {
 }
 
 export async function findStonk(mint: Pubkey): Promise<{row: StonkRow; stat: StatRow | null} | null> {
+  if (hasAdminPg) {
+    const rows = await pgSelectByMints<StonkRow>("stonks", [mint]);
+    const row = rows[0];
+    if (!row) return null;
+    const stats = await statsFor([mint]);
+    return {row, stat: stats.get(mint) ?? null};
+  }
+
   const {data, error} = await db().from("stonks").select("*").eq("mint", mint).maybeSingle();
   if (error) throw new Error(`Lookup failed: ${error.message}`);
   if (!data) return null;
@@ -773,6 +788,10 @@ export async function writeIndexerState(
 }
 
 export async function universeCount(): Promise<number> {
+  if (hasAdminPg) {
+    const {listed} = await pgUniverseCount();
+    return listed;
+  }
   const {count} = await db()
     .from("stonks")
     .select("mint", {count: "exact", head: true})

@@ -11,7 +11,7 @@
 
 import {lamportsFrom} from "@/lib/amounts";
 import type {Pubkey} from "@/lib/pubkey";
-import {hasAdminPg, withClient} from "@/lib/server/adminPg";
+import {useDirectPg, withClient} from "@/lib/server/adminPg";
 import {db, hasDatabase} from "@/lib/server/db";
 
 /** How long a cached balance map may skip RPC. */
@@ -30,10 +30,10 @@ export async function readCachedBalances(
   wallet: Pubkey,
   maxAgeMs = HOLDINGS_CACHE_TTL_MS,
 ): Promise<CachedBalances | null> {
-  if (!hasAdminPg && !hasDatabase) return null;
+  if (!useDirectPg && !hasDatabase) return null;
 
   try {
-    if (hasAdminPg) {
+    if (useDirectPg) {
       return withClient(async (client) => {
         const {rows} = await client.query<{
           refreshed_at: Date | string;
@@ -85,7 +85,7 @@ export async function writeCachedBalances(
   solLamports: number,
   byMint: ReadonlyMap<string, number>,
 ): Promise<void> {
-  if (!hasAdminPg && !hasDatabase) return;
+  if (!useDirectPg && !hasDatabase) return;
   const lamports = lamportsFrom(solLamports);
   if (lamports === null) return;
 
@@ -97,7 +97,7 @@ export async function writeCachedBalances(
   const refreshedAt = new Date().toISOString();
 
   try {
-    if (hasAdminPg) {
+    if (useDirectPg) {
       await withClient((client) =>
         client.query(
           `insert into public.wallet_holdings_cache (wallet, refreshed_at, sol_lamports, balances)

@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import {useEffect, useRef, type ReactNode} from "react";
-import {useRouter} from "next/navigation";
+import {usePathname, useRouter} from "next/navigation";
 
 import {useUser} from "@/hooks/useUser";
 import {useRegisterMe} from "@/hooks/useRegisterMe";
@@ -67,8 +67,14 @@ export function StickyPageHeader({
  * browser at full height and immediately obvious on a phone, where the last
  * row of the feed ends up underneath the navigation.
  */
+function isStonkfolioGuestPath(pathname: string): boolean {
+  return pathname === "/stonkfolio" || pathname.startsWith("/stonkfolio/");
+}
+
 export function AppShell({children}: {children: ReactNode}) {
   const router = useRouter();
+  const pathname = usePathname();
+  const stonkfolioGuest = isStonkfolioGuestPath(pathname);
   const {ready, authenticated} = useUser();
 
   // Writes the signed-in person's row, once, so they can be followed and their
@@ -98,6 +104,7 @@ export function AppShell({children}: {children: ReactNode}) {
   useEffect(() => {
     if (!ready || authenticated) return;
     if (isPrivyOAuthReturn()) return;
+    if (stonkfolioGuest) return;
     /*
      * A signed-out visitor on someone's profile arrived through a shared
      * link: that person is their inviter. Remember them before the redirect,
@@ -111,14 +118,14 @@ export function AppShell({children}: {children: ReactNode}) {
       return;
     }
     router.replace("/");
-  }, [ready, authenticated, router]);
+  }, [ready, authenticated, router, stonkfolioGuest]);
 
   /*
    * Privy still restoring a session: render the shell and route content now.
    * Wallet-gated actions stay disabled in their own components until `ready`.
    * Only a confirmed signed-out visitor is held back while the redirect runs.
    */
-  if (ready && !authenticated && !isPrivyOAuthReturn()) {
+  if (ready && !authenticated && !isPrivyOAuthReturn() && !stonkfolioGuest) {
     return (
       <div
         className={`${APP_SCROLL_PAD_TOP} h-full animate-pulse space-y-4 bg-surface-base px-[22px]`}

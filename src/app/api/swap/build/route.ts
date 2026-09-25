@@ -1,6 +1,11 @@
 import {badRequest, json} from "@/lib/server/http";
 import {asPubkey} from "@/lib/pubkey";
-import {buildSwap, quote as priceQuote, type SwapQuote} from "@/lib/server/live/jupiter";
+import {
+  buildSwap,
+  isJupiterRateLimitError,
+  quoteWithoutPlatformFee,
+  type SwapQuote,
+} from "@/lib/server/live/jupiter";
 import {resolvePlatformFeeAccount} from "@/lib/server/live/platformFee";
 import {simulateSwapTransaction} from "@/lib/server/live/simulateSwap";
 
@@ -35,23 +40,13 @@ export async function POST(request: Request) {
       ? await resolvePlatformFeeAccount({inputMint, outputMint})
       : null;
 
-    // Stale quote or collector not ready — re-price without fee so Jupiter build
-    // and simulation stay aligned (no platformFee in raw, no feeAccount).
+    // Stale quote or collector not ready — strip fee from the agreed quote instead
+    // of re-pricing (an extra Jupiter quote per confirm is what trips lite-tier 429s).
+    let platformFeeStripped = false;
     if (swapQuote.platformFee && !feeAccount) {
-      const raw = swapQuote.raw as Record<string, unknown> | undefined;
-      const amount = swapQuote.inAmount ?? String(raw?.inAmount ?? "");
-      const slippageBps = swapQuote.slippageBps ?? Number(raw?.slippageBps ?? 100);
-      if (!/^\d+$/.test(amount) || amount === "0") {
-        return badRequest("Quote is missing input amount.");
-      }
-      swapQuote = await priceQuote({
-        inputMint,
-        outputMint,
-        amount,
-        slippageBps,
-        feeAccount: null,
-      });
+      swapQuote = quoteWithoutPlatformFee(swapQuote);
       feeAccount = null;
+      platformFeeStripped = true;
     }
 
     let built = await buildSwap({
@@ -61,17 +56,9 @@ export async function POST(request: Request) {
     });
 
     let simulation = await simulateSwapTransaction(built.transactionBase64);
-    let platformFeeStripped = false;
 
     if (!simulation.ok && feeAccount && swapQuote.platformFee) {
-      const amount = swapQuote.inAmount;
-      swapQuote = await priceQuote({
-        inputMint,
-        outputMint,
-        amount,
-        slippageBps: swapQuote.slippageBps,
-        feeAccount: null,
-      });
+      swapQuote = quoteWithoutPlatformFee(swapQuote);
       feeAccount = null;
       platformFeeStripped = true;
       built = await buildSwap({
@@ -98,6 +85,10 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     // No transaction is ever returned alongside an error. Fail closed.
-    return json({error: (error as Error).message}, {status: 502});
+    const message = (error as Error).message;
+    return json(
+      {error: message},
+      {status: isJupiterRateLimitError(message) ? 429 : 502},
+    );
   }
 }

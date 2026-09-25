@@ -18,7 +18,16 @@ import {holdingProfit, signedMoney, type Position} from "@/lib/walletTrades";
  * Shared by your own Stonkfolio and everyone else's profile, so a holding reads
  * the same wherever it is shown.
  */
-export function HoldingRow({holding, position}: {holding: Holding; position?: Position}) {
+export function HoldingRow({
+  holding,
+  position,
+  compact = false,
+}: {
+  holding: Holding;
+  position?: Position;
+  /** Tighter Stonkfolio list — 36px avatar, no vertical padding (gap lives on the parent). */
+  compact?: boolean;
+}) {
   const {asset} = holding;
   const stock = asset.kind === "stock";
   const symbol = stock ? asset.ticker : asset.symbol;
@@ -29,22 +38,35 @@ export function HoldingRow({holding, position}: {holding: Holding; position?: Po
     <Link
       href={assetHref(asset)}
       {...prefetchPage}
-      className="flex items-center gap-3 px-[22px] py-[13px] transition-colors hover:bg-[var(--overlay-wash)]"
+      className={cn(
+        "flex px-[22px] transition-colors hover:bg-[var(--overlay-wash)]",
+        compact ? "items-start gap-3 py-0" : "items-center gap-3 py-[13px]",
+      )}
     >
       {stock ? null : (
         // The feed row passes the art and this row didn't, so a coin showed
         // its picture everywhere except the screen listing what you own.
-        <Avatar name={symbol} src={asset.imageUrl} seed={asset.mint} size={40} />
+        <Avatar name={symbol} src={asset.imageUrl} seed={asset.mint} size={compact ? 36 : 40} />
       )}
 
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-1.5">
-          <span className="truncate text-[15px] font-extrabold tracking-[-0.015em]">
+          <span
+            className={cn(
+              "truncate font-extrabold tracking-[-0.015em]",
+              compact ? "text-[14px]" : "text-[15px]",
+            )}
+          >
             {symbol}
           </span>
           {stock ? <VerifiedTick size={14} /> : <PairTicker ticker={asset.quoteTicker} />}
         </div>
-        <div className="tabular-nums mt-[3px] text-[12.5px] font-semibold text-faint">
+        <div
+          className={cn(
+            "tabular-nums mt-[3px] truncate font-semibold text-faint",
+            compact ? "text-[11px]" : "text-[12.5px]",
+          )}
+        >
           {units(holding.amount)} {symbol} · {formatPriceUsd(asset.price.usd)}
         </div>
       </div>
@@ -59,12 +81,6 @@ export function HoldingRow({holding, position}: {holding: Holding; position?: Po
           {/* Unpriced says so. It is not worth zero. */}
           {holding.valueUsd === null ? "Unpriced" : compactMoney(holding.valueUsd)}
         </div>
-        {/*
-          Profit on what is held: worth now minus what it cost. Only shown
-          when the trade history covers the purchase. A leading ~ means part of
-          the holding arrived without a known price (a transfer, an airdrop, a
-          token-for-token swap), so the figure covers only the bought part.
-        */}
         {profit ? (
           <div
             title={
@@ -73,11 +89,11 @@ export function HoldingRow({holding, position}: {holding: Holding; position?: Po
                 : "Current value minus what you paid."
             }
             className={cn(
-              "tabular-nums mt-[3px] text-[12.5px] font-bold",
+              "tabular-nums mt-[3px] font-bold",
+              compact ? "text-[11px]" : "text-[12.5px]",
               profit.usd >= 0 ? "text-price-up" : "text-price-down",
             )}
           >
-            {profit.partial ? "~" : ""}
             {signedMoney(profit.usd)}
           </div>
         ) : null}

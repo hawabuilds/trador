@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import {afterEach, describe, it} from "node:test";
+import {heliusKey} from "@/lib/server/live/helius";
 import {
   indexerRpcUrl,
   resetRpcUrlWarningsForTests,
   serverRpcUrl,
+  sharesIndexerHeliusKey,
+  signatureListRpcUrls,
   walletBalanceRpcUrls,
 } from "@/lib/server/rpcUrl";
 
@@ -80,6 +83,80 @@ describe("serverRpcUrl", () => {
     };
     delete process.env.SERVER_RPC_URL;
     assert.equal(serverRpcUrl(), "https://alchemy.example/rpc");
+  });
+});
+
+describe("signatureListRpcUrls", () => {
+  const env = process.env;
+
+  afterEach(() => {
+    process.env = env;
+  });
+
+  it("puts RAW_TX first and skips Helius when it is the indexer key", () => {
+    const indexer = "https://mainnet.helius-rpc.com/?api-key=indexer";
+    process.env = {
+      ...env,
+      RAW_TX_RPC_URL: "https://alchemy.example/rpc",
+      INDEXER_RPC_URL: indexer,
+      HELIUS_RPC_URL: indexer,
+    };
+    const urls = signatureListRpcUrls();
+    assert.equal(urls[0], "https://alchemy.example/rpc");
+    assert.ok(urls.includes("https://api.mainnet-beta.solana.com"));
+    assert.ok(!urls.includes(indexer));
+  });
+
+  it("keeps a separate Helius key as last resort", () => {
+    process.env = {
+      ...env,
+      RAW_TX_RPC_URL: "https://alchemy.example/rpc",
+      INDEXER_RPC_URL: "https://mainnet.helius-rpc.com/?api-key=indexer",
+      HELIUS_RPC_URL: "https://mainnet.helius-rpc.com/?api-key=parse",
+    };
+    const urls = signatureListRpcUrls();
+    assert.ok(urls.includes("https://mainnet.helius-rpc.com/?api-key=parse"));
+    assert.ok(!urls.includes("https://mainnet.helius-rpc.com/?api-key=indexer"));
+  });
+
+  it("skips Helius when only the api-key matches the indexer URL", () => {
+    process.env = {
+      ...env,
+      RAW_TX_RPC_URL: "https://alchemy.example/rpc",
+      INDEXER_RPC_URL: "https://mainnet.helius-rpc.com/?api-key=shared",
+      HELIUS_RPC_URL: "https://mainnet.helius-rpc.com/rpc?api-key=shared",
+    };
+    const urls = signatureListRpcUrls();
+    assert.ok(!urls.some((url) => url.includes("api-key=shared")));
+  });
+});
+
+describe("heliusKey vs indexer", () => {
+  const env = process.env;
+
+  afterEach(() => {
+    process.env = env;
+  });
+
+  it("returns null when HELIUS_RPC_URL shares the indexer api-key", () => {
+    process.env = {
+      ...env,
+      INDEXER_RPC_URL: "https://mainnet.helius-rpc.com/?api-key=shared",
+      HELIUS_RPC_URL: "https://mainnet.helius-rpc.com/rpc?api-key=shared",
+    };
+    delete process.env.HELIUS_API_KEY;
+    assert.equal(heliusKey(), null);
+    assert.equal(sharesIndexerHeliusKey("shared"), true);
+  });
+
+  it("keeps a distinct parse key", () => {
+    process.env = {
+      ...env,
+      INDEXER_RPC_URL: "https://mainnet.helius-rpc.com/?api-key=indexer",
+      HELIUS_RPC_URL: "https://mainnet.helius-rpc.com/?api-key=parse",
+    };
+    delete process.env.HELIUS_API_KEY;
+    assert.equal(heliusKey(), "parse");
   });
 });
 

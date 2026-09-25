@@ -88,8 +88,18 @@ export async function GET(request: Request) {
     nextBefore: null,
   };
 
+  let syncNotice: string | undefined;
   try {
     await syncWalletTrades(wallet);
+  } catch (error) {
+    if (error instanceof HistoryUnavailable) {
+      return json({...empty, error: error.message});
+    }
+    // A sync blip must not wipe stored trades — still serve what is in the DB.
+    syncNotice = (error as Error).message;
+  }
+
+  try {
     const [trades, positions] = await Promise.all([
       walletHistory(wallet, {mint, before, limit: PAGE}),
       // Cost basis is only needed on the first page of the all-coins view.
@@ -103,6 +113,7 @@ export async function GET(request: Request) {
       assets,
       available: true,
       nextBefore: trades.length === PAGE ? trades[trades.length - 1].at : null,
+      ...(syncNotice ? {error: syncNotice} : {}),
     };
     return json(body);
   } catch (error) {

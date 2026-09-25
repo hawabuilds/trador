@@ -222,25 +222,24 @@ async function decode(signatures: string[], key: string | null): Promise<DecodeR
   }
 
   /*
-   * Helius for whatever the node refused or has not indexed yet. On a cold
-   * curve load the node often returns nothing while Helius still parses; on a
-   * warm extend only the missing tail is sent, in small batches.
+   * Helius only when the node returned nothing. Warm extends leave gaps —
+   * newest signatures are often a second ahead of the node, and chasing
+   * each miss on Enhanced parse is what 429s the indexer key and stalls
+   * discovery. unbrokenRun marks below the gap so the next round retries.
    */
-  if (missing.length > 0) {
-    if (!key) {
-      if (read.size === 0) throw new Error("No way to read transactions is configured.");
-    } else {
-      let toParse = missing;
-      if (PARSE_MAX_PER_ROUND > 0 && toParse.length > PARSE_MAX_PER_ROUND) {
-        toParse = toParse.slice(0, PARSE_MAX_PER_ROUND);
-      }
-      const batchSize = read.size === 0 ? COLD_BATCH : Math.min(15, COLD_BATCH);
-      try {
-        const parsed = await parseTransactionsInBatches(toParse, key, batchSize);
-        for (const tx of parsed) read.set(tx.signature, tx);
-      } catch (error) {
-        if (!(error instanceof HeliusRateLimited) || read.size === 0) throw error;
-      }
+  if (missing.length > 0 && read.size === 0) {
+    if (!key || PARSE_MAX_PER_ROUND <= 0) {
+      throw new Error("No way to read transactions is configured.");
+    }
+    let toParse = missing;
+    if (PARSE_MAX_PER_ROUND > 0 && toParse.length > PARSE_MAX_PER_ROUND) {
+      toParse = toParse.slice(0, PARSE_MAX_PER_ROUND);
+    }
+    try {
+      const parsed = await parseTransactionsInBatches(toParse, key, COLD_BATCH);
+      for (const tx of parsed) read.set(tx.signature, tx);
+    } catch (error) {
+      if (!(error instanceof HeliusRateLimited) || read.size === 0) throw error;
     }
   }
 

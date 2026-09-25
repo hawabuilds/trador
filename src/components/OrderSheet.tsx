@@ -138,7 +138,11 @@ export function OrderSheet({
    * share of a position, had no "sell all", and would happily ask you to sign
    * a trade for more than you own — which then failed in simulation.
    */
-  const balanceMints = useMemo(() => (asset ? [asset.mint] : []), [asset]);
+  /** Buys only need native SOL; sells need exact token base units for sizing. */
+  const balanceMints = useMemo(
+    () => (asset && !buying ? [asset.mint] : []),
+    [asset, buying],
+  );
   const balances = useBalances(wallet, balanceMints, open && wallet !== null);
   const held = asset ? balances.data?.tokens[asset.mint] : undefined;
   const heldRaw = balances.data ? BigInt(held?.amount ?? "0") : null;
@@ -303,7 +307,7 @@ export function OrderSheet({
       } finally {
         if (!cancelled) setQuoting(false);
       }
-    }, 350);
+    }, 600);
 
     return () => {
       cancelled = true;

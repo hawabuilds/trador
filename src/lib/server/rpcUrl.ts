@@ -36,6 +36,23 @@ function heliusUrl(): string | undefined {
   return trimmed(process.env.HELIUS_RPC_URL);
 }
 
+/** `api-key=` from a Helius-style RPC URL. */
+export function apiKeyFromRpcUrl(url: string | undefined): string | null {
+  const raw = trimmed(url);
+  if (!raw) return null;
+  try {
+    return new URL(raw).searchParams.get("api-key");
+  } catch {
+    return null;
+  }
+}
+
+/** True when a Helius key is the same secret as `INDEXER_RPC_URL`. */
+export function sharesIndexerHeliusKey(key: string | null | undefined): boolean {
+  const indexerKey = apiKeyFromRpcUrl(indexerUrl());
+  return Boolean(key && indexerKey && key === indexerKey);
+}
+
 /** True when the same URL string is used for indexer sweeps and Helius app alias. */
 export function indexerHeliusUrlsMatch(): boolean {
   const indexer = indexerUrl();
@@ -45,7 +62,11 @@ export function indexerHeliusUrlsMatch(): boolean {
 
 function isIndexerRpc(url: string): boolean {
   const indexer = indexerUrl();
-  return Boolean(indexer && url === indexer);
+  if (indexer && url === indexer) return true;
+  // Railway had HELIUS_RPC_URL and INDEXER_RPC_URL as different strings
+  // with the same api-key — URL equality missed that and tapes burned
+  // the sweep key.
+  return sharesIndexerHeliusKey(apiKeyFromRpcUrl(url));
 }
 
 /**
@@ -122,6 +143,30 @@ export function resetRpcUrlWarningsForTests(): void {
 
 export function walletBalanceRpcUrl(): string {
   return walletBalanceRpcUrls()[0];
+}
+
+/**
+ * Signature lists for trade tapes (`getSignaturesForAddress`).
+ *
+ * `RAW_TX_RPC_URL` first (Alchemy on the worker), then public mainnet, then a
+ * Helius URL that is *not* the indexer key. Falling back onto `INDEXER_RPC_URL`
+ * is how tape 429s used to kill discovery.
+ */
+export function signatureListRpcUrls(): string[] {
+  const urls: string[] = [];
+  const add = (value: string | undefined) => {
+    const url = trimmed(value);
+    if (!url || urls.includes(url)) return;
+    urls.push(url);
+  };
+
+  add(process.env.RAW_TX_RPC_URL);
+  add("https://api.mainnet-beta.solana.com");
+
+  const helius = heliusUrl();
+  if (helius && !isIndexerRpc(helius)) add(helius);
+
+  return urls;
 }
 
 /**

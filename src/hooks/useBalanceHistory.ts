@@ -42,6 +42,32 @@ export function balancePointsWithLive(
   return [...snapshots, live];
 }
 
+/**
+ * Period change for the selected range: first stored snapshot → live total.
+ *
+ * Chart points can collapse to one when the newest snapshot is replaced by the
+ * live pin, so change must not depend on `points.length` alone.
+ */
+export function balanceChangeForRange(
+  snapshots: readonly BalancePoint[],
+  liveTotal: number | null,
+  points: readonly BalancePoint[],
+): {usd: number; pct: number} | null {
+  if (liveTotal !== null && snapshots.length >= 1) {
+    const open = snapshots[0].value;
+    const usd = liveTotal - open;
+    return {usd, pct: open > 0 ? (usd / open) * 100 : 0};
+  }
+
+  // One point is a reading, not a change — same rule as before when live is unknown.
+  if (points.length < 2) return null;
+
+  const open = points[0].value;
+  const close = points[points.length - 1].value;
+  const usd = close - open;
+  return {usd, pct: open > 0 ? (usd / open) * 100 : 0};
+}
+
 export function useBalanceHistory(
   wallet: string | null | undefined,
   range: BalanceRange,
@@ -67,16 +93,10 @@ export function useBalanceHistory(
     [query.data?.snapshots, liveTotal],
   );
 
-  const change = useMemo(() => {
-    // One point is a reading, not a change. Reporting 0% for it would claim the
-    // wallet has been flat since it was first seen, which is not known.
-    if (points.length < 2) return null;
-
-    const open = points[0].value;
-    const close = points[points.length - 1].value;
-    const usd = close - open;
-    return {usd, pct: open > 0 ? (usd / open) * 100 : 0};
-  }, [points]);
+  const change = useMemo(
+    () => balanceChangeForRange(query.data?.snapshots ?? [], liveTotal, points),
+    [query.data?.snapshots, liveTotal, points],
+  );
 
   return {
     points,

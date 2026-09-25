@@ -16,8 +16,7 @@
 
 import type {Pubkey} from "@/lib/pubkey";
 import {cached} from "./cache";
-
-const BASE = process.env.JUPITER_API_URL ?? "https://lite-api.jup.ag";
+import {JUPITER_API_BASE, jupiterFetchHeaders} from "./jupiterEnv";
 
 /** Jupiter's search endpoint accepts a comma list; this is a safe batch size. */
 const BATCH = 40;
@@ -150,10 +149,13 @@ async function fetchBatch(mints: Pubkey[]): Promise<JupToken[]> {
   let response: Response | null = null;
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    response = await fetch(`${BASE}/tokens/v2/search?query=${mints.join(",")}`, {
-      headers: {accept: "application/json"},
-      cache: "no-store",
-    });
+    response = await fetch(
+      `${JUPITER_API_BASE}/tokens/v2/search?query=${mints.join(",")}`,
+      {
+        headers: jupiterFetchHeaders(),
+        cache: "no-store",
+      },
+    );
     if (response.ok) break;
     if (response.status !== 429 && response.status < 500) break;
     await new Promise((resolve) => setTimeout(resolve, 2_000 * 2 ** attempt));

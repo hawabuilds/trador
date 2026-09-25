@@ -13,7 +13,8 @@
  * than implied.
  */
 
-import type {Pubkey} from "@/lib/pubkey";
+import {asPubkey, type Pubkey} from "@/lib/pubkey";
+import {isStockMint} from "@/lib/stocks/registry";
 import {db, hasDatabase} from "@/lib/server/db";
 import {
   SOL_MINT,
@@ -107,14 +108,101 @@ async function parseAll(signatures: string[], key: string) {
   return parsed;
 }
 
+async function stockUsdMap(trades: readonly RawTrade[]): Promise<Map<string, number>> {
+  const mints: Pubkey[] = [];
+  for (const trade of trades) {
+    const paid = asPubkey(trade.paidMint);
+    const asset = asPubkey(trade.mint);
+    if (paid && isStockMint(paid)) mints.push(paid);
+    if (asset && isStockMint(asset)) mints.push(asset);
+  }
+  if (mints.length === 0) return new Map();
+  const {stockPrices} = await import("./stockPrices");
+  const quotes = await stockPrices(mints);
+  const out = new Map<string, number>();
+  for (const [mint, quote] of quotes) {
+    if (quote.usd !== null) out.set(mint, quote.usd);
+  }
+  return out;
+}
+
 async function priced(raw: RawTrade[]): Promise<WalletTrade[]> {
+  const mintUsd = await stockUsdMap(raw);
   const out: WalletTrade[] = [];
   for (const trade of raw) {
     const needsSol = trade.paidMint === SOL_MINT || trade.mint === SOL_MINT;
     const solUsd = needsSol
       ? await solUsdAt(Date.parse(trade.at) / 1000).catch(() => null)
       : null;
-    out.push(valueTrade(trade, solUsd));
+    out.push(valueTrade(trade, solUsd, mintUsd));
+  }
+  return out;
+}
+
+type PositionTradeRow = Pick<
+  Row,
+  "mint" | "side" | "amount" | "value_usd" | "paid_mint" | "paid_amount" | "at"
+>;
+
+/** Stored trades with null `value_usd` get repriced here (stock-paid buys, etc.). */
+async function tradesForPositions(rows: PositionTradeRow[]) {
+  if (rows.length === 0) return [];
+  const nullRows = rows.filter((row) => row.value_usd === null);
+  const mintUsd = await stockUsdMap(
+    nullRows.map((row) => ({
+      signature: "",
+      at: new Date(row.at).toISOString(),
+      mint: row.mint,
+      side: row.side,
+      amount: Number(row.amount),
+      paidMint: row.paid_mint,
+      paidAmount: Number(row.paid_amount),
+    })),
+  );
+  const solUsdCache = new Map<string, number | null>();
+  const out: Pick<WalletTrade, "mint" | "side" | "amount" | "valueUsd" | "at">[] = [];
+
+  for (const row of rows) {
+    const at = new Date(row.at).toISOString();
+    const stored = numOrNull(row.value_usd);
+    if (stored !== null) {
+      out.push({
+        mint: row.mint,
+        side: row.side,
+        amount: Number(row.amount),
+        valueUsd: stored,
+        at,
+      });
+      continue;
+    }
+    const raw: RawTrade = {
+      signature: "",
+      at,
+      mint: row.mint,
+      side: row.side,
+      amount: Number(row.amount),
+      paidMint: row.paid_mint,
+      paidAmount: Number(row.paid_amount),
+    };
+    const needsSol = raw.paidMint === SOL_MINT || raw.mint === SOL_MINT;
+    let solUsd: number | null = null;
+    if (needsSol) {
+      if (!solUsdCache.has(at)) {
+        solUsdCache.set(
+          at,
+          await solUsdAt(Date.parse(at) / 1000).catch(() => null),
+        );
+      }
+      solUsd = solUsdCache.get(at) ?? null;
+    }
+    const valued = valueTrade(raw, solUsd, mintUsd);
+    out.push({
+      mint: raw.mint,
+      side: raw.side,
+      amount: raw.amount,
+      valueUsd: valued.valueUsd,
+      at,
+    });
   }
   return out;
 }
@@ -207,7 +295,7 @@ export async function walletHistory(
 export async function walletPositions(wallet: Pubkey): Promise<Position[]> {
   const {data, error} = await db()
     .from("wallet_trades")
-    .select("mint, side, amount, value_usd, at")
+    .select("mint, side, amount, value_usd, paid_mint, paid_amount, at")
     .eq("wallet", wallet)
     .order("at", {ascending: true})
     .limit(10_000);
@@ -215,13 +303,6 @@ export async function walletPositions(wallet: Pubkey): Promise<Position[]> {
     if (isMissingTable(error)) throw new HistoryUnavailable("Trade history is not set up yet.");
     throw new Error(error.message);
   }
-  return positionsFrom(
-    ((data ?? []) as Pick<Row, "mint" | "side" | "amount" | "value_usd" | "at">[]).map((row) => ({
-      mint: row.mint,
-      side: row.side,
-      amount: Number(row.amount),
-      valueUsd: numOrNull(row.value_usd),
-      at: row.at,
-    })),
-  );
+  const rows = (data ?? []) as PositionTradeRow[];
+  return positionsFrom(await tradesForPositions(rows));
 }
