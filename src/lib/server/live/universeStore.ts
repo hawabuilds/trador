@@ -89,6 +89,12 @@ export interface StonkRow {
    * before the column existed and not yet backfilled.
    */
   pool_kind: "curve" | "clmm" | null;
+  /**
+   * The create transaction's signature, when Create registered the coin.
+   * Null for indexer-discovered rows and for confirms that omitted it.
+   * Base58, stored exactly as submitted — never case-folded.
+   */
+  launch_signature: string | null;
 }
 
 export interface StatRow {

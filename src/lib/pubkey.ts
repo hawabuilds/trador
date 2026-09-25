@@ -130,6 +130,26 @@ export function asPubkey(value: unknown): Pubkey | null {
 }
 
 /**
+ * A transaction signature: base58 of exactly 64 bytes, stored exactly as
+ * submitted.
+ *
+ * Not a pubkey — `assertPubkey` rejects these on length alone. Do not
+ * case-fold: signatures are base58 too, and folding would corrupt the explorer
+ * link and any later chain lookup.
+ */
+export const TX_SIGNATURE_BYTES = 64;
+
+export function asTxSignature(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  // 64-byte payloads are longer than account addresses once encoded; the
+  // decoder still has to prove the byte length.
+  if (trimmed.length < 64 || trimmed.length > 88) return null;
+  const bytes = decodeBase58(trimmed);
+  return bytes !== null && bytes.length === TX_SIGNATURE_BYTES ? trimmed : null;
+}
+
+/**
  * Same, but throws. Use this on every path that writes to the database or
  * builds a transaction.
  *

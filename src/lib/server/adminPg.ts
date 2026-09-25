@@ -124,6 +124,7 @@ const STONK_COLUMNS = [
   "discord",
   "listed_at",
   "pool_kind",
+  "launch_signature",
 ] as const;
 
 /**

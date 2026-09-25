@@ -349,6 +349,7 @@ export function CreateSheet({open, onClose}: {open: boolean; onClose: () => void
         name: name.trim(),
         symbol,
         image: built.body.image,
+        signature,
       };
       for (let attempt = 0; attempt < 6; attempt += 1) {
         const confirmed = await postJson<{ok?: boolean; error?: string}>(

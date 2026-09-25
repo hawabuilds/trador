@@ -1,4 +1,4 @@
-import {asPubkey} from "@/lib/pubkey";
+import {asPubkey, asTxSignature} from "@/lib/pubkey";
 import {requireCaller} from "@/lib/server/auth";
 import {badRequest, json} from "@/lib/server/http";
 import {PUMP_PROGRAM, RAYDIUM_LAUNCHPAD, STONKFUN_PLATFORMS} from "@/lib/programs";
@@ -35,6 +35,10 @@ async function rpc<T>(method: string, params: unknown[]): Promise<T> {
  * claimed stock — the same attribution rule the indexer applies. For pump.fun
  * the curve must sit at the mint's own PDA and be quoted in the claimed stock. A request that names a
  * coin that is not really there writes nothing.
+ *
+ * When the client sends the create transaction's signature, it is stored on the
+ * row exactly as submitted (base58, no case folding) so the launch has a
+ * durable explorer link later.
  */
 export async function POST(request: Request) {
   const caller = await requireCaller(request);
@@ -45,6 +49,14 @@ export async function POST(request: Request) {
   const pool = asPubkey(typeof body.pool === "string" ? body.pool : null);
   const stock = stockForTicker(typeof body.quoteTicker === "string" ? body.quoteTicker : "");
   if (!mint || !pool || !stock) return badRequest("Which launch?");
+
+  // Optional: an older client may omit it. If present it must decode as a
+  // real 64-byte signature — not a pubkey, and never case-folded.
+  let launchSignature: string | null = null;
+  if (body.signature !== undefined && body.signature !== null && body.signature !== "") {
+    launchSignature = asTxSignature(body.signature);
+    if (!launchSignature) return badRequest("That is not a transaction signature.");
+  }
 
   const launchpad = body.launchpad === "pumpfun" ? "pumpfun" : "stonkfun";
   const symbol = typeof body.symbol === "string" ? body.symbol.slice(0, 10) : null;
@@ -104,6 +116,7 @@ export async function POST(request: Request) {
           image_url: image,
           image_source: "trador",
           eligible: true,
+          ...(launchSignature ? {launch_signature: launchSignature} : {}),
         },
       ]);
       return json({ok: true, mint});
@@ -143,6 +156,7 @@ export async function POST(request: Request) {
         image_url: image,
         image_source: "trador",
         eligible: true,
+        ...(launchSignature ? {launch_signature: launchSignature} : {}),
       },
     ]);
 
