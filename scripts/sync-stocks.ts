@@ -345,10 +345,18 @@ async function main(): Promise<void> {
     const key = account.mintAuthority ?? "(none)";
     const family = families.get(key) ?? {authority: key, members: []};
     const identity = identities.get(row.mint);
+    const symbol =
+      identity?.symbol && identity.symbol !== "?"
+        ? identity.symbol
+        : (account.onChainSymbol ?? "?");
+    const name =
+      identity?.name && identity.name !== "?"
+        ? identity.name
+        : (account.onChainName ?? symbol);
     family.members.push({
       mint: row.mint,
-      symbol: identity?.symbol ?? "?",
-      name: identity?.name ?? "?",
+      symbol,
+      name,
       decimals: account.decimals,
       launches: row.asQuote,
     });

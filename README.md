@@ -132,12 +132,16 @@ the authority is the test rather than a name or an address prefix:
 Currently verified in the committed registry: **24** xStocks (one Backed mint
 authority), **9** PreStocks (one PreStocks mint authority), **3** Tessera
 (one Tessera mint authority — the same key mints and updates all three; a
-second key freezes all three), and **52** Backpack Securities. Backpack is
+second key freezes all three), and **64** Backpack Securities. Backpack is
 proved by a single control key shared across freeze authority, Token-2022
 metadata update authority, and permanent delegate on every mint — not by mint
 authority, which is per-mint. The sync used to gate Backpack behind
 `INCLUDE_BACKPACK=1`; it no longer reads that flag, and the committed JSON
 already includes the family.
+
+That count is mints the sync sees in the StonkFun census plus the live range
+members of each verified issuer family — not a guarantee that every mint an
+issuer has ever created is listed.
 
 ## Scripts
 

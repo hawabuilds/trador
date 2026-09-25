@@ -201,6 +201,9 @@ export interface MintAccount {
    */
   updateAuthority: Pubkey | null;
   permanentDelegate: Pubkey | null;
+  /** Token-2022 on-chain metadata, when the mint carries that extension. */
+  onChainSymbol: string | null;
+  onChainName: string | null;
   /**
    * Token-2022 transfer fee, in basis points, or null when the mint has none.
    *
@@ -248,6 +251,7 @@ export async function mintAccounts(mints: Pubkey[]): Promise<Map<string, MintAcc
       const extension = (name: string): Record<string, unknown> | undefined =>
         extensions.find((entry) => entry.extension === name)?.state;
 
+      const tokenMetadata = extension("tokenMetadata");
       out.set(batch[index], {
         mint: batch[index],
         decimals: Number(info.decimals ?? 0),
@@ -255,10 +259,11 @@ export async function mintAccounts(mints: Pubkey[]): Promise<Map<string, MintAcc
         tokenProgram: account.owner as Pubkey,
         mintAuthority: (info.mintAuthority as string | null) as Pubkey | null,
         freezeAuthority: (info.freezeAuthority as string | null) as Pubkey | null,
-        updateAuthority:
-          (extension("tokenMetadata")?.updateAuthority as Pubkey | undefined) ?? null,
+        updateAuthority: (tokenMetadata?.updateAuthority as Pubkey | undefined) ?? null,
         permanentDelegate:
           (extension("permanentDelegate")?.delegate as Pubkey | undefined) ?? null,
+        onChainSymbol: (tokenMetadata?.symbol as string | undefined) ?? null,
+        onChainName: (tokenMetadata?.name as string | undefined) ?? null,
         transferFeeBps: readTransferFeeBps(extension("transferFeeConfig")),
       });
     });
@@ -370,6 +375,32 @@ export async function tokenIdentities(
  * Returns an empty list when the provider has no DAS endpoint, which degrades
  * to exactly the old census-only behaviour rather than failing the sync.
  */
+function dasRpcUrl(): string | undefined {
+  const helius = process.env.HELIUS_RPC_URL?.trim();
+  if (helius) return helius;
+  const indexer = process.env.INDEXER_RPC_URL?.trim();
+  if (indexer) return indexer;
+  return undefined;
+}
+
+/** DAS-only JSON-RPC — never routes through the census RPC. */
+async function dasRpc<T>(method: string, params: unknown): Promise<T> {
+  const url = dasRpcUrl();
+  if (!url) throw new Error("no HELIUS_RPC_URL or INDEXER_RPC_URL for DAS");
+  calls += 1;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {"content-type": "application/json"},
+    body: JSON.stringify({jsonrpc: "2.0", id: calls, method, params}),
+  });
+  if (!response.ok) {
+    throw new Error(`${method} → HTTP ${response.status} ${await response.text()}`);
+  }
+  const body = (await response.json()) as {result?: T; error?: {message: string; code: number}};
+  if (body.error) throw new Error(`${method} → ${body.error.code} ${body.error.message}`);
+  return body.result as T;
+}
+
 export async function assetsByAuthority(authority: string): Promise<Pubkey[]> {
   const mints: Pubkey[] = [];
 
@@ -377,10 +408,17 @@ export async function assetsByAuthority(authority: string): Promise<Pubkey[]> {
     let batch: {items?: {id?: string}[]; total?: number};
 
     try {
-      batch = await rpc<{items?: {id?: string}[]; total?: number}>(
-        "getAssetsByAuthority",
-        {authorityAddress: authority, page, limit: 1000},
-      );
+      batch = dasRpcUrl()
+        ? await dasRpc<{items?: {id?: string}[]; total?: number}>("getAssetsByAuthority", {
+            authorityAddress: authority,
+            page,
+            limit: 1000,
+          })
+        : await rpc<{items?: {id?: string}[]; total?: number}>("getAssetsByAuthority", {
+            authorityAddress: authority,
+            page,
+            limit: 1000,
+          });
     } catch (error) {
       console.warn(`  issuer range ${authority.slice(0, 8)}… -> ${(error as Error).message}`);
       return mints;

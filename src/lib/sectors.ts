@@ -80,8 +80,10 @@ export const SECTOR_DESCRIPTION: ReadonlyMap<SectorId, string> = new Map(
 const BY_TICKER: Record<string, SectorId> = {
   // Semiconductors
   NVDAx: "semis",
+  NVDA: "semis",
   INTCx: "semis",
   INTC: "semis",
+  ARM: "semis",
   MU: "semis",
   SKHY: "semis",
   SNDK: "semis",
@@ -91,6 +93,7 @@ const BY_TICKER: Record<string, SectorId> = {
   // AI & Data — including the pre-IPO AI labs, classified by what they build.
   PLTRx: "ai",
   NBIS: "ai",
+  CRWV: "ai",
   DELL: "ai",
   OPENAI: "ai",
   ANTHROPIC: "ai",
@@ -101,6 +104,7 @@ const BY_TICKER: Record<string, SectorId> = {
   // Software
   MSFTx: "software",
   IBM: "software",
+  BB: "software",
   // An AI-agent operating system sold to enterprises: software, not compute.
   VIDAx: "software",
 
@@ -117,6 +121,8 @@ const BY_TICKER: Record<string, SectorId> = {
   TTWO: "internet",
   GRND: "internet",
   SPHR: "internet",
+  RUM: "internet",
+  CYPH: "internet",
 
   // Space & Defense
   SPCXx: "space",
@@ -139,11 +145,13 @@ const BY_TICKER: Record<string, SectorId> = {
   STRCx: "crypto",
   BULL: "crypto",
   WULF: "crypto",
+  IREN: "crypto",
   // Forward Industries runs a Solana treasury; that is what its price tracks.
   FWDI: "crypto",
 
   // Quantum
   QUBT: "quantum",
+  IONQ: "quantum",
 
   // Healthcare
   LLY: "health",
@@ -175,6 +183,7 @@ const BY_TICKER: Record<string, SectorId> = {
   UPS: "consumer",
   BROS: "consumer",
   LUV: "consumer",
+  FTSU: "consumer",
 
   // Finance — prediction markets included, since that is what they settle.
   "BRK.Bx": "finance",
@@ -189,6 +198,9 @@ const BY_TICKER: Record<string, SectorId> = {
   SCHH: "funds",
   DRAM: "funds",
   BOT: "funds",
+  COPX: "funds",
+  URA: "funds",
+  USO: "funds",
 };
 
 export function sectorFor(ticker: string): SectorId | null {

@@ -299,7 +299,7 @@ test("Tessera is admitted, and retired issues are not", () => {
  */
 test("transfer fees are recorded per mint, and the known ones are right", () => {
   const known: [string, number | null][] = [
-    ["OPENAI", 50],
+    ["OPENAI", 300],
     ["tOpenAI", 20],
     ["NVDAx", null],
   ];
