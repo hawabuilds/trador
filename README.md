@@ -69,7 +69,7 @@ Left to right: `/home` on the Stonks tab, the NVDAx stock page, and
 | News | Yahoo per-ticker RSS, keyless |
 | Stonkfolio | `getTokenAccountsByOwner` across both token programs |
 | Quotes and swaps | Jupiter, 50 bps when the fee wallet is set, one signature. Leave the wallet unset and swaps run with no platform fee |
-| Create | Plans, builds and signs against chain state — see below |
+| Create | Plans, builds and signs against chain state. StonkFun / LaunchLab has launched a coin on mainnet; pump.fun Custom Pairs has not yet — see below |
 
 The chain decides what exists. The store keeps it. Providers only decorate it.
 If every provider is down the feed still renders without live prices.
@@ -156,6 +156,8 @@ already includes the family.
 | `npm run sync:stocks` | Regenerate the stock registry (`--write` to commit it) |
 | `npm run seed:snapshot` | Recapture the universe snapshot |
 
+Copy `scripts/git-hooks/*` into `.git/hooks/`; they strip AI co-author trailers from every commit message.
+
 ## Migrations
 
 SQL lives in `supabase/migrations/`. Apply with `npm run db:migrate` against
@@ -234,5 +236,22 @@ configs do not mirror mainnet's, so the stock-quoted path is not meaningfully
 testable there either. That is why Create is not something you dry-run against a
 free cluster: the only place the full path exists is mainnet.
 
-No launch has gone through it yet. The path is built and the wallet will sign;
-it has not yet created a coin on chain.
+The first coin through it launched on mainnet on **2026-09-22**. Every row below
+is read back from the transaction and the pool account it created, not from the
+app's own records.
+
+| Field | Value |
+| --- | --- |
+| Coin | dickbutt (`DICKBUTT`) |
+| Path | StonkFun on LaunchLab, rewards config `6BwHHDg3u1854jC8PDLXvR4spTcLNaoBxLJNGC4nTESt` |
+| Quote asset | SPCXx, SpaceX xStock (Backed) |
+| Mint | `4T4X6R2Ko34VXSoFfRmyYab5Y9sHJ75AEDkcKWo4feTG` |
+| Transaction | [2G7ks6…1Uzui on Solscan](https://solscan.io/tx/2G7ks6LrnZCfrJ4nCGmHbUxHeNWvHxXxNT5Eh3uXpRmFzsPhGWD2pPVq4C9AsnCJx7WGAVwZN8XNzB7eNRG1Uzui) |
+| Date | 2026-09-22 21:01:05 UTC, slot 449,493,720 |
+
+The transaction proves a StonkFun launch on LaunchLab signed by the Create
+wallet. The store did not record it as a Trador launch at the time; the confirm
+route now saves the signature, so later launches are tagged in the store too.
+
+The pump.fun Custom Pairs path is wired the same way but has not launched a coin
+yet.
