@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="225 342 805 570" fill="#9945FF">
+  <!-- The T's crossbar: a trapezoid, wider at the top, with a rounded notch
+       cut up into its lower edge. Symmetric about x = 627.5. -->
+  <path d="M252 342 L1003 342 Q1030 342 1020 366 L941 530 Q932 548 912 548 L713 548 Q704 548 700 536 L675 492.5 A55 55 0 0 0 580 492.5 L555 536 Q551 548 542 548 L343 548 Q323 548 314 530 L235 366 Q225 342 252 342 Z"/>
+  <!-- The stem: a slanted block, bevelled at the top-left and cut on a
+       diagonal at the foot. -->
+  <path d="M636 593 L710 593 Q718 593 718 601 L718 785 Q718 800 705 808 L548 906 Q538 912 538 900 L538 696 Q538 680 549 669 L612 603 Q622 593 636 593 Z"/>
+</svg>

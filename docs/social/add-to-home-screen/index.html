@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Add Trador to your Home Screen</title>
+<!--
+  X post graphics. Render with ./render.sh (headless Chrome):
+    ?v=iphone          1080×1350
+    ?v=android         1080×1350
+    ?v=iphone&l=land   1600×900
+  Phones are built at native size (402×874 pt screens) and scaled with `zoom`.
+  iPhone steps 1–2 are real iOS 26 Safari screenshots (assets/ios-*.png|jpg,
+  473×1024) placed at 0.8535 so they fill the screen; the status bar is
+  painted over with a clean 9:41 one. Everything else is HTML.
+-->
+<style>
+  @font-face { font-family: "Inter"; font-weight: 100 900; src: url("assets/inter-latin.woff2") format("woff2"); }
+  @font-face { font-family: "Montserrat"; font-weight: 700; src: url("assets/montserrat-700-latin.woff2") format("woff2"); }
+
+  :root { --z: 0.7255; --col: 304px; --gut: 28px; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #0a0a0c; }
+  body {
+    width: 1080px; height: 1350px; overflow: hidden;
+    font-family: "Inter", system-ui, sans-serif; color: #fff;
+    -webkit-font-smoothing: antialiased;
+  }
+  body.land { width: 1600px; height: 900px; }
+
+  .canvas {
+    width: 100%; height: 100%;
+    padding: 104px 56px 0;
+    background: linear-gradient(180deg, #131316 0%, #0a0a0c 60%);
+    display: flex; flex-direction: column;
+  }
+
+  .top { display: flex; align-items: center; justify-content: space-between; }
+  .brand { display: flex; align-items: center; gap: 12px; color: #fff; }
+  .brand svg.mark { width: 34px; height: 24px; fill: #fff; }
+  .wm { display: inline-flex; align-items: baseline; font-family: "Montserrat", sans-serif; font-weight: 700; font-size: 22px; letter-spacing: 0.2em; line-height: 1; }
+  .wm svg { width: 0.72em; height: 0.7em; margin-right: 0.2em; fill: currentColor; }
+  .wm .end { margin-right: -0.2em; }
+  .url { font-size: 22px; font-weight: 500; color: #8e8e96; letter-spacing: -0.005em; }
+
+  h1 { margin-top: 72px; font-size: 76px; line-height: 1.06; font-weight: 700; letter-spacing: -0.038em; }
+
+  .row { display: grid; grid-template-columns: repeat(3, var(--col)); column-gap: var(--gut); margin-top: 108px; }
+  .step { display: flex; flex-direction: column; align-items: center; }
+  .dev { width: var(--col); display: flex; justify-content: center; }
+  .cap { margin-top: 34px; display: flex; flex-direction: column; align-items: center; }
+  .num {
+    width: 32px; height: 32px; border-radius: 50%;
+    border: 1.5px solid rgb(255 255 255 / 30%);
+    display: grid; place-items: center;
+    font-size: 16px; font-weight: 600; color: #fff; font-variant-numeric: tabular-nums;
+  }
+  .lbl { margin-top: 14px; font-size: 31px; font-weight: 600; letter-spacing: -0.022em; white-space: nowrap; }
+  .lbl svg { width: 0.78em; height: 0.78em; vertical-align: -0.08em; margin: 0 0.04em; fill: currentColor; }
+
+  body.land .canvas { padding: 72px 72px; display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto 1fr auto; column-gap: 80px; }
+  body.land .top { grid-column: 1; grid-row: 1; }
+  body.land .top .url { display: none; }
+  body.land h1 { grid-column: 1; grid-row: 2; align-self: center; margin: 0 0 40px; font-size: 62px; line-height: 1.08; }
+  body.land .foot { grid-column: 1; grid-row: 3; }
+  body.land .row { grid-column: 2; grid-row: 1 / span 3; margin: 0; --gut: 32px; }
+  .foot { display: none; }
+  body.land .foot { display: block; }
+  body:not(.land) .h-land, body.land .h-port { display: none; }
+  body.land .top .brand svg.mark { fill: #9945ff; }
+  body.land .accent { color: #9945ff; }
+  body.land .num { border-color: #9945ff; }
+
+  /* ===== Devices ===== */
+  .phone { zoom: var(--z); position: relative; width: 419px; height: 891px; flex: none; }
+  .frame {
+    position: absolute; inset: 0; border-radius: 69px; padding: 3.5px;
+    background: linear-gradient(155deg, #58575d 0%, #2d2c31 10%, #1f1e22 35%, #1a191d 60%, #2a292e 85%, #4e4d53 100%);
+    box-shadow: 0 60px 90px -40px rgb(0 0 0 / 90%), 0 24px 40px -24px rgb(0 0 0 / 70%);
+  }
+  .bezel { width: 100%; height: 100%; border-radius: 65.5px; background: #030303; padding: 5px; box-shadow: inset 0 0 0 0.75px rgb(255 255 255 / 10%); }
+  .scr { position: relative; width: 402px; height: 874px; border-radius: 60.5px; overflow: hidden; background: #0a0a0c; isolation: isolate; }
+  .key { position: absolute; width: 3px; border-radius: 2px; background: linear-gradient(90deg, #6b6a70, #2b2a2f); }
+  .key.l { left: -2px; } .key.r { right: -2px; background: linear-gradient(270deg, #6b6a70, #2b2a2f); }
+  .island { position: absolute; top: 11px; left: 50%; transform: translateX(-50%); width: 125px; height: 37px; border-radius: 19px; background: #000; z-index: 50; }
+
+  .android .frame { border-radius: 58px; background: linear-gradient(155deg, #55545a 0%, #2c2b30 10%, #1f1e22 35%, #1a191d 60%, #2a292e 85%, #4c4b51 100%); }
+  .android .bezel { border-radius: 54.5px; padding: 6px; }
+  .android .scr { width: 400px; height: 872px; border-radius: 48.5px; }
+  .cam { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); width: 15px; height: 15px; border-radius: 50%; background: #000; box-shadow: 0 0 0 1.5px #151515; z-index: 50; }
+
+  /* Clean status bars */
+  .sb { position: absolute; top: 0; left: 0; right: 0; height: 59px; display: flex; justify-content: space-between; align-items: center; z-index: 40; color: #fff; }
+  .sb > span { width: 138px; display: flex; justify-content: center; align-items: center; gap: 6px; }
+  .sb .t { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; padding-left: 8px; }
+  .sb svg { display: block; }
+  .android .sb { height: 44px; padding: 2px 26px 0 30px; }
+  .android .sb > span { width: auto; gap: 7px; }
+  .android .sb .t { font-size: 15px; font-weight: 500; padding: 0; }
+
+  /* Real screenshots, in their own 473×1024 pixel space */
+  .shot { position: absolute; top: 0; left: -0.9px; width: 473px; height: 1024px; transform: scale(0.8535); transform-origin: 0 0; background-size: 473px 1024px; }
+  .shot .cover { position: absolute; left: 0; right: 0; top: 0; height: 56px; }
+  .shot .ring { position: absolute; border: 3px solid rgb(255 255 255 / 92%); }
+
+  /* Recreated iOS home screen */
+  .wall { position: absolute; inset: 0; background: linear-gradient(180deg, #2a292f 0%, #1a191e 42%, #0e0e11 100%); }
+  .ig { position: absolute; top: 72px; left: 27px; display: grid; grid-template-columns: repeat(4, 64px); column-gap: 28.7px; row-gap: 37px; }
+  .ph { width: 64px; height: 64px; border-radius: 15px; background: rgb(255 255 255 / 8%); box-shadow: inset 0 0 0 0.75px rgb(255 255 255 / 12%); }
+  .ih { position: relative; }
+  .ih img { width: 64px; height: 64px; border-radius: 15px; display: block; }
+  .ih span { position: absolute; top: 70px; left: 50%; transform: translateX(-50%); font-size: 12px; font-weight: 500; white-space: nowrap; }
+  .isearch { position: absolute; left: 50%; transform: translateX(-50%); bottom: 150px; height: 30px; padding: 0 13px; border-radius: 15px; background: rgb(255 255 255 / 10%); box-shadow: inset 0 0 0 0.75px rgb(255 255 255 / 12%); display: flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 500; color: rgb(255 255 255 / 85%); }
+  .idock { position: absolute; left: 13px; right: 13px; bottom: 16px; height: 92px; border-radius: 38px; background: rgb(255 255 255 / 7%); box-shadow: inset 0 0 0 0.75px rgb(255 255 255 / 10%); display: flex; justify-content: space-between; align-items: center; padding: 0 14px; }
+  .homebar { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 139px; height: 5px; border-radius: 3px; background: #fff; z-index: 45; }
+
+  /* Android: Chrome + recreated Trador feed */
+  .chrome { position: absolute; top: 44px; left: 0; right: 0; height: 60px; display: flex; align-items: center; gap: 6px; padding: 0 6px 0 12px; background: #1f1f1f; z-index: 20; }
+  .omni { flex: 1; height: 44px; border-radius: 22px; background: #2e2f33; display: flex; align-items: center; gap: 10px; padding: 0 16px; font-size: 16px; color: #e3e3e3; }
+  .cb { width: 44px; height: 44px; display: grid; place-items: center; color: #e3e3e3; }
+  .cb svg { width: 24px; height: 24px; }
+  .tabsq { width: 21px; height: 21px; border: 2.2px solid #e3e3e3; border-radius: 5px; display: grid; place-items: center; font-size: 11.5px; font-weight: 700; }
+  .feed { position: absolute; left: 0; right: 0; top: 104px; bottom: 0; padding: 18px 20px 0; }
+  .fh { display: flex; justify-content: space-between; align-items: center; }
+  .fh .brand svg.mark { width: 30px; height: 21px; fill: #9945ff; }
+  .fh .wm { font-size: 19px; }
+  .create { height: 36px; padding: 0 16px; border-radius: 18px; background: #9945ff; font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+  .tabs { display: grid; grid-template-columns: 1fr 1fr 1fr; margin: 18px -20px 0; }
+  .tabs span { text-align: center; padding: 8px 0 12px; font-size: 16px; font-weight: 700; color: #7a7a85; position: relative; }
+  .tabs .on { color: #fff; font-weight: 800; }
+  .tabs .on::after { content: ""; position: absolute; left: 22%; right: 22%; bottom: 0; height: 2.5px; border-radius: 2px; background: #9945ff; }
+  .chips { display: flex; gap: 8px; margin-top: 14px; white-space: nowrap; }
+  .chips span { padding: 9px 14px; border-radius: 18px; font-size: 14px; font-weight: 600; color: #8b8b95; background: rgb(255 255 255 / 6%); line-height: 1; }
+  .chips .on { color: #fff; font-weight: 800; background: #16161a; }
+  .chips i { font-style: normal; font-size: 12px; margin-left: 5px; }
+  .rows { list-style: none; margin-top: 14px; }
+  .rows li { display: flex; align-items: center; gap: 12px; height: 72px; }
+  .av { width: 42px; height: 42px; border-radius: 50%; flex: none; background-image: url("assets/ios-feed.png"); background-size: 397.3px 860.2px; }
+  .nm { flex: 1; }
+  .nm b { font-size: 16px; font-weight: 800; letter-spacing: -0.01em; }
+  .tag { display: inline-block; margin-left: 6px; padding: 2px 6px; border-radius: 5px; background: #202025; color: #9a9aa4; font-size: 11px; font-weight: 700; vertical-align: 2px; }
+  .nm small { display: flex; align-items: center; gap: 8px; margin-top: 5px; font-size: 13.5px; font-weight: 600; color: #8b8b95; }
+  .nm small i { width: 14px; height: 14px; border-radius: 4px; background: #bcdde4; }
+  .px { text-align: right; }
+  .px b { font-size: 16px; font-weight: 800; }
+  .px b em { font-style: normal; font-size: 11px; color: #7a7a85; margin-left: 3px; }
+  .px small { display: block; margin-top: 5px; font-size: 13.5px; font-weight: 700; }
+  .up { color: #4ade80; } .dn { color: #ef454a; }
+  .nav { position: absolute; left: 50%; transform: translateX(-50%); bottom: 26px; height: 62px; padding: 0 8px; border-radius: 31px; background: rgb(24 24 28 / 94%); box-shadow: inset 0 0 0 0.75px rgb(255 255 255 / 10%); display: flex; align-items: center; gap: 10px; z-index: 18; }
+  .nav span { width: 52px; height: 48px; border-radius: 24px; display: grid; place-items: center; color: #8b8b95; }
+  .nav span.on { background: rgb(255 255 255 / 8%); color: #fff; }
+  .nav svg { width: 24px; height: 24px; }
+  .gesture { position: absolute; bottom: 9px; left: 50%; transform: translateX(-50%); width: 108px; height: 4.5px; border-radius: 3px; background: #e3e3e3; z-index: 45; }
+  .scrim { position: absolute; inset: 0; background: rgb(0 0 0 / 48%); z-index: 25; }
+  .ring { position: absolute; border: 2.5px solid rgb(255 255 255 / 92%); pointer-events: none; }
+
+  .menu { position: absolute; top: 50px; right: 8px; width: 262px; background: #2c2c30; border-radius: 16px; z-index: 30; padding: 4px 0 8px; box-shadow: 0 12px 32px rgb(0 0 0 / 55%); }
+  .mi-row { display: flex; justify-content: space-around; padding: 10px 6px 12px; color: #e3e3e3; }
+  .mi-row svg { width: 22px; height: 22px; }
+  .mi { position: relative; height: 46px; display: flex; align-items: center; gap: 18px; padding: 0 20px; font-size: 15.5px; color: #e3e3e3; }
+  .mi svg { width: 21px; height: 21px; color: #c4c7c5; flex: none; }
+  .msep { height: 1px; background: #3d3d42; margin: 4px 0; }
+
+  .dialog { position: absolute; left: 36px; right: 36px; top: 300px; background: #2c2c30; border-radius: 28px; padding: 24px 24px 18px; z-index: 30; }
+  .dialog h3 { font-size: 24px; font-weight: 400; color: #e3e3e3; }
+  .dapp { display: flex; align-items: center; gap: 14px; margin-top: 20px; }
+  .dapp img { width: 44px; height: 44px; border-radius: 50%; }
+  .dapp b { display: block; font-size: 16px; font-weight: 600; color: #e3e3e3; }
+  .dapp small { display: block; font-size: 14px; color: #a8a8b0; margin-top: 3px; }
+  .dbtn { display: flex; justify-content: flex-end; gap: 8px; margin-top: 26px; }
+  .dbtn span { position: relative; padding: 11px 16px; font-size: 15px; font-weight: 600; color: #a8c7fa; border-radius: 20px; }
+
+  .aglance { position: absolute; top: 74px; left: 30px; }
+  .aglance b { display: block; font-size: 25px; font-weight: 500; letter-spacing: -0.01em; }
+  .aglance small { display: block; margin-top: 6px; font-size: 14px; color: #c9c9cf; }
+  .ag { position: absolute; top: 176px; left: 28px; right: 28px; display: grid; grid-template-columns: repeat(4, 60px); justify-content: space-between; row-gap: 40px; }
+  .ag .pc { width: 60px; height: 60px; border-radius: 50%; background: rgb(255 255 255 / 8%); box-shadow: inset 0 0 0 0.75px rgb(255 255 255 / 12%); }
+  .ag .ih img { width: 60px; height: 60px; border-radius: 50%; }
+  .ag .ih span { top: 67px; font-size: 12.5px; }
+  .adock { position: absolute; left: 28px; right: 28px; bottom: 116px; display: grid; grid-template-columns: repeat(4, 60px); justify-content: space-between; }
+  .adock .pc { width: 60px; height: 60px; border-radius: 50%; background: rgb(255 255 255 / 8%); box-shadow: inset 0 0 0 0.75px rgb(255 255 255 / 12%); }
+  .gbar { position: absolute; left: 24px; right: 24px; bottom: 38px; height: 54px; border-radius: 27px; background: rgb(255 255 255 / 9%); display: flex; align-items: center; gap: 12px; padding: 0 20px; font-size: 15px; color: #c9c9cf; }
+
+  body.v-iphone .only-android, body.v-android .only-iphone { display: none !important; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="lambda" viewBox="0 0 70 70"><path d="M0 70 L35 0 L70 70 L55 70 L35 29 L15 70 Z"/></symbol>
+    <symbol id="mark" viewBox="225 342 805 570"><path d="M252 342 L1003 342 Q1030 342 1020 366 L941 530 Q932 548 912 548 L713 548 Q704 548 700 536 L675 492.5 A55 55 0 0 0 580 492.5 L555 536 Q551 548 542 548 L343 548 Q323 548 314 530 L235 366 Q225 342 252 342 Z"/><path d="M636 593 L710 593 Q718 593 718 601 L718 785 Q718 800 705 808 L548 906 Q538 912 538 900 L538 696 Q538 680 549 669 L612 603 Q622 593 636 593 Z"/></symbol>
+    <symbol id="dots-h" viewBox="0 0 24 24"><circle cx="4.5" cy="12" r="2.3"/><circle cx="12" cy="12" r="2.3"/><circle cx="19.5" cy="12" r="2.3"/></symbol>
+    <symbol id="dots-v" viewBox="0 0 24 24"><circle cx="12" cy="4.5" r="2.3"/><circle cx="12" cy="12" r="2.3"/><circle cx="12" cy="19.5" r="2.3"/></symbol>
+    <symbol id="ios-sig" viewBox="0 0 18 12"><rect x="0" y="7.5" width="3.2" height="4.5" rx="1"/><rect x="4.9" y="5" width="3.2" height="7" rx="1"/><rect x="9.8" y="2.5" width="3.2" height="9.5" rx="1"/><rect x="14.7" y="0" width="3.2" height="12" rx="1"/></symbol>
+    <symbol id="ios-wifi" viewBox="0 0 16 12"><path d="M8 11.8 5.3 9.1a3.8 3.8 0 0 1 5.4 0Zm-4.3-4.3a6.1 6.1 0 0 1 8.6 0l1.6-1.6a8.4 8.4 0 0 0-11.8 0ZM.8 4.6a10.2 10.2 0 0 1 14.4 0L16.8 3a12.5 12.5 0 0 0-17.6 0Z"/></symbol>
+    <symbol id="ios-bat" viewBox="0 0 27 13"><rect x="0.6" y="0.6" width="23" height="11.8" rx="3.6" fill="none" stroke="currentColor" stroke-opacity=".38" stroke-width="1.1"/><rect x="2.3" y="2.3" width="19.6" height="8.4" rx="2.2"/><path d="M25.2 4.4v4.2a2.2 2.2 0 0 0 0-4.2Z" fill-opacity=".4"/></symbol>
+    <symbol id="a-wifi" viewBox="0 0 16 12"><path d="M8 12 0 3.4a11.7 11.7 0 0 1 16 0Z"/></symbol>
+    <symbol id="a-sig" viewBox="0 0 13 12"><path d="M13 0v12H0Z"/></symbol>
+    <symbol id="a-bat" viewBox="0 0 8 14"><rect x="0" y="1.6" width="8" height="12.4" rx="1.6"/><rect x="2.4" y="0" width="3.2" height="2.2" rx=".6"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 10.5 12 4l8 6.5V20h-5v-6H9v6H4Z"/></symbol>
+    <symbol id="i-news" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="4" y="4.5" width="16" height="15" rx="2.5"/><path d="M8 9h8M8 13h8M8 17h5"/></symbol>
+    <symbol id="i-learn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M2.5 9.5 12 5l9.5 4.5L12 14Z"/><path d="M6.5 11.5V16c3 2.2 8 2.2 11 0v-4.5"/></symbol>
+    <symbol id="i-wallet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3.5" y="5.5" width="17" height="13" rx="3"/><path d="M15 12h5.5"/></symbol>
+    <symbol id="i-tune" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></symbol>
+    <symbol id="i-fwd" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9Z"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.1"/></symbol>
+    <symbol id="i-reload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12a7 7 0 1 1-2.1-5"/><path d="M19 4v4h-4"/></symbol>
+    <symbol id="i-newtab" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8.5v7M8.5 12h7"/></symbol>
+    <symbol id="i-incog" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 11h18M6 11l2-6h8l2 6"/><circle cx="7.5" cy="16" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/><path d="M10 16h4"/></symbol>
+    <symbol id="i-hist" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 12a8 8 0 1 0 2.4-5.7L4 8.5"/><path d="M4 4v4.5h4.5M12 8v4.5l3 2"/></symbol>
+    <symbol id="i-bmk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 3.5h12v17l-6-4-6 4Z"/></symbol>
+    <symbol id="i-recent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 20h8"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5.5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="18.5" r="2.5"/><path d="m8.2 10.8 7.6-4M8.2 13.2l7.6 4"/></symbol>
+    <symbol id="i-find" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6"/><path d="m15.5 15.5 4.5 4.5"/></symbol>
+    <symbol id="i-trans" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9M8.5 4v2c0 4-2 7-4.5 8.5M6.5 10c1 2 3 3.5 5 4"/><path d="m13 20 4-9 4 9M14.5 17h5"/></symbol>
+    <symbol id="i-install" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M12 7v7M9 11l3 3 3-3"/></symbol>
+    <symbol id="i-desk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M9 20h6M12 16v4"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></symbol>
+  </defs>
+</svg>
+
+<main class="canvas">
+  <header class="top">
+    <span class="brand"><svg class="mark"><use href="#mark"/></svg><span class="wm">TR<svg><use href="#lambda"/></svg><span class="end">DOR</span></span></span>
+    <span class="url">trador.one</span>
+  </header>
+
+  <h1 class="h-port">Add Trador to<br>your Home Screen</h1>
+  <h1 class="h-land">Add <span class="accent">Trador</span><br>to your<br>Home Screen</h1>
+
+  <!-- ============ iPhone ============ -->
+  <section class="row only-iphone">
+    <div class="step">
+      <div class="dev"><div class="phone" data-iphone>
+        <div class="shot" style="background-image:url(assets/ios-menu.png)">
+          <div class="cover" style="background:rgb(10 10 12)"></div>
+          <div class="ring" style="left:150px;top:597px;width:276px;height:50px;border-radius:25px"></div>
+        </div>
+      </div></div>
+      <div class="cap"><span class="num">1</span><span class="lbl">Tap <svg><use href="#dots-h"/></svg> then Share</span></div>
+    </div>
+
+    <div class="step">
+      <div class="dev"><div class="phone" data-iphone>
+        <div class="shot" style="background-image:url(assets/ios-share.jpg)">
+          <div class="cover" style="background:rgb(7 10 9)"></div>
+          <div style="position:absolute;left:20px;right:20px;top:986px;bottom:0;background:rgb(73 73 75)"></div>
+          <div class="ring" style="left:25px;top:786px;width:423px;height:54px;border-radius:20px"></div>
+        </div>
+      </div></div>
+      <div class="cap"><span class="num">2</span><span class="lbl">Add to Home Screen</span></div>
+    </div>
+
+    <div class="step">
+      <div class="dev"><div class="phone" data-iphone>
+        <div class="wall"></div>
+        <div class="ig">
+          <i class="ph"></i><i class="ph"></i><i class="ph"></i><i class="ph"></i>
+          <i class="ph"></i><i class="ph"></i><i class="ph"></i>
+          <div class="ih"><img src="assets/app-icon.png" alt=""><span>Trador</span></div>
+        </div>
+        <div class="isearch"><svg width="12" height="12"><use href="#i-search"/></svg>Search</div>
+        <div class="idock"><i class="ph"></i><i class="ph"></i><i class="ph"></i><i class="ph"></i></div>
+      </div></div>
+      <div class="cap"><span class="num">3</span><span class="lbl">Done</span></div>
+    </div>
+  </section>
+
+  <!-- ============ Android ============ -->
+  <section class="row only-android">
+    <div class="step">
+      <div class="dev"><div class="phone android" data-android>
+        <div data-chrome></div>
+        <div class="feed" data-feed></div>
+        <div class="scrim" style="background:rgb(0 0 0 / 30%)"></div>
+        <div class="menu">
+          <div class="mi-row"><svg><use href="#i-fwd"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-down"/></svg><svg><use href="#i-info"/></svg><svg><use href="#i-reload"/></svg></div>
+          <div class="mi"><svg><use href="#i-newtab"/></svg>New tab</div>
+          <div class="mi"><svg><use href="#i-incog"/></svg>New Incognito tab</div>
+          <div class="mi"><svg><use href="#i-hist"/></svg>History</div>
+          <div class="mi"><svg><use href="#i-down"/></svg>Downloads</div>
+          <div class="mi"><svg><use href="#i-bmk"/></svg>Bookmarks</div>
+          <div class="mi"><svg><use href="#i-recent"/></svg>Recent tabs</div>
+          <div class="msep"></div>
+          <div class="mi"><svg><use href="#i-share"/></svg>Share…</div>
+          <div class="mi"><svg><use href="#i-find"/></svg>Find in page</div>
+          <div class="mi"><svg><use href="#i-trans"/></svg>Translate…</div>
+          <div class="mi"><svg><use href="#i-install"/></svg>Install app<i class="ring" style="left:8px;right:8px;top:1px;bottom:1px;border-radius:22px"></i></div>
+          <div class="msep"></div>
+          <div class="mi"><svg><use href="#i-desk"/></svg>Desktop site</div>
+          <div class="mi"><svg><use href="#i-gear"/></svg>Settings</div>
+        </div>
+      </div></div>
+      <div class="cap"><span class="num">1</span><span class="lbl">Tap <svg><use href="#dots-v"/></svg> › Install app</span></div>
+    </div>
+
+    <div class="step">
+      <div class="dev"><div class="phone android" data-android>
+        <div data-chrome></div>
+        <div class="feed" data-feed></div>
+        <div class="scrim"></div>
+        <div class="dialog">
+          <h3>Install app</h3>
+          <div class="dapp"><img src="assets/app-icon-maskable.png" alt=""><div><b>Trador</b><small>trador.one</small></div></div>
+          <div class="dbtn"><span>Cancel</span><span>Install<i class="ring" style="inset:0;border-radius:20px"></i></span></div>
+        </div>
+      </div></div>
+      <div class="cap"><span class="num">2</span><span class="lbl">Tap Install</span></div>
+    </div>
+
+    <div class="step">
+      <div class="dev"><div class="phone android" data-android>
+        <div class="wall"></div>
+        <div class="aglance"><b>Wed, Sep 23</b><small>18°C</small></div>
+        <div class="ag">
+          <i class="pc"></i><i class="pc"></i><i class="pc"></i><i class="pc"></i>
+          <i class="pc"></i><i class="pc"></i><i class="pc"></i>
+          <div class="ih"><img src="assets/app-icon-maskable.png" alt=""><span>Trador</span></div>
+        </div>
+        <div class="adock"><i class="pc"></i><i class="pc"></i><i class="pc"></i><i class="pc"></i></div>
+        <div class="gbar"><svg width="18" height="18"><use href="#i-search"/></svg>Search</div>
+      </div></div>
+      <div class="cap"><span class="num">3</span><span class="lbl">Done</span></div>
+    </div>
+  </section>
+
+  <footer class="foot"><span class="url">trador.one</span></footer>
+</main>
+
+<script>
+  const q = new URLSearchParams(location.search);
+  document.body.classList.add(q.get("v") === "android" ? "v-android" : "v-iphone");
+  if (q.get("l") === "land") document.body.classList.add("land");
+
+  const iosSb = `<div class="sb"><span class="t">9:41</span><span>
+    <svg width="18" height="12" fill="currentColor"><use href="#ios-sig"/></svg>
+    <svg width="16" height="12" fill="currentColor"><use href="#ios-wifi"/></svg>
+    <svg width="27" height="13" fill="currentColor"><use href="#ios-bat"/></svg></span></div>`;
+  const andSb = `<div class="sb"><span class="t">9:41</span><span>
+    <svg width="16" height="12" fill="currentColor"><use href="#a-wifi"/></svg>
+    <svg width="13" height="12" fill="currentColor"><use href="#a-sig"/></svg>
+    <svg width="8" height="14" fill="currentColor"><use href="#a-bat"/></svg></span></div>`;
+
+  const shell = (inner, android) => `
+    <div class="frame"><div class="bezel"><div class="scr">${inner}${android ? andSb + '<div class="cam"></div><div class="gesture"></div>' : iosSb + '<div class="island"></div><div class="homebar"></div>'}</div></div></div>
+    ${android
+      ? '<i class="key r" style="top:190px;height:64px"></i><i class="key r" style="top:290px;height:118px"></i>'
+      : '<i class="key l" style="top:176px;height:34px"></i><i class="key l" style="top:240px;height:62px"></i><i class="key l" style="top:318px;height:62px"></i><i class="key r" style="top:268px;height:98px"></i><i class="key r" style="top:560px;height:58px"></i>'}`;
+  document.querySelectorAll("[data-iphone]").forEach((el) => (el.innerHTML = shell(el.innerHTML, false)));
+
+  const chrome = `<div class="chrome"><span class="cb"><svg><use href="#i-home"/></svg></span>
+    <span class="omni"><svg width="18" height="18" style="color:#c4c7c5"><use href="#i-tune"/></svg>trador.one</span>
+    <span class="cb"><span class="tabsq">2</span></span><span class="cb"><svg fill="currentColor"><use href="#dots-v"/></svg></span></div>`;
+  // Real rows from the live feed (assets/ios-feed.png); avatars are cropped from it.
+  const rows = [
+    ["STONK", "SPYx", "$72M", "2mo", "$247M", "▼ 16.64%", "dn", 357],
+    ["GP", "GLDx", "$20M", "11d", "$18M", "▲ +69.95%", "up", 441],
+    ["SI", "NVDAx", "$18M", "2d", "$4.1M", "▲ +38.51%", "up", 524],
+    ["ALLINU", "DKNG", "$6.2M", "10d", "$8.8M", "▼ 46.03%", "dn", 608],
+    ["GROK", "SPCXx", "$3.8M", "2d", "$2.4M", "▲ +118.77%", "up", 691],
+  ];
+  const k = 42 / 50;
+  const feed = `
+    <div class="fh"><span class="brand"><svg class="mark"><use href="#mark"/></svg><span class="wm">TR<svg><use href="#lambda"/></svg><span class="end">DOR</span></span></span><span class="create">Create</span></div>
+    <div class="tabs"><span>Watchlist</span><span class="on">Stonks</span><span>Stocks</span></div>
+    <div class="chips"><span class="on">Trending</span><span>New</span><span>Graduating</span><span>Market cap</span></div>
+    <div class="chips"><span class="on">All<i>127</i></span><span>ANTHROPIC<i>10</i></span><span>GLDx<i>10</i></span><span>NVDAx</span></div>
+    <ul class="rows">${rows.map(([t, tag, vol, age, mc, d, dir, cy]) => `
+      <li><span class="av" style="background-position:${(-26 * k).toFixed(1)}px ${(-(cy - 25) * k).toFixed(1)}px"></span>
+        <span class="nm"><b>${t}</b><span class="tag">${tag}</span><small><i></i>${vol} Vol<span>${age}</span></small></span>
+        <span class="px"><b>${mc}<em>MC</em></b><small class="${dir}">${d}</small></span></li>`).join("")}</ul>`;
+  const nav = `<div class="nav"><span class="on"><svg><use href="#i-home"/></svg></span><span><svg><use href="#i-search"/></svg></span><span><svg><use href="#i-news"/></svg></span><span><svg><use href="#i-learn"/></svg></span><span><svg><use href="#i-wallet"/></svg></span></div>`;
+  document.querySelectorAll("[data-android]").forEach((el) => {
+    let inner = el.innerHTML.replace('<div data-chrome=""></div>', chrome).replace('<div class="feed" data-feed=""></div>', `<div class="feed">${feed}</div>${nav}`);
+    el.innerHTML = shell(inner, true);
+  });
+</script>
+</body>
+</html>
