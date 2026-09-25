@@ -1,6 +1,7 @@
 "use client";
 
 import {useEffect, useRef} from "react";
+import {useQueryClient} from "@tanstack/react-query";
 
 import {clearReferral, readReferral} from "@/lib/referral";
 import {useSession} from "@/lib/session";
@@ -13,23 +14,30 @@ import {useSession} from "@/lib/session";
  * real account would 404 forever. Signing in is the only moment the app knows
  * someone's handle and avatar, so it is the moment to write them down.
  *
- * Fire-and-forget, and deliberately silent. This is not something the person
- * asked for and there is nothing useful to tell them if it fails — the next
- * load tries again, and everything except follows works regardless.
+ * Fire-and-forget, and deliberately silent in the UI. Failures must still be
+ * retried: marking the attempt done before `/api/me` succeeds left people with
+ * a Privy session (and a Share URL built from their X handle) but no `users`
+ * row, so the link they handed out 404'd forever.
  *
- * Runs once per session per handle. The ref guard matters because `AppShell`
- * re-renders on every navigation, and without it this would PUT on every tab
- * change for the entire session.
+ * Runs once per session per handle+wallet once it succeeds. The ref guard
+ * matters because `AppShell` re-renders on every navigation, and without it
+ * this would PUT on every tab change for the entire session.
  */
 export function useRegisterMe(): void {
   const session = useSession();
+  const queryClient = useQueryClient();
   const done = useRef<string | null>(null);
+  const inFlight = useRef<string | null>(null);
 
   const handle = session.user?.handle ?? null;
   const wallet = session.user?.wallet ?? null;
+  const displayName = session.user?.displayName ?? null;
+  const pfpUrl = session.user?.pfpUrl ?? null;
+  const authenticated = session.authenticated;
+  const getAccessToken = session.getAccessToken;
 
   useEffect(() => {
-    if (!session.authenticated || !handle) return;
+    if (!authenticated || !handle) return;
 
     /*
      * Keyed on handle *and* wallet.
@@ -40,36 +48,65 @@ export function useRegisterMe(): void {
      * — so a profile would permanently show no wallet.
      */
     const key = `${handle}:${wallet ?? ""}`;
-    if (done.current === key) return;
-    done.current = key;
+    if (done.current === key || inFlight.current === key) return;
+    inFlight.current = key;
+
+    let cancelled = false;
 
     void (async () => {
-      try {
-        const token = await session.getAccessToken();
-        if (!token) return;
+      // Token and the first PUT can both race the session. A few quiet retries
+      // beat permanently skipping the insert after one early null token.
+      for (let attempt = 0; attempt < 5; attempt++) {
+        if (cancelled) return;
+        try {
+          const token = await getAccessToken();
+          if (!token) {
+            await wait(400 * (attempt + 1));
+            continue;
+          }
 
-        // Whose shared link brought them here. The server only applies it if
-        // this call is what creates the account, so sending it is always safe.
-        const referredBy = readReferral();
+          // Whose shared link brought them here. The server only applies it if
+          // this call is what creates the account, so sending it is always safe.
+          const referredBy = readReferral();
 
-        const response = await fetch("/api/me", {
-          method: "PUT",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            handle,
-            displayName: session.user?.displayName ?? null,
-            pfpUrl: session.user?.pfpUrl ?? null,
-            wallet,
-            referredBy,
-          }),
-        });
-        if (response.ok && referredBy) clearReferral();
-      } catch {
-        // Silent by design. See the note above.
+          const response = await fetch("/api/me", {
+            method: "PUT",
+            headers: {
+              "content-type": "application/json",
+              authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              handle,
+              displayName,
+              pfpUrl,
+              wallet,
+              referredBy,
+            }),
+          });
+          if (!response.ok) {
+            await wait(400 * (attempt + 1));
+            continue;
+          }
+
+          if (referredBy) clearReferral();
+          done.current = key;
+          // Share is gated on the server profile existing; refresh so it appears.
+          await queryClient.invalidateQueries({queryKey: ["profile", handle]});
+          return;
+        } catch {
+          await wait(400 * (attempt + 1));
+        }
       }
-    })();
-  }, [session, handle, wallet]);
+    })().finally(() => {
+      if (inFlight.current === key) inFlight.current = null;
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authenticated, handle, wallet, displayName, pfpUrl, getAccessToken, queryClient]);
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }

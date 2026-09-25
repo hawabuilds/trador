@@ -144,27 +144,36 @@ export function useMe() {
     [handle, session, queryClient],
   );
 
+  const serverProfile = query.data?.profile ?? null;
+
   return {
     handle,
+    /**
+     * Handle from the `users` row, once it exists.
+     *
+     * The Privy/X username is available the moment they sign in; the shareable
+     * `/u/{handle}` must wait for this, or the link 404s for everyone else.
+     */
+    profileHandle: serverProfile?.handle ?? null,
     /** Shown on the public profile unless opted out. */
-    portfolioPublic: query.data?.profile.portfolioPublic ?? true,
+    portfolioPublic: serverProfile?.portfolioPublic ?? true,
     setPortfolioPublic,
     // Local edits win over the server copy, which is what makes a save feel
     // immediate; the server value is the fallback, not the override.
     displayName:
-      edits.displayName ?? query.data?.profile.displayName ?? session.user?.displayName ?? null,
-    bio: edits.bio ?? query.data?.profile.bio ?? null,
+      edits.displayName ?? serverProfile?.displayName ?? session.user?.displayName ?? null,
+    bio: edits.bio ?? serverProfile?.bio ?? null,
     socials: {
       x: edits.socials.x ?? null,
       telegram: edits.socials.telegram ?? null,
       website: edits.socials.website ?? null,
       discord: edits.socials.discord ?? null,
     } as SocialLinks,
-    pfpUrl: session.user?.pfpUrl ?? query.data?.profile.pfpUrl ?? null,
+    pfpUrl: session.user?.pfpUrl ?? serverProfile?.pfpUrl ?? null,
     followers: query.data?.followers ?? [],
     following: query.data?.following ?? [],
-    followerCount: query.data?.profile.followers ?? 0,
-    followingCount: query.data?.profile.following ?? 0,
+    followerCount: serverProfile?.followers ?? 0,
+    followingCount: serverProfile?.following ?? 0,
     isLoading: query.isLoading,
     /** False when this deployment has no account store — the UI hides, not lies. */
     available: Boolean(handle) && query.error === null,

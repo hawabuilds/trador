@@ -314,7 +314,7 @@ function CommentRow({
             Omitted rather than filled with zeros when there is no position: an
             author who never bought here is not someone who lost 100%.
           */}
-          {position ? (
+          {position && (position.gainPct !== null || position.boughtUsd > 0) ? (
             <div className="relative mt-1.5 flex items-center gap-1.5 pl-3.5">
               <span
                 aria-hidden="true"
@@ -333,10 +333,12 @@ function CommentRow({
                   {position.gainPct.toFixed(2)}%
                 </span>
               ) : null}
-              <span className="tabular-nums text-[12px] font-semibold text-faint">
-                {position.gainPct !== null ? "· " : ""}
-                {compactMoney(position.boughtUsd)} bought
-              </span>
+              {position.boughtUsd > 0 ? (
+                <span className="tabular-nums text-[12px] font-semibold text-faint">
+                  {position.gainPct !== null ? "· " : ""}
+                  {compactMoney(position.boughtUsd)} bought
+                </span>
+              ) : null}
             </div>
           ) : null}
 

@@ -22,7 +22,18 @@ const CONFIGURED_ORIGIN = Boolean(process.env.NEXT_PUBLIC_APP_URL);
  * see `src/lib/referral.ts`. Nothing about that is shown here: referral numbers
  * are the admin's, not the sharer's.
  */
-export function ShareProfileButton({handle, displayName}: {handle: string; displayName: string | null}) {
+export function ShareProfileButton({
+  handle,
+  displayName,
+  className,
+  iconOnly = false,
+}: {
+  handle: string;
+  displayName: string | null;
+  className?: string;
+  /** Icon without label — Stonkfolio header row at 390px. */
+  iconOnly?: boolean;
+}) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -96,10 +107,14 @@ export function ShareProfileButton({handle, displayName}: {handle: string; displ
         }}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-[var(--overlay-wash)] px-3 py-1.5 text-[12px] font-extrabold text-ink transition-colors hover:bg-[var(--overlay-wash-hover)]"
+        className={cn(
+          "inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-[var(--overlay-wash)] font-extrabold text-ink transition-colors hover:bg-[var(--overlay-wash-hover)]",
+          iconOnly ? "justify-center gap-0" : "gap-1.5",
+          className ?? "px-3 py-1.5 text-[12px]",
+        )}
       >
         <ShareIcon className="h-3.5 w-3.5" />
-        Share
+        {iconOnly ? <span className="sr-only">Share</span> : "Share"}
       </button>
 
       <div

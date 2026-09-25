@@ -2,7 +2,7 @@ import {asPubkey} from "@/lib/pubkey";
 import {optionalCaller, requireCaller} from "@/lib/server/auth";
 import {commentsReady, holdsAsset, listComments, mintFor, postComment} from "@/lib/server/comments";
 import {badRequest, json} from "@/lib/server/http";
-import {profileById} from "@/lib/server/social";
+import {profileById, walletOf} from "@/lib/server/social";
 import type {AssetKind} from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -86,7 +86,7 @@ export async function POST(
     });
     if (!result.ok) return badRequest(result.reason);
 
-    const me = await profileById(caller.userId, null).catch(() => null);
+    const me = await profileById(caller.userId, caller.userId).catch(() => null);
 
     /*
      * Tell whoever was replied to — never yourself. Awaited, because a
@@ -114,8 +114,12 @@ export async function POST(
      * worth reading. Bounded, because the first read of a busy wallet can take a
      * while and the post has already succeeded: if it is slow, the position
      * shows on the next load instead.
+     *
+     * `walletOf` rather than `me.wallet`: a private Stonkfolio still has a
+     * public comment, and that comment's holding badge reads the same wallet
+     * `canPost` already used.
      */
-    const wallet = asPubkey(me?.wallet ?? null);
+    const wallet = asPubkey((await walletOf(caller.userId)) ?? me?.wallet ?? null);
     if (wallet) {
       await Promise.race([
         import("@/lib/server/live/walletTrades")
@@ -135,14 +139,15 @@ export async function POST(
 async function callerHolds(userId: string, kind: AssetKind, assetId: string): Promise<boolean> {
   const mint = mintFor(kind, assetId);
   if (!mint) return false;
-  const me = await profileById(userId, null).catch(() => null);
-  const wallet = asPubkey(me?.wallet ?? null);
+  // `walletOf` reads the column directly over PostgREST on Vercel.
+  // `profileById` needs DATABASE_URL and also hides a private portfolio.
+  const wallet = asPubkey(await walletOf(userId));
   if (!wallet) return false;
   try {
     return await holdsAsset(wallet, mint);
   } catch {
-    // An RPC failure refuses rather than allows: the rule is the point, and a
-    // post can be retried once the balance can be read.
+    // An unreadable balance refuses rather than allows: the rule is the
+    // point, and a post can be retried once the holding can be read.
     return false;
   }
 }

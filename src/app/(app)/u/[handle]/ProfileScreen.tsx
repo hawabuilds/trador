@@ -10,6 +10,7 @@ import {AllocationChart} from "@/components/AllocationChart";
 import {FilterRail, type FilterOption} from "@/components/FilterRail";
 import {HoldingRow} from "@/components/HoldingRow";
 import {useWalletTrades} from "@/hooks/useWalletTrades";
+import {positionByMint} from "@/lib/walletTrades";
 import {Avatar} from "@/components/ui/Avatar";
 import {Button} from "@/components/ui/Button";
 import {ChevronLeftIcon, UserIcon} from "@/components/ui/Icons";
@@ -334,7 +335,10 @@ function PublicStonkfolio({wallet, handle, isSelf}: {wallet: string; handle: str
         <ul className="-mx-[22px]">
           {holdings.map((holding) => (
             <li key={`${holding.asset.kind}:${holding.asset.id}`}>
-              <HoldingRow holding={holding} position={positions.get(holding.asset.mint)} />
+              <HoldingRow
+                holding={holding}
+                position={positionByMint(positions, holding.asset.mint)}
+              />
             </li>
           ))}
         </ul>
