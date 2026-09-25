@@ -139,6 +139,11 @@ authority, which is per-mint. The sync used to gate Backpack behind
 `INCLUDE_BACKPACK=1`; it no longer reads that flag, and the committed JSON
 already includes the family.
 
+PreStocks is the clearest example: **32** mints share the verified authority,
+**9** are in the registry, and **23** were dropped as retired, refunded,
+outdated, or test — authority proves the family, not that every mint is
+tradeable.
+
 That count is mints the sync sees in the StonkFun census plus the live range
 members of each verified issuer family — not a guarantee that every mint an
 issuer has ever created is listed.
