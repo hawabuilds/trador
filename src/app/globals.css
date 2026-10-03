@@ -129,6 +129,25 @@ body {
     --phone-inset-top: 50px;
   }
 
+  /*
+   * The scaled layer. Laid out at a phone's width (see `PhoneStage`) and
+   * scaled to the screen box, so the device can be drawn at any size while the
+   * app inside keeps a phone's proportions. The transform also makes this the
+   * containing block for anything fixed inside the app, which keeps sheets and
+   * the dock within the glass rather than against the window.
+   */
+  body.desktop-phone .phone-viewport {
+    display: flex;
+    flex-direction: column;
+    position: absolute;
+    top: 0;
+    left: 0;
+    /* Until measured: the box itself, unscaled. */
+    width: 100%;
+    height: 100%;
+    transform-origin: top left;
+  }
+
   body.desktop-phone .phone-pad {
     padding-top: calc(26px + env(safe-area-inset-top, 0px) + var(--phone-inset-top));
   }
@@ -220,7 +239,8 @@ body {
 .phone-stage,
 .phone,
 .phone-bezel,
-.phone-screen {
+.phone-screen,
+.phone-viewport {
   display: contents;
 }
 

@@ -131,6 +131,12 @@ NEXT_PUBLIC_DESKTOP_PHONE=1
 
 You do **not** need a second Supabase project or indexer — point at the same keys as production.
 
+**Scaling the screen.** The app inside the frame lays out at 393px, an iPhone 15 Pro's width, and is scaled to whatever size the device is drawn at — so it reads like a phone
+rather than like a phone-shaped desktop window. `?scale=` overrides that for a recording:
+`?scale=0.85` lays out at 462px instead, so everything inside looks smaller and more fits.
+The tab remembers it while you browse, and the frame itself never changes size.
+
+
 ---
 
 ## Local vs production split (RPC)
