@@ -117,8 +117,11 @@ export interface NewsCard extends CardBase {
 
 export interface TxCard extends CardBase {
   kind: "solscan-tx";
-  /** Colours the headline, and null when the transaction was not a trade. */
-  side: "buy" | "sell" | null;
+  /**
+   * Which way the money went, for colour. Buying and adding liquidity are up;
+   * selling and taking it out are down. Null when neither applies.
+   */
+  tone: "up" | "down" | null;
   headline: string;
   /** Units traded, when the headline is in dollars. Null when it is not. */
   amount: string | null;
@@ -156,7 +159,7 @@ export function plainCard(url: string): PlainCard {
  * from its asset — nothing can be proof.
  */
 export function txIsProof(
-  legs: readonly {mint: string; paidMint: string}[],
+  legs: readonly {mint: string; paidMint?: string}[],
   mint: string | null,
 ): boolean {
   if (!mint) return false;

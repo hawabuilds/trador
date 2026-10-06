@@ -100,9 +100,9 @@ export function LinkCardView({card}: {card: LinkCard}) {
           <p
             className={cn(
               "text-[15px] font-semibold leading-[1.3]",
-              card.side === "buy" ? "text-price-up" : null,
-              card.side === "sell" ? "text-price-down" : null,
-              card.side === null ? "text-ink" : null,
+              card.tone === "up" ? "text-price-up" : null,
+              card.tone === "down" ? "text-price-down" : null,
+              card.tone === null ? "text-ink" : null,
             )}
           >
             {card.headline}

@@ -11,6 +11,7 @@ import {
 import {
   SOL_MINT,
   holdingProfit,
+  liquidityFromTx,
   portfolioUnrealizedPnl,
   positionsFrom,
   signedMoney,
@@ -247,4 +248,61 @@ test("accounts a lookup table brought in line up with their balances", () => {
   assert.ok(tx);
   assert.equal(tx.accountData?.length, 22);
   assert.equal(tx.accountData?.[0].account, tx.feePayer);
+});
+
+/**
+ * A real pair of liquidity moves on STONK's pool, two minutes apart.
+ *
+ * Concentrated positions, so the receipt is an NFT rather than a fungible LP
+ * token — which is exactly why the rule is "minted or burned" and not "an LP
+ * token we recognise".
+ */
+const liquidity = JSON.parse(
+  readFileSync(join(process.cwd(), "test/fixtures/stonk-liquidity.json"), "utf8"),
+) as {add: RawTransaction; remove: RawTransaction};
+
+const STONK = "6GmAFSYs4gk3FDao5FzzySQpPZaWsa4rUJHacpMpUNgx";
+const SIX = "XsoCS1TfEyfFhfvj8EtZ528L3CaKBDBRqRapnBbDF2W";
+
+test("tokens deposited into a pool are liquidity, not a sale of one for the other", () => {
+  const tx = reduceRawTransaction(liquidity.add, "5XNyi3");
+  assert.ok(tx);
+
+  const move = liquidityFromTx(tx, tx.feePayer);
+  assert.ok(move, "a deposit was read as something else");
+  assert.equal(move.side, "add");
+  // The two deposited tokens, and not the 0.00516 SOL of rent that paid for
+  // the position account.
+  assert.deepEqual(
+    [...move.legs].sort((a, b) => a.mint.localeCompare(b.mint)),
+    [
+      {mint: STONK, amount: 3111.734805703},
+      {mint: SIX, amount: 7.66947801},
+    ].sort((a, b) => a.mint.localeCompare(b.mint)),
+  );
+  // The position NFT, minted by this transaction.
+  assert.equal(move.receipt, "HqRHpd6EwYg8YAJxDQo31GmomRw7e7mmZk4TAm93sYsx");
+});
+
+test("tokens withdrawn from a pool are a removal", () => {
+  const tx = reduceRawTransaction(liquidity.remove, "3gqMdN");
+  assert.ok(tx);
+
+  const move = liquidityFromTx(tx, tx.feePayer);
+  assert.ok(move);
+  assert.equal(move.side, "remove");
+  assert.equal(move.legs.length, 2);
+  assert.equal(move.receipt, "HZkjaNhnRnDrJYa39GzFpYTb2jpzWAkYB1xQYcR7ERWF");
+});
+
+test("an ordinary swap is never read as liquidity", () => {
+  const sell = reduceRawTransaction(linkedinuSellRaw, "2Gm5Ce");
+  assert.ok(sell);
+  assert.equal(liquidityFromTx(sell, sell.feePayer), null);
+
+  // And the deposit is not read as a trade either, which was the whole risk:
+  // two legs out, paired, would have reported a sale at a price nobody traded.
+  const add = reduceRawTransaction(liquidity.add, "5XNyi3");
+  assert.ok(add);
+  assert.equal(liquidityFromTx(add, add.feePayer)?.side, "add");
 });

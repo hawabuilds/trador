@@ -25,7 +25,15 @@ import {
   txIsProof,
   walletIsProof,
 } from "@/lib/linkPreview";
-import {BASE_MINTS, SOL_MINT, type RawTrade, tradesFromTx, valueTrade} from "@/lib/walletTrades";
+import {
+  BASE_MINTS,
+  SOL_MINT,
+  type LiquidityMove,
+  type RawTrade,
+  liquidityFromTx,
+  tradesFromTx,
+  valueTrade,
+} from "@/lib/walletTrades";
 import {USDC_MINT} from "@/lib/programs";
 import {cached} from "./cache";
 import {kvGet, kvSet, kvUsable} from "./kv";
@@ -228,6 +236,11 @@ async function txCard(link: CommentLink, mint: string | null): Promise<TxCard | 
   const tx = transactions[0];
   if (!tx || tx.transactionError) return null;
 
+  // Liquidity first. A deposit puts both tokens out of the wallet at once, and
+  // a swap reader pairs them into a sale at a price nobody traded at.
+  const liquidity = liquidityFromTx(tx, tx.feePayer);
+  if (liquidity) return liquidityCard(link, liquidity, tx.feePayer, mint);
+
   const trades = tradesFromTx(tx, tx.feePayer);
   if (trades.length === 0) return null;
 
@@ -254,7 +267,7 @@ async function txCard(link: CommentLink, mint: string | null): Promise<TxCard | 
     url: link.url,
     domain: "solscan.io",
     proof: txIsProof(trades, mint),
-    side: trade.side,
+    tone: trade.side === "buy" ? "up" : "down",
     // What it was worth, which is the number anyone reading a comment is
     // weighing. The units fall back to the headline only when nothing could
     // price it — a figure in SOL is still a fact, and inventing a dollar
@@ -339,6 +352,81 @@ async function walletCard(link: CommentLink, mint: string | null): Promise<Walle
 function daysSince(iso: string): string {
   const days = Math.max(1, Math.round((Date.now() - Date.parse(iso)) / 86_400_000));
   return days === 1 ? "a day" : `${days} days`;
+}
+
+/**
+ * Liquidity added to a pool, or taken out of it.
+ *
+ * Valued at what the tokens are worth now rather than at the time: there is no
+ * price history per coin to reach for, and a deposit worth saying something
+ * about is a recent one. A leg nobody can price leaves the card without a
+ * figure — the deposit itself is still a fact, and "LP add to STONK / SIXt"
+ * says it without inventing the part we do not have.
+ */
+async function liquidityCard(
+  link: CommentLink,
+  move: LiquidityMove,
+  wallet: string,
+  mint: string | null,
+): Promise<TxCard> {
+  const mints = move.legs.map((leg) => leg.mint);
+  const [symbols, prices] = await Promise.all([symbolsFor(mints), usdPrices(mints, move.at)]);
+
+  const named = move.legs
+    .map((leg) => symbols.get(leg.mint) ?? shortAddress(leg.mint, 4))
+    .join(" / ");
+
+  let total: number | null = 0;
+  for (const leg of move.legs) {
+    const usd = prices.get(leg.mint);
+    if (usd === undefined) {
+      total = null;
+      break;
+    }
+    total += leg.amount * usd;
+  }
+
+  const added = move.side === "add";
+  const figure = total === null ? "" : ` ${added ? "+" : "\u2212"}${compactMoney(total)}`;
+
+  return {
+    kind: "solscan-tx",
+    url: link.url,
+    domain: "solscan.io",
+    proof: txIsProof(move.legs, mint),
+    tone: added ? "up" : "down",
+    headline: `LP ${added ? "add" : "remove"}${figure} ${added ? "to" : "from"} ${named}`,
+    amount: move.legs
+      .map((leg) => `${compact(leg.amount)} ${symbols.get(leg.mint) ?? ""}`.trim())
+      .join(", "),
+    when: relativeTime(move.at),
+    who: shortAddress(wallet, 4),
+  };
+}
+
+/** Dollar price per unit for each mint, leaving out the ones nobody prices. */
+async function usdPrices(mints: string[], at: string): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+
+  try {
+    const [{universeFor}, {solUsdAt}] = await Promise.all([
+      import("./holdings"),
+      import("./gecko"),
+    ]);
+
+    for (const [mint, asset] of await universeFor(mints)) {
+      if (asset.price.usd !== null && asset.price.usd > 0) out.set(mint, asset.price.usd);
+    }
+
+    if (mints.includes(SOL_MINT) && !out.has(SOL_MINT)) {
+      const sol = await solUsdAt(Math.floor(Date.parse(at) / 1000)).catch(() => null);
+      if (sol !== null) out.set(SOL_MINT, sol);
+    }
+  } catch {
+    // Prices are the part a card can do without.
+  }
+
+  return out;
 }
 
 /**
