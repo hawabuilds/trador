@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import {Avatar} from "@/components/ui/Avatar";
+import {LinkCards} from "@/components/comments/LinkCards";
 import {ArrowUpIcon, ReplyIcon, ShareIcon} from "@/components/ui/Icons";
 import {cn} from "@/lib/cn";
 import {BAND_LABEL} from "@/lib/holdingBand";
@@ -113,8 +114,10 @@ export function CommentCard({
         ) : null}
 
         <p className="mt-2 whitespace-pre-wrap break-words text-[15px] leading-[1.45] text-ink">
-          {comment.body}
+          <CommentBody body={comment.body} />
         </p>
+
+        <LinkCards commentId={comment.id} body={comment.body} />
 
         <div className="mt-2.5 flex items-center gap-1 text-[13px] text-faint">
           <button
@@ -156,5 +159,42 @@ export function CommentCard({
         {footer}
       </div>
     </div>
+  );
+}
+
+/**
+ * The comment's words, with its links tappable.
+ *
+ * The URL is left as the person typed it. Replacing it with a title would mean
+ * the text of a comment is not what its author wrote, and the card underneath
+ * already says what the link is.
+ */
+function CommentBody({body}: {body: string}) {
+  const parts = body.split(/(https?:\/\/[^\s<>"']+)/gi);
+
+  return (
+    <>
+      {parts.map((part, index) => {
+        if (!/^https?:\/\//i.test(part)) return part;
+
+        // The full stop someone ended the sentence with is not the link, and
+        // linking it would send them somewhere that does not exist.
+        const url = part.replace(/[.,;:!?)\]}]+$/, "");
+        return (
+          <span key={index}>
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              onClick={(event) => event.stopPropagation()}
+              className="break-all text-accent-link hover:underline"
+            >
+              {url}
+            </a>
+            {part.slice(url.length)}
+          </span>
+        );
+      })}
+    </>
   );
 }

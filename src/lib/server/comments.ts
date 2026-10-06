@@ -667,3 +667,46 @@ async function setLikeRest(
   if (error) throw new Error(error.message);
   return {likes: count ?? 0, liked};
 }
+
+export interface CommentTarget {
+  kind: AssetKind;
+  assetId: string;
+  body: string;
+}
+
+/**
+ * One comment's body and the asset it sits under.
+ *
+ * Link previews resolve from this rather than from a URL in the request, so
+ * the only addresses this server ever fetches are ones somebody already posted
+ * and the store already holds. A route that took the URL from the caller would
+ * be a fetcher anyone on the internet could point anywhere.
+ */
+export async function commentTarget(id: string): Promise<CommentTarget | null> {
+  if (!/^\d+$/.test(id)) return null;
+
+  if (useDirectPg) {
+    return withClient(async (client) => {
+      const {rows} = await client.query<{kind: string; asset_id: string; body: string}>(
+        `select kind, asset_id, body from public.comments where id = $1::bigint`,
+        [id],
+      );
+      const row = rows[0];
+      if (!row) return null;
+      const kind = row.kind === "stonk" || row.kind === "stock" ? row.kind : null;
+      return kind ? {kind, assetId: row.asset_id, body: row.body} : null;
+    });
+  }
+
+  const {data, error} = await db()
+    .from("comments")
+    .select("kind, asset_id, body")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+
+  const row = data as {kind: string; asset_id: string; body: string};
+  const kind = row.kind === "stonk" || row.kind === "stock" ? row.kind : null;
+  return kind ? {kind, assetId: row.asset_id, body: row.body} : null;
+}

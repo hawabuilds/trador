@@ -21,13 +21,17 @@ interface RawTokenBalance {
   uiTokenAmount: {amount: string; decimals: number};
 }
 
-interface RawTransaction {
+export interface RawTransaction {
   blockTime: number | null;
   meta: {
     err: unknown;
     fee?: number;
+    preBalances?: number[];
+    postBalances?: number[];
     preTokenBalances?: RawTokenBalance[];
     postTokenBalances?: RawTokenBalance[];
+    /** Accounts a versioned transaction pulled in through a lookup table. */
+    loadedAddresses?: {writable?: string[]; readonly?: string[]};
   } | null;
   transaction: {signatures: string[]; message: {accountKeys: string[]}};
 }
@@ -46,8 +50,27 @@ const IN_FLIGHT = 4;
 /** A refused batch is retried once, after this long. */
 const RETRY_AFTER_MS = 400;
 
-/** Token balance changes, one per token account that moved. */
-function balanceChanges(meta: NonNullable<RawTransaction["meta"]>): TokenBalanceChange[] {
+/**
+ * Every account this transaction touched, in the index order the balances use.
+ *
+ * A versioned transaction carries only its static keys in the message; the
+ * rest arrive through an address lookup table and are listed separately. The
+ * balance arrays cover both, in that order, so the lists have to be joined
+ * before an index means anything.
+ */
+function accountKeys(raw: RawTransaction): string[] {
+  return [
+    ...raw.transaction.message.accountKeys,
+    ...(raw.meta?.loadedAddresses?.writable ?? []),
+    ...(raw.meta?.loadedAddresses?.readonly ?? []),
+  ];
+}
+
+/** Token balance changes, one per token account that moved, by its index. */
+function balanceChanges(
+  meta: NonNullable<RawTransaction["meta"]>,
+  keys: readonly string[],
+): Map<number, TokenBalanceChange[]> {
   const byAccount = new Map<number, {mint: string; owner: string; decimals: number; pre: bigint; post: bigint}>();
   const note = (balance: RawTokenBalance, side: "pre" | "post") => {
     const held = byAccount.get(balance.accountIndex) ?? {
@@ -63,29 +86,51 @@ function balanceChanges(meta: NonNullable<RawTransaction["meta"]>): TokenBalance
   for (const balance of meta.preTokenBalances ?? []) note(balance, "pre");
   for (const balance of meta.postTokenBalances ?? []) note(balance, "post");
 
-  const changes: TokenBalanceChange[] = [];
-  for (const account of byAccount.values()) {
+  const changes = new Map<number, TokenBalanceChange[]>();
+  for (const [index, account] of byAccount) {
     const delta = account.post - account.pre;
     if (delta === BigInt(0)) continue;
-    changes.push({
-      userAccount: account.owner,
-      tokenAccount: "",
-      mint: account.mint,
-      rawTokenAmount: {tokenAmount: delta.toString(), decimals: account.decimals},
-    });
+    changes.set(index, [
+      {
+        userAccount: account.owner,
+        // The token account itself, which is how a reader tells rent paid into
+        // its own account apart from what it paid for a coin.
+        tokenAccount: keys[index] ?? "",
+        mint: account.mint,
+        rawTokenAmount: {tokenAmount: delta.toString(), decimals: account.decimals},
+      },
+    ]);
   }
   return changes;
 }
 
-function toParsed(raw: RawTransaction, signature: string): ParsedTx | null {
+/**
+ * One transaction, in the shape the trade readers expect.
+ *
+ * **Native lamports are part of that shape.** They were left out while the
+ * only caller was the pool tape, which reads token flows — and a wallet that
+ * sold a coin for SOL then appeared to have sold it for the network fee, since
+ * the fee was the only lamport movement the reduction could see.
+ */
+export function reduceRawTransaction(raw: RawTransaction, signature: string): ParsedTx | null {
   if (!raw.meta || raw.blockTime === null) return null;
+
+  const keys = accountKeys(raw);
+  const tokens = balanceChanges(raw.meta, keys);
+  const pre = raw.meta.preBalances ?? [];
+  const post = raw.meta.postBalances ?? [];
+
   return {
     signature,
     timestamp: raw.blockTime,
-    feePayer: raw.transaction.message.accountKeys[0] ?? "",
+    feePayer: keys[0] ?? "",
     fee: raw.meta.fee,
     transactionError: raw.meta.err ?? undefined,
-    accountData: [{tokenBalanceChanges: balanceChanges(raw.meta)}],
+    accountData: keys.map((account, index) => ({
+      account,
+      nativeBalanceChange: (post[index] ?? 0) - (pre[index] ?? 0),
+      tokenBalanceChanges: tokens.get(index) ?? [],
+    })),
   };
 }
 
@@ -123,7 +168,7 @@ async function batch(rpc: string, signatures: string[]): Promise<ParsedTx[]> {
   for (const item of body) {
     const signature = signatures[item.id];
     if (!item.result || !signature) continue;
-    const parsed = toParsed(item.result, signature);
+    const parsed = reduceRawTransaction(item.result, signature);
     if (parsed) out.push(parsed);
   }
   return out;
