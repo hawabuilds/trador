@@ -298,6 +298,14 @@ export function ReplyIcon(props: IconProps) {
   );
 }
 
+export function ChatIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4.5 17.5V7a2.5 2.5 0 012.5-2.5h10A2.5 2.5 0 0119.5 7v6a2.5 2.5 0 01-2.5 2.5H9l-4.5 3.5z" {...stroke} />
+    </Icon>
+  );
+}
+
 export function BellIcon(props: IconProps) {
   return (
     <Icon {...props}>
