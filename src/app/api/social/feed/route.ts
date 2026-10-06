@@ -1,12 +1,18 @@
 import {optionalCaller} from "@/lib/server/auth";
 import {commentsReady} from "@/lib/server/comments";
 import {badRequest, json} from "@/lib/server/http";
-import {FEED_PAGE, followingFeed, latestFeed} from "@/lib/server/socialFeed";
+import {
+  FEED_PAGE,
+  followingFeed,
+  latestFeed,
+  topCalls,
+  type TopWindow,
+} from "@/lib/server/socialFeed";
 
 export const dynamic = "force-dynamic";
 
-/** The lists the Feed tab can ask for. `following` and `top` land with their screens. */
-const TABS = ["following", "latest"] as const;
+/** The lists the Feed tab can ask for. */
+const TABS = ["following", "top", "latest"] as const;
 type Tab = (typeof TABS)[number];
 
 /**
@@ -35,6 +41,17 @@ export async function GET(request: Request) {
         callerId: caller.userId,
         limit: Number.isFinite(limit) ? limit : FEED_PAGE,
         cursor: url.searchParams.get("cursor"),
+      });
+      return json(page);
+    }
+
+    if (tab === "top") {
+      const asked = url.searchParams.get("window");
+      const page = await topCalls({
+        window: (asked === "all" ? "all" : "week") as TopWindow,
+        limit: Number.isFinite(limit) ? limit : FEED_PAGE,
+        cursor: url.searchParams.get("cursor"),
+        callerId: caller?.userId ?? null,
       });
       return json(page);
     }

@@ -7,9 +7,17 @@ import {FeedCommentRow} from "@/components/feed/FeedCommentRow";
 import {FeedTradeRow} from "@/components/feed/FeedTradeRow";
 import {LoadMore} from "@/components/LoadMore";
 import {PanelTabs, type PanelTab} from "@/components/PanelTabs";
+import {SegmentedToggle, type SegmentedOption} from "@/components/ui/SegmentedToggle";
 import {BellIcon} from "@/components/ui/Icons";
 import {useSocialFeed, type FeedTab} from "@/hooks/useSocialFeed";
 import {useUser} from "@/hooks/useUser";
+
+type TopWindow = "week" | "all";
+
+const WINDOWS: SegmentedOption<TopWindow>[] = [
+  {value: "week", label: "This week"},
+  {value: "all", label: "All time"},
+];
 
 const TABS: PanelTab<FeedTab>[] = [
   {value: "following", label: "Following"},
@@ -32,7 +40,8 @@ export function FeedScreen() {
    * empty Following tab is a dead end on a first visit.
    */
   const [tab, setTab] = useState<FeedTab>(authenticated ? "following" : "top");
-  const feed = useSocialFeed(tab, {enabled: tab !== "top"});
+  const [period, setPeriod] = useState<TopWindow>("week");
+  const feed = useSocialFeed(tab, {period});
   const now = Date.now();
 
   return (
@@ -54,20 +63,31 @@ export function FeedScreen() {
       </StickyPageHeader>
 
       {tab === "top" ? (
-        <p className="px-2 py-16 text-center text-[13px] leading-[1.5] text-muted">
-          The best calls land here next.
-        </p>
-      ) : (
-        <FeedList
-          feed={feed}
-          now={now}
-          empty={
-            tab === "following"
-              ? "Follow a few people and their buys, sells and takes land here."
+        <div className="flex justify-end pb-1 pt-3">
+          <SegmentedToggle options={WINDOWS} value={period} onChange={setPeriod} />
+        </div>
+      ) : null}
+
+      <FeedList
+        feed={feed}
+        now={now}
+        empty={
+          tab === "following"
+            ? "Follow a few people and their buys, sells and takes land here."
+            : tab === "top"
+              ? period === "week"
+                ? "No calls this week yet."
+                : "No calls yet."
               : "No takes yet. Open a coin and post the first one."
-          }
-        />
-      )}
+        }
+        // A quiet week is not a dead end: the calls people voted on are one
+        // tap away rather than behind a switch nobody thinks to try.
+        emptyAction={
+          tab === "top" && period === "week"
+            ? {label: "See all time", onAct: () => setPeriod("all")}
+            : undefined
+        }
+      />
     </div>
   );
 }
@@ -76,10 +96,12 @@ function FeedList({
   feed,
   now,
   empty,
+  emptyAction,
 }: {
   feed: ReturnType<typeof useSocialFeed>;
   now: number;
   empty: string;
+  emptyAction?: {label: string; onAct: () => void};
 }) {
   if (feed.isLoading) {
     return (
@@ -106,9 +128,18 @@ function FeedList({
 
   if (feed.items.length === 0) {
     return (
-      <p className="mx-auto max-w-[30ch] px-2 py-16 text-center text-[13px] leading-[1.5] text-muted">
-        {empty}
-      </p>
+      <div className="px-2 py-16 text-center">
+        <p className="mx-auto max-w-[30ch] text-[13px] leading-[1.5] text-muted">{empty}</p>
+        {emptyAction ? (
+          <button
+            type="button"
+            onClick={emptyAction.onAct}
+            className="mt-3 inline-flex h-11 items-center rounded-full bg-[var(--overlay-wash)] px-4 text-[13px] font-medium text-ink transition-colors hover:bg-[var(--overlay-wash-hover)]"
+          >
+            {emptyAction.label}
+          </button>
+        ) : null}
+      </div>
     );
   }
 
