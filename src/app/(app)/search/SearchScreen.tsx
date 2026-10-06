@@ -176,7 +176,7 @@ function PersonRow({person}: {person: Profile}) {
           {person.displayName}
         </div>
         <div className="truncate text-[12.5px] font-semibold text-faint">
-          @{person.handle} · {compact(person.followers)} followers
+          @{person.handle}&nbsp;&nbsp;&nbsp;{compact(person.followers)} followers
         </div>
       </div>
     </Link>

@@ -67,7 +67,7 @@ export function HoldingRow({
             compact ? "text-[11px]" : "text-[12.5px]",
           )}
         >
-          {units(holding.amount)} {symbol} · {formatPriceUsd(asset.price.usd)}
+          {units(holding.amount)} {symbol}&nbsp;&nbsp;&nbsp;{formatPriceUsd(asset.price.usd)}
         </div>
       </div>
 

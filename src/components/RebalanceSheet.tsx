@@ -246,7 +246,7 @@ export function RebalanceSheet({
                   </div>
                   <div className="tabular-nums text-[12px] font-semibold text-faint">
                     ≈ {compactMoney(leg.amountUsd)}
-                    {leg.belowMinimum ? " · below $1 minimum" : ""}
+                    {leg.belowMinimum ? <span className="block">below $1 minimum</span> : null}
                   </div>
                 </div>
               </li>

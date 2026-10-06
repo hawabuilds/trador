@@ -614,7 +614,7 @@ export function OrderSheet({
                 : quoting && entered > 0
                   ? "Finding route…"
                   : buying && inputUnit === "usd" && execSol !== null && entered > 0
-                    ? `≈ ${units(execSol)} SOL · ${formatPriceUsd(priceUsd)} per ${symbol}`
+                    ? `≈ ${units(execSol)} SOL\u00a0\u00a0${formatPriceUsd(priceUsd)} per ${symbol}`
                     : `${formatPriceUsd(priceUsd)} per ${symbol}`}
             </div>
           </div>
@@ -661,7 +661,7 @@ export function OrderSheet({
                     ? "…"
                     : `${amountLabel(available)} ${buying ? SOL.symbol : symbol}`}
                 {buying && available !== null
-                  ? ` · ${Number(SOL_FEE_RESERVE_LAMPORTS) / 1e9} kept for fees`
+                  ? `\u00a0\u00a0${Number(SOL_FEE_RESERVE_LAMPORTS) / 1e9} kept for fees`
                   : ""}
               </span>
             </div>
@@ -680,7 +680,7 @@ export function OrderSheet({
                   ? `${units(entered)} ${unit}`
                   : `— ${unit}`}
               {Number.isFinite(amountUsd) && amountUsd > 0
-                ? ` · $${amountUsd.toFixed(2)}`
+                ? `\u00a0\u00a0$${amountUsd.toFixed(2)}`
                 : ""}
             </span>
           </div>
@@ -729,7 +729,7 @@ export function OrderSheet({
               <p className="text-[12.5px] font-extrabold text-ink">Not enough SOL</p>
               <p className="mt-1 text-[12.5px] font-semibold text-muted">
                 You have {insufficientSol.balance} SOL
-                {insufficientSol.detail ? ` · ${insufficientSol.detail}` : ""}
+                {insufficientSol.detail ? `\u00a0\u00a0${insufficientSol.detail}` : ""}
               </p>
               {onReceive ? (
                 <button
@@ -766,7 +766,7 @@ export function OrderSheet({
           </button>
 
           <p className="mt-2.5 text-center text-[11px] font-medium leading-[1.5] text-faint">
-            Max slippage {slippageBps / 100}% · One signature, no approval step
+            Max slippage {slippageBps / 100}%&nbsp;&nbsp;&nbsp;One signature, no approval step
           </p>
         </>
       ) : null}
