@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import {Avatar} from "@/components/ui/Avatar";
+import {RankTag} from "@/components/ui/RankBadge";
 import {ArrowUpIcon, ReplyIcon} from "@/components/ui/Icons";
 import {assetPath} from "@/lib/routes";
 import {tokenAge} from "@/lib/priceFormat";
@@ -32,10 +33,11 @@ export function FeedCommentRow({comment, now}: {comment: FeedComment; now?: numb
         />
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-baseline gap-2">
+          <div className="flex items-center gap-2">
             <span className="truncate text-[15px] font-semibold tracking-[-0.015em]">
               {author.displayName}
             </span>
+            {author.rank ? <RankTag rank={author.rank} /> : null}
             <span className="shrink-0 text-[13px] text-faint">
               {tokenAge(comment.createdAt, now)}
             </span>

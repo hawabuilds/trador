@@ -11,6 +11,7 @@ import {FilterRail, type FilterOption} from "@/components/FilterRail";
 import {HoldingRow} from "@/components/HoldingRow";
 import {useWalletTrades} from "@/hooks/useWalletTrades";
 import {positionByMint} from "@/lib/walletTrades";
+import {RankStanding, type StandingView} from "@/components/RankStanding";
 import {Avatar} from "@/components/ui/Avatar";
 import {Button} from "@/components/ui/Button";
 import {ChevronLeftIcon, UserIcon} from "@/components/ui/Icons";
@@ -25,6 +26,7 @@ interface ProfileResponse {
   profile: Profile;
   followers: Profile[];
   following: Profile[];
+  standing: StandingView | null;
 }
 
 /**
@@ -144,6 +146,8 @@ export function ProfileScreen({handle}: {handle: string}) {
               </Button>
             ) : null}
           </div>
+
+          {query.data?.standing ? <RankStanding standing={query.data.standing} /> : null}
 
           {profile.bio ? (
             <p className="mt-3 text-[13.5px] leading-[1.55] text-muted">

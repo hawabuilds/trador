@@ -74,6 +74,7 @@ export const FEED_PAGE = 20;
 
 interface Row {
   id: string;
+  user_id: string;
   kind: string;
   asset_id: string;
   body: string;
@@ -152,7 +153,7 @@ async function latestRowsPg(
 ): Promise<Row[]> {
   return withClient(async (client) => {
     const {rows} = await client.query<Row>(
-      `select c.id::text, c.kind, c.asset_id, c.body, c.created_at,
+      `select c.id::text, c.user_id, c.kind, c.asset_id, c.body, c.created_at,
               u.handle, u.display_name, u.pfp_url,
               (select count(*) from public.comment_likes l where l.comment_id = c.id) as likes,
               exists (
@@ -235,6 +236,7 @@ async function latestRowsRest(
     const user = byUser.get(row.user_id as string);
     return {
       id,
+      user_id: row.user_id as string,
       kind: row.kind as string,
       asset_id: row.asset_id as string,
       body: row.body as string,
@@ -267,7 +269,12 @@ export async function latestFeed(options: {
     ? await latestRowsPg(limit, cursor, options.callerId)
     : await latestRowsRest(limit, cursor, options.callerId);
 
-  const assets = await assetsFor(rows);
+  const [assets, standings] = await Promise.all([
+    assetsFor(rows),
+    import("./ranks")
+      .then(({standingsFor}) => standingsFor([...new Set(rows.map((row) => row.user_id))]))
+      .catch(() => new Map()),
+  ]);
 
   const items: FeedComment[] = [];
   for (const row of rows) {
@@ -282,6 +289,7 @@ export async function latestFeed(options: {
         handle: row.handle ?? "someone",
         displayName: row.display_name ?? row.handle ?? "Someone",
         pfpUrl: row.pfp_url,
+        rank: standings.get(row.user_id)?.rank.id ?? "intern",
       },
       body: row.body,
       createdAt: new Date(row.created_at).toISOString(),
@@ -805,6 +813,7 @@ async function topRowsRest(
       const id = String(row.id);
       const user = byUser.get(String(row.user_id));
       return {
+        user_id: String(row.user_id),
         id,
         kind: row.kind as string,
         asset_id: row.asset_id as string,
@@ -876,7 +885,12 @@ export async function topCalls(options: {
     ? await topRowsPg(since, limit, cursor, options.callerId)
     : await topRowsRest(since, limit, cursor, options.callerId);
 
-  const assets = await assetsFor(rows);
+  const [assets, standings] = await Promise.all([
+    assetsFor(rows),
+    import("./ranks")
+      .then(({standingsFor}) => standingsFor([...new Set(rows.map((row) => row.user_id))]))
+      .catch(() => new Map()),
+  ]);
 
   const items: FeedComment[] = rows.flatMap((row) => {
     const asset = assets.get(`${row.kind}:${row.asset_id}`);
@@ -890,6 +904,7 @@ export async function topCalls(options: {
           handle: row.handle ?? "someone",
           displayName: row.display_name ?? row.handle ?? "Someone",
           pfpUrl: row.pfp_url,
+          rank: standings.get(row.user_id)?.rank.id ?? "intern",
         },
         body: row.body,
         createdAt: new Date(row.created_at).toISOString(),

@@ -15,7 +15,9 @@ import {
 } from "@/lib/notifications/milestones";
 import {compactMoney} from "@/lib/format";
 import {hasAdminPg, withClient} from "@/lib/server/adminPg";
+import type {Rank} from "@/config/ranks";
 import {consumeRungs, dispatch, type DispatchOutcome} from "./dispatch";
+import {recordInboxEvent} from "./inbox";
 import {prefsFor} from "./prefs";
 
 /** Someone followed you. */
@@ -92,6 +94,20 @@ export async function notifyHoldingMultiple(input: {
   const rung = highestMilestone(ratio, prefs.holdingsMultiples, fired);
   if (rung === null) return "duplicate";
 
+  /*
+   * Written down before the push is attempted, and kept whatever it returns.
+   *
+   * The push ledger releases its claim when nobody has a device, so it cannot
+   * also be the in-app history: someone who never turned push on would open
+   * the list and find nothing had ever happened to them.
+   */
+  await recordInboxEvent({
+    userId: input.userId,
+    kind: "holding_multiple",
+    subject: input.mint,
+    rung,
+  });
+
   const outcome = await dispatch({
     userId: input.userId,
     kind: "holding_multiple",
@@ -130,6 +146,8 @@ export async function notifyGraduatingSoon(input: {
 }): Promise<DispatchOutcome> {
   if (input.progress < GRADUATING_SOON_AT) return "disabled";
 
+  await recordInboxEvent({userId: input.userId, kind: "graduating_soon", subject: input.mint});
+
   return dispatch({
     userId: input.userId,
     kind: "graduating_soon",
@@ -149,6 +167,8 @@ export async function notifyGraduated(input: {
   symbol: string;
   quoteTicker: string;
 }): Promise<DispatchOutcome> {
+  await recordInboxEvent({userId: input.userId, kind: "graduation", subject: input.mint});
+
   return dispatch({
     userId: input.userId,
     kind: "graduation",
@@ -186,4 +206,21 @@ async function firedRungs(
      */
     return [2, 3, 5, 10, 25, 50, 100];
   }
+}
+
+/**
+ * Somebody reached a new rank.
+ *
+ * Written to the list only. A rank-up is good news that keeps until the app is
+ * opened, and nobody asked to be buzzed for it.
+ */
+export async function notifyRankUp(userId: string, rank: Rank): Promise<void> {
+  const {currentSeason} = await import("@/lib/ranks");
+  const {recordInboxEvent} = await import("./inbox");
+  await recordInboxEvent({
+    userId,
+    kind: "rank_up",
+    subject: rank.id,
+    rung: currentSeason().id,
+  });
 }
