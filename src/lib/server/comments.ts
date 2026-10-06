@@ -22,6 +22,7 @@
 
 import {heldCommentPosition, resolveHeldUiAmount, uiAmountForMint, uiAmountHolds} from "@/lib/commentHold";
 import {commentPosition} from "@/lib/commentPosition";
+import {bandFor, boughtEarly} from "@/lib/holdingBand";
 import {asPubkey, type Pubkey} from "@/lib/pubkey";
 import {stockForTicker} from "@/lib/stocks/registry";
 import type {AssetComment, AssetKind, CommentPositionView} from "@/lib/types";
@@ -41,6 +42,16 @@ export function mintFor(kind: AssetKind, assetId: string): Pubkey | null {
   return stockForTicker(assetId)?.mint ?? null;
 }
 
+interface TradeRow {
+  wallet: string;
+  side: "buy" | "sell";
+  amount: string;
+  value_usd: string | null;
+  /** Unit price at the fill, which is what `Early` is judged on. */
+  price_usd: string | null;
+  at: string;
+}
+
 interface Row {
   id: string;
   parent_id: string | null;
@@ -58,90 +69,169 @@ function asId(value: unknown): string {
   return String(value);
 }
 
+export interface CommentPage {
+  comments: AssetComment[];
+  /** Pass back to read older threads. Null at the end of the list. */
+  cursor: string | null;
+}
+
+/** Root comments per page. Replies ride along with their root. */
+export const COMMENT_PAGE = 20;
+
+const encodeCursor = (createdAt: string, id: string) => `${createdAt}|${id}`;
+
+function decodeCursor(cursor: string | null | undefined): {at: string; id: string} | null {
+  if (!cursor) return null;
+  const cut = cursor.lastIndexOf("|");
+  if (cut < 1) return null;
+  const at = cursor.slice(0, cut);
+  const id = cursor.slice(cut + 1);
+  return Number.isNaN(Date.parse(at)) || !/^\d+$/.test(id) ? null : {at, id};
+}
+
+/**
+ * A page of threads: newest roots first, each with every reply it has.
+ *
+ * Paged over roots rather than over comments, because a page that cut a thread
+ * in half would show replies with nothing to answer. Keyset, not offset — a
+ * busy coin gets comments between one page and the next.
+ */
 export async function listComments(
   kind: AssetKind,
   assetId: string,
   callerId: string | null,
-): Promise<AssetComment[]> {
-  const rows = useDirectPg
-    ? await listRowsPg(kind, assetId, callerId)
-    : await listRowsRest(kind, assetId, callerId);
+  options: {limit?: number; cursor?: string | null} = {},
+): Promise<CommentPage> {
+  const limit = Math.min(Math.max(options.limit ?? COMMENT_PAGE, 1), 50);
+  const cursor = decodeCursor(options.cursor);
+
+  const {roots, replies} = useDirectPg
+    ? await listRowsPg(kind, assetId, callerId, limit, cursor)
+    : await listRowsRest(kind, assetId, callerId, limit, cursor);
+
+  const rows = [...roots, ...replies];
 
   const positions = await positionsFor(
     mintFor(kind, assetId),
     [...new Set(rows.map((row) => row.wallet).filter((wallet): wallet is string => !!wallet))],
   );
 
-  return rows
-    .map((row) => ({
-      id: row.id,
-      assetId,
-      parentId: row.parent_id,
-      author: {
-        handle: row.handle ?? "someone",
-        displayName: row.display_name ?? row.handle ?? "Someone",
-        pfpUrl: row.pfp_url,
-      },
-      body: row.body,
-      createdAt: new Date(row.created_at).toISOString(),
-      // `count(*)` is bigint, which the driver returns as a string.
-      likes: Number(row.likes),
-      liked: callerId ? Boolean(row.liked) : null,
-      position: row.wallet ? (positions.get(row.wallet) ?? null) : null,
-    }))
-    .reverse();
+  const comments = rows.map((row) => ({
+    id: row.id,
+    assetId,
+    parentId: row.parent_id,
+    author: {
+      handle: row.handle ?? "someone",
+      displayName: row.display_name ?? row.handle ?? "Someone",
+      pfpUrl: row.pfp_url,
+    },
+    body: row.body,
+    createdAt: new Date(row.created_at).toISOString(),
+    // `count(*)` is bigint, which the driver returns as a string.
+    likes: Number(row.likes),
+    liked: callerId ? Boolean(row.liked) : null,
+    position: row.wallet ? (positions.get(row.wallet) ?? null) : null,
+  }));
+
+  const last = roots[roots.length - 1];
+  return {
+    comments,
+    cursor:
+      roots.length === limit && last
+        ? encodeCursor(new Date(last.created_at).toISOString(), last.id)
+        : null,
+  };
 }
 
 async function listRowsPg(
   kind: AssetKind,
   assetId: string,
   callerId: string | null,
-): Promise<Row[]> {
+  limit: number,
+  cursor: {at: string; id: string} | null,
+): Promise<{roots: Row[]; replies: Row[]}> {
   return withClient(async (client) => {
-    const {rows} = await client.query<Row>(
-      `select c.id::text, c.parent_id::text, c.body, c.created_at,
+    /*
+     * The caller's placeholder differs between the two reads below, because
+     * Postgres refuses a query carrying a parameter it never references — the
+     * replies read has no kind or asset to filter by, so its numbering starts
+     * again.
+     */
+    const columns = (caller: string) => `c.id::text, c.parent_id::text, c.body, c.created_at,
               u.handle, u.display_name, u.pfp_url, u.wallet,
               (select count(*) from public.comment_likes l where l.comment_id = c.id) as likes,
               exists (
                 select 1 from public.comment_likes l
-                 where l.comment_id = c.id and l.user_id = $3
-              ) as liked
+                 where l.comment_id = c.id and l.user_id = ${caller}
+              ) as liked`;
+
+    const {rows: roots} = await client.query<Row>(
+      `select ${columns("$3")}
          from public.comments c
          join public.users u on u.id = c.user_id
-        where c.kind = $1 and c.asset_id = $2
-        order by c.created_at desc
-        limit ${LIMIT}`,
-      // `$3` is referenced above, so it always has a type — an unreferenced
-      // parameter fails the whole query in Postgres, which is what once made
-      // user search return nobody.
-      [kind, assetId, callerId ?? ""],
+        where c.kind = $1 and c.asset_id = $2 and c.parent_id is null
+          and ($4::timestamptz is null or (c.created_at, c.id) < ($4::timestamptz, $5::bigint))
+        order by c.created_at desc, c.id desc
+        limit $6`,
+      [kind, assetId, callerId ?? "", cursor?.at ?? null, cursor?.id ?? "0", limit],
     );
-    return rows;
+    if (roots.length === 0) return {roots, replies: []};
+
+    const {rows: replies} = await client.query<Row>(
+      `select ${columns("$1")}
+         from public.comments c
+         join public.users u on u.id = c.user_id
+        where c.parent_id = any($2::bigint[])
+        order by c.created_at asc`,
+      [callerId ?? "", roots.map((row) => row.id)],
+    );
+    return {roots, replies};
   });
 }
 
 /**
- * Same page as `listRowsPg`, assembled from three PostgREST reads.
- *
- * PostgREST cannot express the like-count subqueries in one statement. The
- * service role bypasses RLS, so these are the same rows the SQL path returns.
+ * The same page over PostgREST, which has neither row-value comparison nor
+ * correlated subqueries: the keyset is spelled out and the counts are extra
+ * reads over the ids this page returned. The service role bypasses RLS, so
+ * these are the same rows the SQL path returns.
  */
 async function listRowsRest(
   kind: AssetKind,
   assetId: string,
   callerId: string | null,
-): Promise<Row[]> {
-  const {data: comments, error} = await db()
+  limit: number,
+  cursor: {at: string; id: string} | null,
+): Promise<{roots: Row[]; replies: Row[]}> {
+  let request = db()
     .from("comments")
     .select("id, parent_id, body, created_at, user_id")
     .eq("kind", kind)
     .eq("asset_id", assetId)
+    .is("parent_id", null)
     .order("created_at", {ascending: false})
-    .limit(LIMIT);
-  if (error) throw new Error(error.message);
-  const found = comments ?? [];
-  if (found.length === 0) return [];
+    .order("id", {ascending: false})
+    .limit(limit);
 
+  if (cursor) {
+    request = request.or(
+      `created_at.lt.${cursor.at},and(created_at.eq.${cursor.at},id.lt.${cursor.id})`,
+    );
+  }
+
+  const {data: rootRows, error} = await request;
+  if (error) throw new Error(error.message);
+  const roots = rootRows ?? [];
+  if (roots.length === 0) return {roots: [], replies: []};
+
+  const {data: replyRows, error: replyError} = await db()
+    .from("comments")
+    .select("id, parent_id, body, created_at, user_id")
+    .in("parent_id", roots.map((row) => row.id))
+    .order("created_at", {ascending: true});
+  if (replyError) throw new Error(replyError.message);
+  const replies = replyRows ?? [];
+
+  const found = [...roots, ...replies];
   const userIds = [...new Set(found.map((row) => row.user_id as string))];
   const commentIds = found.map((row) => row.id);
 
@@ -172,7 +262,7 @@ async function listRowsRest(
     if (callerId && like.user_id === callerId) likedByCaller.add(id);
   }
 
-  return found.map((row) => {
+  const toRow = (row: Record<string, unknown>): Row => {
     const id = asId(row.id);
     const user = byUser.get(row.user_id as string);
     return {
@@ -187,24 +277,11 @@ async function listRowsRest(
       likes: likeCount.get(id) ?? 0,
       liked: likedByCaller.has(id),
     };
-  });
+  };
+
+  return {roots: roots.map(toRow), replies: replies.map(toRow)};
 }
 
-interface TradeRow {
-  wallet: string;
-  side: "buy" | "sell";
-  amount: string;
-  value_usd: string | null;
-}
-
-/**
- * Each commenting wallet's position in this one mint.
- *
- * One query for every author's trades and one price lookup, however many
- * comments there are. A wallet whose history has never been read simply has no
- * trades yet, and shows no position rather than a wrong one. Any failure here
- * costs the positions, never the comments.
- */
 async function positionsFor(
   mint: Pubkey | null,
   wallets: readonly string[],
@@ -225,6 +302,8 @@ async function positionsFor(
       // `commentPosition` handles.
     }
 
+    const earliest = await earliestPriceFor(mint);
+
     const byWallet = new Map<string, typeof trades>();
     for (const trade of trades) {
       byWallet.set(trade.wallet, [...(byWallet.get(trade.wallet) ?? []), trade]);
@@ -240,10 +319,16 @@ async function positionsFor(
         priceUsd,
       );
       if (position) {
+        const firstBuy = own
+          .filter((trade) => trade.side === "buy" && trade.price_usd !== null)
+          .sort((left, right) => Date.parse(left.at) - Date.parse(right.at))[0];
         found.set(wallet, {
-          boughtUsd: position.boughtUsd,
+          band: bandFor(position.heldUsd),
           status: position.status,
-          gainPct: position.gainPct,
+          early: boughtEarly({
+            firstBuyPriceUsd: firstBuy ? Number(firstBuy.price_usd) : null,
+            earliestPriceUsd: earliest,
+          }),
         });
       }
     }
@@ -283,10 +368,48 @@ async function fillHeldFromBalances(
   );
 }
 
+/**
+ * The earliest unit price anyone's wallet recorded for this coin.
+ *
+ * Not the launch price: it is the first fill *we* saw, so for a coin we met
+ * late it is already high. `Early` is withheld rather than wrongly given as a
+ * result, which is the right way round for a badge that claims conviction.
+ */
+async function earliestPriceFor(mint: Pubkey): Promise<number | null> {
+  try {
+    if (useDirectPg) {
+      const rows = await withClient(async (client) =>
+        (
+          await client.query<{price_usd: string}>(
+            `select price_usd from public.wallet_trades
+              where mint = $1 and price_usd is not null and price_usd > 0
+              order by at asc limit 1`,
+            [mint],
+          )
+        ).rows,
+      );
+      return rows[0] ? Number(rows[0].price_usd) : null;
+    }
+    const {data} = await db()
+      .from("wallet_trades")
+      .select("price_usd")
+      .eq("mint", mint)
+      .not("price_usd", "is", null)
+      .gt("price_usd", 0)
+      .order("at", {ascending: true})
+      .limit(1);
+    const first = (data ?? [])[0] as {price_usd: string} | undefined;
+    return first ? Number(first.price_usd) : null;
+  } catch {
+    // No history to judge against: nobody gets the badge.
+    return null;
+  }
+}
+
 async function tradesPg(wallets: readonly string[], mint: Pubkey): Promise<TradeRow[]> {
   return withClient(async (client) => {
     const {rows} = await client.query<TradeRow>(
-      `select wallet, side, amount, value_usd
+      `select wallet, side, amount, value_usd, price_usd, at
          from public.wallet_trades
         where wallet = any($1) and mint = $2`,
       [wallets, mint],
@@ -298,7 +421,7 @@ async function tradesPg(wallets: readonly string[], mint: Pubkey): Promise<Trade
 async function tradesRest(wallets: readonly string[], mint: Pubkey): Promise<TradeRow[]> {
   const {data, error} = await db()
     .from("wallet_trades")
-    .select("wallet, side, amount, value_usd")
+    .select("wallet, side, amount, value_usd, price_usd, at")
     .in("wallet", [...wallets])
     .eq("mint", mint);
   if (error) throw new Error(error.message);
@@ -306,7 +429,9 @@ async function tradesRest(wallets: readonly string[], mint: Pubkey): Promise<Tra
     wallet: row.wallet as string,
     side: row.side as "buy" | "sell",
     amount: String(row.amount),
-    value_usd: row.value_usd == null ? null : String(row.value_usd),
+    value_usd: row.value_usd === null ? null : String(row.value_usd),
+    price_usd: row.price_usd === null ? null : String(row.price_usd),
+    at: String(row.at),
   }));
 }
 
