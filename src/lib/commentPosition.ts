@@ -35,6 +35,12 @@ export interface CommentPosition {
    * honestly — see the checks below.
    */
   gainPct: number | null;
+  /**
+   * What is still held, at the current price. Null without a price. This is
+   * what a comment's band is read from, and the only part of this summary a
+   * comment is allowed to show.
+   */
+  heldUsd: number | null;
 }
 
 /**
@@ -90,5 +96,5 @@ export function commentPosition(
     gainPct = ((soldUsd + heldValue - boughtUsd) / boughtUsd) * 100;
   }
 
-  return {boughtUsd, soldUsd, status, gainPct};
+  return {boughtUsd, soldUsd, status, gainPct, heldUsd: heldValue};
 }
