@@ -5,6 +5,10 @@ import {test} from "node:test";
 
 import type {ParsedTx} from "@/lib/server/live/helius";
 import {
+  reduceRawTransaction,
+  type RawTransaction,
+} from "@/lib/server/live/rawTransactions";
+import {
   SOL_MINT,
   holdingProfit,
   portfolioUnrealizedPnl,
@@ -206,4 +210,41 @@ test("profit reads as signed dollars", () => {
   assert.equal(signedMoney(0), "+$0.00");
   assert.equal(signedMoney(0.0042), "+$0.0042");
   assert.equal(signedMoney(1234.5), "+$1,234.50");
+});
+
+/**
+ * A real LinkedInu sell, read raw from the node.
+ *
+ * The reduction used to carry token balances only, because the pool tape is
+ * the only thing that had ever read it. A wallet's own SOL is not a token
+ * balance, so this sell came back as "0.000005 SOL" — the network fee, which
+ * was the one lamport movement left to find. The proceeds are 0.357881545.
+ */
+const linkedinuSellRaw = JSON.parse(
+  readFileSync(join(process.cwd(), "test/fixtures/linkedinu-sell-raw.json"), "utf8"),
+) as RawTransaction;
+
+test("a sell is paid in the SOL the wallet received, not the fee it paid", () => {
+  const tx = reduceRawTransaction(linkedinuSellRaw, "2Gm5Ce");
+  assert.ok(tx);
+
+  const [trade, ...rest] = tradesFromTx(tx, tx.feePayer);
+  assert.equal(rest.length, 0);
+  assert.equal(trade.side, "sell");
+  assert.equal(trade.mint, "FvhorDts9M8uJekzs3pBcYUPUjWtCTrGLhdv3ADHyeRY");
+  assert.equal(trade.amount, 35411.436983);
+  assert.equal(trade.paidMint, SOL_MINT);
+  // The lamports that arrived, with the fee added back — exactly what the
+  // stored history holds for this signature.
+  assert.equal(trade.paidAmount, 0.357881545);
+});
+
+test("accounts a lookup table brought in line up with their balances", () => {
+  // 9 keys in the message, 13 more from the table, 22 balances. Reduce without
+  // joining the two lists and every index past the ninth names the wrong
+  // account — including the pool's, which is how a swap stops being a swap.
+  const tx = reduceRawTransaction(linkedinuSellRaw, "2Gm5Ce");
+  assert.ok(tx);
+  assert.equal(tx.accountData?.length, 22);
+  assert.equal(tx.accountData?.[0].account, tx.feePayer);
 });
