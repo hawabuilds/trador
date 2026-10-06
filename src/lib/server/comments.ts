@@ -151,16 +151,22 @@ async function listRowsPg(
   cursor: {at: string; id: string} | null,
 ): Promise<{roots: Row[]; replies: Row[]}> {
   return withClient(async (client) => {
-    const columns = `c.id::text, c.parent_id::text, c.body, c.created_at,
+    /*
+     * The caller's placeholder differs between the two reads below, because
+     * Postgres refuses a query carrying a parameter it never references — the
+     * replies read has no kind or asset to filter by, so its numbering starts
+     * again.
+     */
+    const columns = (caller: string) => `c.id::text, c.parent_id::text, c.body, c.created_at,
               u.handle, u.display_name, u.pfp_url, u.wallet,
               (select count(*) from public.comment_likes l where l.comment_id = c.id) as likes,
               exists (
                 select 1 from public.comment_likes l
-                 where l.comment_id = c.id and l.user_id = $3
+                 where l.comment_id = c.id and l.user_id = ${caller}
               ) as liked`;
 
     const {rows: roots} = await client.query<Row>(
-      `select ${columns}
+      `select ${columns("$3")}
          from public.comments c
          join public.users u on u.id = c.user_id
         where c.kind = $1 and c.asset_id = $2 and c.parent_id is null
@@ -172,12 +178,12 @@ async function listRowsPg(
     if (roots.length === 0) return {roots, replies: []};
 
     const {rows: replies} = await client.query<Row>(
-      `select ${columns}
+      `select ${columns("$1")}
          from public.comments c
          join public.users u on u.id = c.user_id
-        where c.parent_id = any($4::bigint[])
+        where c.parent_id = any($2::bigint[])
         order by c.created_at asc`,
-      [kind, assetId, callerId ?? "", roots.map((row) => row.id)],
+      [callerId ?? "", roots.map((row) => row.id)],
     );
     return {roots, replies};
   });
