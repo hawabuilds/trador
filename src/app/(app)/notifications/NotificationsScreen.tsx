@@ -59,7 +59,7 @@ export function NotificationsScreen() {
       </StickyPageHeader>
 
       {loading ? (
-        <p className="px-2 py-16 text-center text-[13px] text-muted">Loading…</p>
+        <p className="px-2 py-16 text-center text-[13px] text-muted">Loading</p>
       ) : failed ? (
         <p className="px-2 py-16 text-center text-[13px] leading-[1.5] text-muted">
           Could not load your notifications. Pull down to try again.
