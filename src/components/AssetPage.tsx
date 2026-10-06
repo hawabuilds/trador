@@ -2,7 +2,7 @@
 
 import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import dynamic from "next/dynamic";
-import {useRouter} from "next/navigation";
+import {useRouter, useSearchParams} from "next/navigation";
 import {useQueryClient} from "@tanstack/react-query";
 
 import {APP_SCROLL_PAD_TOP} from "@/components/AppShell";
@@ -143,7 +143,14 @@ export function AssetPage({
   };
 
   const tfOptions: readonly Timeframe[] = kind === "stock" ? STOCK_TIMEFRAMES : TIMEFRAMES;
-  const [panel, setPanel] = useState<PanelKey>("trades");
+  /*
+   * A notification about a comment opens the page on the comments.
+   *
+   * The tab is where the thing being linked to actually is, and landing on
+   * Trades instead means the person has to go looking for what they tapped.
+   */
+  const linkedComment = useSearchParams()?.get("comment") ?? null;
+  const [panel, setPanel] = useState<PanelKey>(linkedComment ? "comments" : "trades");
   const tabsRef = useRef<HTMLDivElement>(null);
   const [scrubbed, setScrubbed] = useState<ChartPoint | null>(null);
   const [orderSide, setOrderSide] = useState<"buy" | "sell" | null>(null);
