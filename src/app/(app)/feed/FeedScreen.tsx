@@ -73,6 +73,13 @@ export function FeedScreen() {
                   : "No calls yet."
                 : "No takes yet. Open a coin and post the first one."
             }
+            // A quiet week is not a dead end: the calls people voted on are
+            // one tap away rather than behind a switch nobody thinks to try.
+            emptyAction={
+              tab === "top" && period === "week"
+                ? {label: "See all time", onAct: () => setPeriod("all")}
+                : undefined
+            }
           />
         </>
       )}
@@ -84,10 +91,12 @@ function FeedList({
   feed,
   now,
   empty,
+  emptyAction,
 }: {
   feed: ReturnType<typeof useSocialFeed>;
   now: number;
   empty: string;
+  emptyAction?: {label: string; onAct: () => void};
 }) {
   if (feed.isLoading) {
     return (
@@ -114,9 +123,18 @@ function FeedList({
 
   if (feed.items.length === 0) {
     return (
-      <p className="mx-auto max-w-[30ch] px-2 py-16 text-center text-[13px] leading-[1.5] text-muted">
-        {empty}
-      </p>
+      <div className="px-2 py-16 text-center">
+        <p className="mx-auto max-w-[30ch] text-[13px] leading-[1.5] text-muted">{empty}</p>
+        {emptyAction ? (
+          <button
+            type="button"
+            onClick={emptyAction.onAct}
+            className="mt-3 inline-flex h-11 items-center rounded-full bg-[var(--overlay-wash)] px-4 text-[13px] font-medium text-ink transition-colors hover:bg-[var(--overlay-wash-hover)]"
+          >
+            {emptyAction.label}
+          </button>
+        ) : null}
+      </div>
     );
   }
 
