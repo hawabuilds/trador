@@ -33,7 +33,7 @@ export const TABS = [
   {href: "/home", label: "Home", key: "home"},
   {href: "/search", label: "Search", key: "search"},
   {href: "/news", label: "News", key: "news"},
-  {href: "/learn", label: "Learn", key: "learn"},
+  {href: "/feed", label: "Feed", key: "feed"},
   {href: "/stonkfolio", label: "Stonkfolio", key: "stonkfolio"},
 ] as const;
 
