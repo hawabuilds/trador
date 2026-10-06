@@ -13,6 +13,7 @@
  */
 
 import type {Pubkey} from "@/lib/pubkey";
+import {heliusKey} from "./helius";
 
 const API = "https://api.helius.xyz/v0/webhooks";
 
@@ -26,7 +27,8 @@ export const webhookUrl = (): string | null => {
   return base ? `${base.replace(/\/$/, "")}/api/webhooks/helius` : null;
 };
 
-const apiKey = () => process.env.HELIUS_API_KEY?.trim() || null;
+/** The same key the rest of the app uses, read from the RPC URL when it is not set on its own. */
+const apiKey = () => heliusKey();
 
 interface Webhook {
   webhookID: string;
@@ -59,7 +61,9 @@ export async function syncTradeWebhook(addresses: readonly Pubkey[]): Promise<We
   const url = webhookUrl();
   const secret = webhookSecret();
 
-  if (!key) return {status: "skipped", webhookId: null, addresses: 0, reason: "No HELIUS_API_KEY."};
+  if (!key) {
+    return {status: "skipped", webhookId: null, addresses: 0, reason: "No Helius key."};
+  }
   if (!url) {
     return {status: "skipped", webhookId: null, addresses: 0, reason: "No webhook URL configured."};
   }
