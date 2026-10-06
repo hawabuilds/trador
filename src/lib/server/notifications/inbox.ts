@@ -19,6 +19,7 @@
  */
 
 import {assetPath, profilePath} from "@/lib/routes";
+import type {RankId} from "@/config/ranks";
 import type {AssetKind} from "@/lib/types";
 import {useDirectPg, withClient} from "@/lib/server/adminPg";
 import {db, hasDatabase} from "@/lib/server/db";
@@ -37,6 +38,7 @@ export type InboxKind =
   | "reply"
   | "votes"
   | "follow"
+  | "rank_up"
   | "holding_multiple"
   | "watchlist_multiple"
   | "graduation"
@@ -64,6 +66,8 @@ export interface InboxItem {
   asset: FeedAsset | null;
   /** The multiple a holding passed. */
   rung: number | null;
+  /** The rank reached, for a rank-up. */
+  rank: RankId | null;
   /** Where tapping it goes. */
   href: string;
 }
@@ -109,6 +113,9 @@ const PRICE_KINDS = [
   "graduation",
   "graduating_soon",
 ] as const;
+
+/** Everything the stored list carries, which is the price moves and rank-ups. */
+const STORED_KINDS = [...PRICE_KINDS, "rank_up"] as const;
 
 /** Postgres hands back a Date, PostgREST a string. The list only wants one. */
 function asIso(value: Date | string): string {
@@ -186,6 +193,34 @@ async function eventsPg(userId: string, limit: number): Promise<EventRow[]> {
     );
     return rows;
   });
+}
+
+async function storedPg(userId: string, limit: number): Promise<EventRow[]> {
+  return withClient(async (client) => {
+    const {rows} = await client.query<EventRow>(
+      `select kind, subject, rung, created_at as sent_at
+         from public.inbox_events
+        where user_id = $1 and kind = any($2::text[])
+        order by created_at desc
+        limit $3`,
+      [userId, [...STORED_KINDS], limit],
+    );
+    return rows;
+  });
+}
+
+async function storedRest(userId: string, limit: number): Promise<EventRow[]> {
+  const {data, error} = await db()
+    .from("inbox_events")
+    .select("kind, subject, rung, created_at")
+    .eq("user_id", userId)
+    .in("kind", [...STORED_KINDS])
+    .order("created_at", {ascending: false})
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as {kind: string; subject: string; rung: number; created_at: string}[]).map(
+    (row) => ({kind: row.kind, subject: row.subject, rung: row.rung, sent_at: row.created_at}),
+  );
 }
 
 /** My own comment ids, which are what replies and votes hang off. */
@@ -407,24 +442,39 @@ function actorOf(row: {handle: string; display_name: string | null; pfp_url: str
 export async function inboxFor(userId: string, limit = INBOX_LIMIT): Promise<InboxItem[]> {
   if (!inboxReady) return [];
 
-  const [watchlistOn, [replies, votes, followers, events]] = await Promise.all([
+  const [watchlistOn, [replies, votes, followers, pushed, stored]] = await Promise.all([
     watchlistWanted(userId),
     Promise.all([
       (useDirectPg ? repliesPg(userId, limit) : repliesRest(userId, limit)).catch(() => []),
       (useDirectPg ? votesPg(userId, limit) : votesRest(userId, limit)).catch(() => []),
       (useDirectPg ? followersPg(userId, limit) : followersRest(userId, limit)).catch(() => []),
       (useDirectPg ? eventsPg(userId, limit) : eventsRest(userId, limit)).catch(() => []),
+      (useDirectPg ? storedPg(userId, limit) : storedRest(userId, limit)).catch(() => []),
     ]),
   ]);
 
+  /*
+   * The stored rows and the push ledger, as one set.
+   *
+   * They overlap: anything that both happened and was pushed is in both, so
+   * they are keyed the same way and the stored row wins. The ledger is still
+   * read because it holds everything from before there was a stored table.
+   */
+  const merged = new Map<string, EventRow>();
+  for (const row of [...pushed, ...stored]) {
+    merged.set(`${row.kind}:${row.subject}:${row.rung}`, row);
+  }
+
   // The watchlist switch is the one that gates its own rows here too, so a
   // person who turned those off does not meet them again in the list.
-  const wanted = events.filter(
+  const wanted = [...merged.values()].filter(
     (row) => row.kind !== "watchlist_multiple" || watchlistOn,
   );
 
   const assets = await assetsFor(
-    wanted.map((row) => ({kind: "stonk", asset_id: row.subject})),
+    wanted
+      .filter((row) => row.kind !== "rank_up")
+      .map((row) => ({kind: "stonk", asset_id: row.subject})),
   ).catch(() => new Map<string, FeedAsset>());
 
   const items: InboxItem[] = [];
@@ -440,6 +490,7 @@ export async function inboxFor(userId: string, limit = INBOX_LIMIT): Promise<Inb
       count: 1,
       asset: null,
       rung: null,
+      rank: null,
       href: kind ? `${assetPath(kind, row.asset_id)}?comment=${row.id}` : profilePath(row.handle),
     });
   }
@@ -455,6 +506,7 @@ export async function inboxFor(userId: string, limit = INBOX_LIMIT): Promise<Inb
       count: Number(row.votes),
       asset: null,
       rung: null,
+      rank: null,
       href: kind ? `${assetPath(kind, row.asset_id)}?comment=${row.comment_id}` : "/feed",
     });
   }
@@ -469,12 +521,13 @@ export async function inboxFor(userId: string, limit = INBOX_LIMIT): Promise<Inb
       count: 1,
       asset: null,
       rung: null,
+      rank: null,
       href: profilePath(row.handle),
     });
   }
 
   for (const row of wanted) {
-    const asset = assets.get(`stonk:${row.subject}`) ?? null;
+    const rankUp = row.kind === "rank_up";
     items.push({
       id: `${row.kind}:${row.subject}:${row.rung}`,
       kind: row.kind as InboxKind,
@@ -482,11 +535,57 @@ export async function inboxFor(userId: string, limit = INBOX_LIMIT): Promise<Inb
       actor: null,
       text: null,
       count: 1,
-      asset,
-      rung: row.rung || null,
-      href: assetPath("stonk", row.subject),
+      asset: rankUp ? null : (assets.get(`stonk:${row.subject}`) ?? null),
+      // A rank-up's subject is the rank and its rung is the season, so neither
+      // means what it means on a price move.
+      rung: rankUp ? null : row.rung || null,
+      rank: rankUp ? (row.subject as RankId) : null,
+      href: rankUp ? "/stonkfolio" : assetPath("stonk", row.subject),
     });
   }
 
   return items.sort((a, b) => b.at.localeCompare(a.at)).slice(0, limit);
+}
+
+/**
+ * Record something for the list, whether or not a push goes out.
+ *
+ * `notification_events` cannot do this: it is the push ledger, and a claim is
+ * released again when nobody has a device subscribed — so for anyone who never
+ * turned push on, the history would be empty. This row is the history.
+ *
+ * Never throws. Nothing that causes a notification should fail because the
+ * notification could not be written down.
+ */
+export async function recordInboxEvent(input: {
+  userId: string;
+  kind: string;
+  subject: string;
+  rung?: number;
+}): Promise<void> {
+  if (!inboxReady) return;
+  const rung = input.rung ?? 0;
+
+  try {
+    if (useDirectPg) {
+      await withClient((client) =>
+        client.query(
+          `insert into public.inbox_events (user_id, kind, subject, rung)
+           values ($1, $2, $3, $4)
+           on conflict (user_id, kind, subject, rung) do nothing`,
+          [input.userId, input.kind, input.subject, rung],
+        ),
+      );
+      return;
+    }
+
+    await db()
+      .from("inbox_events")
+      .upsert(
+        {user_id: input.userId, kind: input.kind, subject: input.subject, rung},
+        {onConflict: "user_id,kind,subject,rung", ignoreDuplicates: true},
+      );
+  } catch (error) {
+    console.error("recording an inbox event failed", error);
+  }
 }

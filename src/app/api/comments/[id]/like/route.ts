@@ -5,7 +5,7 @@ import {badRequest, json} from "@/lib/server/http";
 export const dynamic = "force-dynamic";
 
 /**
- * Like or unlike a comment, decided by `liked` in the body.
+ * Vote or unvote a comment, decided by `liked` in the body.
  *
  * Only an explicit `false` unlikes, so a malformed body can never quietly
  * remove a like the person meant to keep. Returns the fresh count so the client
@@ -21,8 +21,14 @@ export async function POST(request: Request, {params}: {params: {id: string}}) {
 
   try {
     const result = await setLike(caller.userId, params.id, liked);
-    if (!result) return badRequest("That comment is gone.");
-    return json(result);
+    if (!result.ok) {
+      return badRequest(
+        result.reason === "self"
+          ? "You cannot vote on your own comment."
+          : "That comment is gone.",
+      );
+    }
+    return json({likes: result.likes, liked: result.liked});
   } catch (error) {
     return json({error: (error as Error).message}, {status: 503});
   }

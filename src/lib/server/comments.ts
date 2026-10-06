@@ -54,6 +54,7 @@ interface TradeRow {
 
 interface Row {
   id: string;
+  user_id: string;
   parent_id: string | null;
   body: string;
   created_at: Date | string;
@@ -111,10 +112,16 @@ export async function listComments(
 
   const rows = [...roots, ...replies];
 
-  const positions = await positionsFor(
-    mintFor(kind, assetId),
-    [...new Set(rows.map((row) => row.wallet).filter((wallet): wallet is string => !!wallet))],
-  );
+  const [positions, standings] = await Promise.all([
+    positionsFor(
+      mintFor(kind, assetId),
+      [...new Set(rows.map((row) => row.wallet).filter((wallet): wallet is string => !!wallet))],
+    ),
+    // One read of the season's table for the whole page, not one per comment.
+    import("./ranks")
+      .then(({standingsFor}) => standingsFor([...new Set(rows.map((row) => row.user_id))]))
+      .catch(() => new Map()),
+  ]);
 
   const comments = rows.map((row) => ({
     id: row.id,
@@ -124,6 +131,7 @@ export async function listComments(
       handle: row.handle ?? "someone",
       displayName: row.display_name ?? row.handle ?? "Someone",
       pfpUrl: row.pfp_url,
+      rank: standings.get(row.user_id)?.rank.id ?? "intern",
     },
     body: row.body,
     createdAt: new Date(row.created_at).toISOString(),
@@ -157,7 +165,7 @@ async function listRowsPg(
      * replies read has no kind or asset to filter by, so its numbering starts
      * again.
      */
-    const columns = (caller: string) => `c.id::text, c.parent_id::text, c.body, c.created_at,
+    const columns = (caller: string) => `c.id::text, c.user_id, c.parent_id::text, c.body, c.created_at,
               u.handle, u.display_name, u.pfp_url, u.wallet,
               (select count(*) from public.comment_likes l where l.comment_id = c.id) as likes,
               exists (
@@ -267,6 +275,7 @@ async function listRowsRest(
     const user = byUser.get(row.user_id as string);
     return {
       id,
+      user_id: row.user_id as string,
       parent_id: row.parent_id == null ? null : asId(row.parent_id),
       body: row.body as string,
       created_at: row.created_at as string,
@@ -375,7 +384,7 @@ async function fillHeldFromBalances(
  * late it is already high. `Early` is withheld rather than wrongly given as a
  * result, which is the right way round for a badge that claims conviction.
  */
-async function earliestPriceFor(mint: Pubkey): Promise<number | null> {
+export async function earliestPriceFor(mint: Pubkey): Promise<number | null> {
   try {
     if (useDirectPg) {
       const rows = await withClient(async (client) =>
@@ -594,13 +603,79 @@ async function postCommentRest(
 }
 
 /** Like or unlike. Idempotent both ways, so a double tap is harmless. */
+export type LikeResult =
+  | {ok: true; likes: number; liked: boolean}
+  /** Voting on your own comment, which is refused outright. */
+  | {ok: false; reason: "self"}
+  | {ok: false; reason: "missing"};
+
+/**
+ * Vote on a comment, and move the author's rep if the vote earns any.
+ *
+ * Two different rules, deliberately:
+ *
+ *   - **Anyone signed in can vote.** A like is a reader saying a comment was
+ *     useful, and a reader is allowed to think so without holding the coin.
+ *     The count on the comment is the count.
+ *   - **Only a holder's vote earns rep.** Rep is a claim about calls, so it is
+ *     bought with a position. A non-holder's like still shows; it just does
+ *     not move anybody up the ladder.
+ *
+ * Voting on your own comment is refused rather than ignored. Silently dropping
+ * it would leave the button looking broken.
+ */
 export async function setLike(
   userId: string,
   commentId: string,
   liked: boolean,
-): Promise<{likes: number; liked: boolean} | null> {
-  if (!/^\d+$/.test(commentId)) return null;
-  return useDirectPg ? setLikePg(userId, commentId, liked) : setLikeRest(userId, commentId, liked);
+): Promise<LikeResult> {
+  if (!/^\d+$/.test(commentId)) return {ok: false, reason: "missing"};
+
+  const subject = await voteSubject(commentId);
+  if (!subject) return {ok: false, reason: "missing"};
+  if (subject.authorId === userId) return {ok: false, reason: "self"};
+
+  const counted = useDirectPg
+    ? await setLikePg(userId, commentId, liked)
+    : await setLikeRest(userId, commentId, liked);
+  if (!counted) return {ok: false, reason: "missing"};
+
+  /*
+   * Rep after the vote is recorded, and never in its way.
+   *
+   * Awaited rather than detached, because a serverless function can freeze the
+   * moment it returns and a floating write would be lost. `awardRep` swallows
+   * its own failures, so this cannot turn a counted vote into a failed one.
+   */
+  const {awardRep, removeRep} = await import("./ranks");
+  if (liked) {
+    const {rankedUp} = await awardRep(userId, subject);
+    if (rankedUp) {
+      const {notifyRankUp} = await import("./notifications/events");
+      await notifyRankUp(subject.authorId, rankedUp).catch(() => {});
+    }
+  } else {
+    await removeRep(userId, commentId);
+  }
+
+  return {ok: true, ...counted};
+}
+
+/** Who wrote a comment, where it sits, and what it says. */
+async function voteSubject(commentId: string) {
+  const target = await commentTarget(commentId);
+  if (!target || !target.userId) return null;
+
+  const {walletOf} = await import("./social");
+  const wallet = await walletOf(target.userId).catch(() => null);
+
+  return {
+    commentId,
+    authorId: target.userId,
+    authorWallet: wallet,
+    mint: mintFor(target.kind, target.assetId),
+    body: target.body,
+  };
 }
 
 async function setLikePg(
@@ -672,6 +747,8 @@ export interface CommentTarget {
   kind: AssetKind;
   assetId: string;
   body: string;
+  /** Who wrote it, which is who a vote on it earns rep for. */
+  userId: string;
 }
 
 /**
@@ -687,26 +764,55 @@ export async function commentTarget(id: string): Promise<CommentTarget | null> {
 
   if (useDirectPg) {
     return withClient(async (client) => {
-      const {rows} = await client.query<{kind: string; asset_id: string; body: string}>(
-        `select kind, asset_id, body from public.comments where id = $1::bigint`,
+      const {rows} = await client.query<{
+        kind: string;
+        asset_id: string;
+        body: string;
+        user_id: string;
+      }>(
+        `select kind, asset_id, body, user_id from public.comments where id = $1::bigint`,
         [id],
       );
       const row = rows[0];
       if (!row) return null;
       const kind = row.kind === "stonk" || row.kind === "stock" ? row.kind : null;
-      return kind ? {kind, assetId: row.asset_id, body: row.body} : null;
+      return kind
+        ? {kind, assetId: row.asset_id, body: row.body, userId: row.user_id}
+        : null;
     });
   }
 
   const {data, error} = await db()
     .from("comments")
-    .select("kind, asset_id, body")
+    .select("kind, asset_id, body, user_id")
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) return null;
 
-  const row = data as {kind: string; asset_id: string; body: string};
+  const row = data as {kind: string; asset_id: string; body: string; user_id: string};
   const kind = row.kind === "stonk" || row.kind === "stock" ? row.kind : null;
-  return kind ? {kind, assetId: row.asset_id, body: row.body} : null;
+  return kind ? {kind, assetId: row.asset_id, body: row.body, userId: row.user_id} : null;
+}
+
+/**
+ * What this wallet first paid for a coin, per unit.
+ *
+ * The same number the Early badge is worked out from, shared so rep and the
+ * badge cannot disagree about who was early.
+ */
+export async function firstBuyPriceFor(wallet: Pubkey, mint: Pubkey): Promise<number | null> {
+  try {
+    const trades = useDirectPg
+      ? await tradesPg([wallet], mint)
+      : await tradesRest([wallet], mint);
+
+    const buys = trades
+      .filter((trade) => trade.side === "buy" && Number(trade.price_usd) > 0)
+      .sort((a, b) => String(a.at).localeCompare(String(b.at)));
+
+    return buys[0] ? Number(buys[0].price_usd) : null;
+  } catch {
+    return null;
+  }
 }

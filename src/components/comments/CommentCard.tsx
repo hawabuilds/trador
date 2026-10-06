@@ -5,6 +5,7 @@ import Link from "next/link";
 import {Avatar} from "@/components/ui/Avatar";
 import {LinkCards} from "@/components/comments/LinkCards";
 import {ArrowUpIcon, ReplyIcon, ShareIcon} from "@/components/ui/Icons";
+import {RankTag} from "@/components/ui/RankBadge";
 import {cn} from "@/lib/cn";
 import {BAND_LABEL} from "@/lib/holdingBand";
 import {tokenAge} from "@/lib/priceFormat";
@@ -74,13 +75,14 @@ export function CommentCard({
       </Link>
 
       <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2">
+        <div className="flex items-center gap-2">
           <Link
             href={profilePath(comment.author.handle)}
             className="truncate text-[15px] font-semibold tracking-[-0.015em] text-ink transition-colors hover:text-accent-link"
           >
             {comment.author.handle}
           </Link>
+          {comment.author.rank ? <RankTag rank={comment.author.rank} /> : null}
           <time dateTime={comment.createdAt} className="shrink-0 text-[13px] text-faint">
             {tokenAge(comment.createdAt, now)}
           </time>

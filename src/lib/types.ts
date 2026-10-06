@@ -1,4 +1,5 @@
 import type {LaunchpadId} from "./programs";
+import type {RankId} from "@/config/ranks";
 import type {Pubkey} from "./pubkey";
 import type {SectorId} from "./sectors";
 import type {PriceAuthority, StockIssuer, StockKind} from "./stocks/registry";
@@ -223,6 +224,8 @@ export interface CommentAuthor {
   handle: string;
   displayName: string;
   pfpUrl: string | null;
+  /** Their caller rank this season. Absent on a comment saved locally. */
+  rank?: RankId;
 }
 
 export interface AssetComment {
