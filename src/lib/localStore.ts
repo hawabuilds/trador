@@ -476,3 +476,19 @@ export function writeRankSeen(key: string): void {
   write("rankSeen", key);
   announce();
 }
+
+/**
+ * Whether this person has closed the Home banner.
+ *
+ * On the device for now. Closing it belongs to the person rather than the
+ * browser, which is one nullable column on `users` waiting with the next batch
+ * of schema changes; until then a phone and a laptop each have to be told once.
+ */
+export function readBannerClosed(): boolean {
+  return read<boolean>("homeBannerClosed", false) === true;
+}
+
+export function writeBannerClosed(): void {
+  write("homeBannerClosed", true);
+  announce();
+}

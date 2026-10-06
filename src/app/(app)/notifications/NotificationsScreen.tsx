@@ -1,6 +1,7 @@
 "use client";
 
 import {useEffect, useRef, useState} from "react";
+import {useSearchParams} from "next/navigation";
 import {useMutation, useQueryClient} from "@tanstack/react-query";
 import Link from "next/link";
 
@@ -31,7 +32,10 @@ import type {InboxItem} from "@/lib/server/notifications/inbox";
  */
 export function NotificationsScreen() {
   const {items, seenAt, loading, failed, markSeen} = useNotifications();
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  // Opened straight onto the settings when something sent the person here to
+  // change them, rather than leaving them to find the gear.
+  const asked = useSearchParams()?.get("settings") === "1";
+  const [settingsOpen, setSettingsOpen] = useState(asked);
 
   // The line between read and unread is fixed when the screen opens, so rows
   // do not lose their tint while being looked at.
