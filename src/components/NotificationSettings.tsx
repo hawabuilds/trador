@@ -278,7 +278,7 @@ function QuietHours({
 
   return (
     <>
-      <Row label="Quiet hours" hint={on ? `${start}–${end} · ${timezone}` : "Off"}>
+      <Row label="Quiet hours" hint={on ? `${start}–${end}\u00a0\u00a0${timezone}` : "Off"}>
         <Switch
           on={on}
           disabled={disabled}

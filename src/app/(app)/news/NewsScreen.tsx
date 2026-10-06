@@ -346,7 +346,6 @@ function ByLine({
         {item.source.slice(0, 1).toUpperCase()}
       </span>
       <span className="truncate text-muted">{item.source}</span>
-      <span className="opacity-50">·</span>
       <span className="shrink-0">{newsTime(item.publishedAt, window)}</span>
     </div>
   );

@@ -290,7 +290,7 @@ function PublicStonkfolio({wallet, handle, isSelf}: {wallet: string; handle: str
       <div className="tabular-nums mt-1.5 flex items-center gap-2 text-[12px] font-bold text-faint">
         <span>{solLabel} SOL</span>
         {query.data && query.data.otherCount > 0 ? (
-          <span>· {query.data.otherCount} not priced here</span>
+          <span>{query.data.otherCount} not priced here</span>
         ) : null}
         <span className="ml-auto font-mono font-semibold">{shortPubkey(wallet, 4, 4)}</span>
       </div>

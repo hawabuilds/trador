@@ -188,7 +188,7 @@ export function timeframeLabel(
   requested: Timeframe,
   resolved?: Timeframe | null,
 ): string {
-  if (resolved && resolved !== requested) return `${requested} · ${resolved}`;
+  if (resolved && resolved !== requested) return `${requested}\u00a0\u00a0${resolved}`;
   return requested;
 }
 
