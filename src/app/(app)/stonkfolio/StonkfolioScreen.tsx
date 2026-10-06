@@ -246,9 +246,6 @@ export function StonkfolioScreen() {
                 {handle ? (
                   <span className="min-w-0 truncate">@{handle}</span>
                 ) : null}
-                {handle && wallet ? (
-                  <span className="shrink-0 px-1">·</span>
-                ) : null}
                 {wallet ? (
                   <button
                     type="button"
@@ -382,7 +379,7 @@ export function StonkfolioScreen() {
                   the wallet.
                 */}
                 {query.data && query.data.otherCount > 0 ? (
-                  <span className="tabular-nums">· {query.data.otherCount} not priced here</span>
+                  <span className="tabular-nums">{query.data.otherCount} not priced here</span>
                 ) : null}
               </>
             )}

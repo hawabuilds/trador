@@ -143,8 +143,9 @@ export function ReferralsScreen() {
                           {referrer.displayName ?? referrer.handle}
                         </div>
                         <div className="truncate text-[12px] font-semibold text-faint">
-                          @{referrer.handle} · {referrer.opens} {referrer.opens === 1 ? "open" : "opens"}
-                          {referrer.lastSignUpAt ? ` · last ${stamp(referrer.lastSignUpAt)}` : ""}
+                          @{referrer.handle}&nbsp;&nbsp;&nbsp;{referrer.opens}{" "}
+                          {referrer.opens === 1 ? "open" : "opens"}
+                          {referrer.lastSignUpAt ? `\u00a0\u00a0\u00a0last ${stamp(referrer.lastSignUpAt)}` : ""}
                         </div>
                       </div>
                       <div className="shrink-0 text-right">

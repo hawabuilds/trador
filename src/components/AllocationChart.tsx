@@ -153,7 +153,7 @@ export function AllocationChart({
                 onClick={() => setActive(index)}
               >
                 <title>
-                  {slice.symbol} · {slice.weight.toFixed(1)}%
+                  {slice.symbol} {slice.weight.toFixed(1)}%
                   {hasTargets && target !== undefined
                     ? ` (target ${target.toFixed(1)}%)`
                     : ""}

@@ -5,12 +5,14 @@ import Link from "next/link";
 
 import {StickyPageHeader} from "@/components/AppShell";
 import {FeedCommentRow} from "@/components/feed/FeedCommentRow";
+import {FeedTradeRow} from "@/components/feed/FeedTradeRow";
 import {LoadMore} from "@/components/LoadMore";
 import {PanelTabs, type PanelTab} from "@/components/PanelTabs";
-import {BellIcon} from "@/components/ui/Icons";
 import {SegmentedToggle, type SegmentedOption} from "@/components/ui/SegmentedToggle";
+import {BellIcon} from "@/components/ui/Icons";
 import {useNotifications} from "@/hooks/useNotifications";
 import {useSocialFeed, type FeedTab} from "@/hooks/useSocialFeed";
+import {useUser} from "@/hooks/useUser";
 
 type TopWindow = "week" | "all";
 
@@ -33,13 +35,21 @@ const TABS: PanelTab<FeedTab>[] = [
  * own reads and are empty until then.
  */
 export function FeedScreen() {
-  const [tab, setTab] = useState<FeedTab>("top");
+  const {authenticated} = useUser();
+  /*
+   * Following first for someone signed in, since that is the feed they came
+   * for. A visitor, or somebody who follows nobody, opens on Top calls — an
+   * empty Following tab is a dead end on a first visit.
+   */
+  const [tab, setTab] = useState<FeedTab>(authenticated ? "following" : "top");
   const [period, setPeriod] = useState<TopWindow>("week");
-  const feed = useSocialFeed(tab, {enabled: tab !== "following", period});
+  const feed = useSocialFeed(tab, {period});
   const now = Date.now();
 
   return (
-    <div>
+    // Clear of the floating tab bar, so the last row is readable rather than
+    // half under it.
+    <div className="pb-[calc(84px+env(safe-area-inset-bottom))]">
       <StickyPageHeader>
         <div className="mb-3 flex items-center justify-between">
           <h1 className="text-[28px] font-bold tracking-[-0.03em] text-ink">Feed</h1>
@@ -48,37 +58,32 @@ export function FeedScreen() {
         <PanelTabs tabs={TABS} value={tab} onChange={setTab} size="md" align="start" />
       </StickyPageHeader>
 
-      {tab === "following" ? (
-        <p className="px-2 py-16 text-center text-[13px] leading-[1.5] text-muted">
-          The people you follow land here next.
-        </p>
-      ) : (
-        <>
-          {tab === "top" ? (
-            <div className="flex justify-end pb-1 pt-3">
-              <SegmentedToggle options={WINDOWS} value={period} onChange={setPeriod} />
-            </div>
-          ) : null}
-          <FeedList
-            feed={feed}
-            now={now}
-            empty={
-              tab === "top"
-                ? period === "week"
-                  ? "No calls this week yet."
-                  : "No calls yet."
-                : "No takes yet. Open a coin and post the first one."
-            }
-            // A quiet week is not a dead end: the calls people voted on are
-            // one tap away rather than behind a switch nobody thinks to try.
-            emptyAction={
-              tab === "top" && period === "week"
-                ? {label: "See all time", onAct: () => setPeriod("all")}
-                : undefined
-            }
-          />
-        </>
-      )}
+      {tab === "top" ? (
+        <div className="flex justify-end pb-1 pt-3">
+          <SegmentedToggle options={WINDOWS} value={period} onChange={setPeriod} />
+        </div>
+      ) : null}
+
+      <FeedList
+        feed={feed}
+        now={now}
+        empty={
+          tab === "following"
+            ? "Follow a few people and their buys, sells and takes land here."
+            : tab === "top"
+              ? period === "week"
+                ? "No calls this week yet."
+                : "No calls yet."
+              : "No takes yet. Open a coin and post the first one."
+        }
+        // A quiet week is not a dead end: the calls people voted on are one
+        // tap away rather than behind a switch nobody thinks to try.
+        emptyAction={
+          tab === "top" && period === "week"
+            ? {label: "See all time", onAct: () => setPeriod("all")}
+            : undefined
+        }
+      />
     </div>
   );
 }
@@ -138,8 +143,12 @@ function FeedList({
     <>
       <ul>
         {feed.items.map((item) => (
-          <li key={item.id}>
-            <FeedCommentRow comment={item} now={now} />
+          <li key={`${item.type}:${item.id}`}>
+            {item.type === "trade" ? (
+              <FeedTradeRow trade={item} now={now} />
+            ) : (
+              <FeedCommentRow comment={item} now={now} />
+            )}
           </li>
         ))}
       </ul>

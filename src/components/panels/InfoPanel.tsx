@@ -155,7 +155,7 @@ export function InfoPanel({stonk}: {stonk: Stonk}) {
         {stonk.listedAt ? (
           <Row label="Launched">
             <span className="text-[13px] font-semibold text-muted">
-              {stamp(stonk.listedAt)} · {ageSince(stonk.listedAt)} old
+              {stamp(stonk.listedAt)}&nbsp;&nbsp;&nbsp;{ageSince(stonk.listedAt)} old
             </span>
           </Row>
         ) : null}

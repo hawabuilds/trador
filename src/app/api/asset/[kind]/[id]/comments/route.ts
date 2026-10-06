@@ -1,6 +1,13 @@
 import {asPubkey} from "@/lib/pubkey";
 import {optionalCaller, requireCaller} from "@/lib/server/auth";
-import {commentsReady, holdsAsset, listComments, mintFor, postComment} from "@/lib/server/comments";
+import {
+  COMMENT_PAGE,
+  commentsReady,
+  holdsAsset,
+  listComments,
+  mintFor,
+  postComment,
+} from "@/lib/server/comments";
 import {badRequest, json} from "@/lib/server/http";
 import {profileById, walletOf} from "@/lib/server/social";
 import type {AssetKind} from "@/lib/types";
@@ -26,17 +33,22 @@ export async function GET(
   const assetId = decodeURIComponent(params.id);
   if (!kind || !mintFor(kind, assetId)) return badRequest("Unknown asset.");
 
-  if (!commentsReady) return json({comments: [], localOnly: true});
+  if (!commentsReady) return json({comments: [], cursor: null, localOnly: true});
 
   try {
     const caller = await optionalCaller(request);
-    const [comments, canPost] = await Promise.all([
-      listComments(kind, assetId, caller?.userId ?? null),
+    const url = new URL(request.url);
+    const limit = Number(url.searchParams.get("limit") ?? COMMENT_PAGE);
+    const [page, canPost] = await Promise.all([
+      listComments(kind, assetId, caller?.userId ?? null, {
+        limit: Number.isFinite(limit) ? limit : COMMENT_PAGE,
+        cursor: url.searchParams.get("cursor"),
+      }),
       caller ? callerHolds(caller.userId, kind, assetId) : Promise.resolve(false),
     ]);
     // Said up front, so the composer can explain itself instead of accepting a
     // post that the server will then refuse.
-    return json({comments, localOnly: false, canPost});
+    return json({comments: page.comments, cursor: page.cursor, localOnly: false, canPost});
   } catch (error) {
     return json({error: (error as Error).message}, {status: 503});
   }
