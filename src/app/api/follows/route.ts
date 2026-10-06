@@ -1,8 +1,13 @@
+import {asPubkey} from "@/lib/pubkey";
 import {badRequest, json} from "@/lib/server/http";
 import {requireCaller} from "@/lib/server/auth";
 import {followingOf, profileById, profileByHandle, setFollow} from "@/lib/server/social";
 
 export const dynamic = "force-dynamic";
+
+/** How much of a newly followed wallet's history to read on the spot. */
+const BACKFILL_MS = 7 * 24 * 60 * 60_000;
+const BACKFILL_SIGNATURES = 400;
 
 /** Who the caller follows. */
 export async function GET(request: Request) {
@@ -52,6 +57,26 @@ export async function POST(request: Request) {
           me?.handle ?? "someone",
           me?.displayName ?? "Someone",
         );
+      }
+    }
+
+    /*
+     * Their last week, read now rather than from the next trade they make.
+     * Following someone and finding an empty feed is the moment the feature
+     * fails, and a week of signatures is a second or two — bounded, so one
+     * very busy wallet cannot hold up the tap.
+     */
+    if (wantFollow) {
+      const followed = await profileByHandle(body.handle, null).catch(() => null);
+      const wallet = followed?.wallet ? asPubkey(followed.wallet) : null;
+      if (wallet) {
+        try {
+          const {syncWalletTrades} = await import("@/lib/server/live/walletTrades");
+          await syncWalletTrades(wallet, {sinceMs: BACKFILL_MS, max: BACKFILL_SIGNATURES});
+        } catch {
+          // Unreadable history is no reason to fail the follow; the webhook
+          // picks up their next trade either way.
+        }
       }
     }
 

@@ -16,6 +16,8 @@
 
 import {gpaDiscoveryLabel} from "@/lib/server/getProgramAccountsV2";
 import {indexAll} from "@/lib/server/live/launchIndexer";
+import {followedPublicWallets} from "@/lib/server/live/followedWallets";
+import {syncTradeWebhook} from "@/lib/server/live/heliusWebhook";
 import {keepTapes} from "@/lib/server/live/tapeKeeper";
 import {readIndexerState, storeReady} from "@/lib/server/live/universeStore";
 import {indexerRpcUrl, rpcUrlForLog} from "@/lib/server/rpcUrl";
@@ -29,6 +31,16 @@ const INTERVAL_MS = Number(process.env.INDEX_INTERVAL_MS ?? 90_000);
  * `KEEP_TAPES=0` turns it off.
  */
 const TAPE_INTERVAL_MS = Number(process.env.TAPE_INTERVAL_MS ?? 3_000);
+
+/**
+ * How often to check whether the trade webhook is watching the right wallets.
+ *
+ * Here rather than on Vercel: Helius answers 429 to their webhook API from a
+ * serverless function, reliably enough that a cron there cannot be trusted
+ * with it. The check itself is a database read and a hash — Helius is only
+ * called when the list has actually moved.
+ */
+const WEBHOOK_INTERVAL_MS = Number(process.env.TRADE_WEBHOOK_INTERVAL_MS ?? 120_000);
 
 /** Backoff ceiling, so a provider outage does not become a retry storm. */
 const MAX_BACKOFF_MS = 15 * 60_000;
@@ -107,6 +119,9 @@ async function main(): Promise<void> {
   // Its own loop: a sweep takes a minute or more, and the tapes cannot wait on it.
   if (process.env.KEEP_TAPES !== "0") void tapeLoop();
 
+  // Same reasoning, and cheaper still: it reads a hash most of the time.
+  if (process.env.KEEP_TRADE_WEBHOOK !== "0") void webhookLoop();
+
   const existing = await readIndexerState("live-tip");
   if (existing?.heartbeat_at) {
     const age = Date.now() - Date.parse(existing.heartbeat_at);
@@ -174,6 +189,27 @@ async function tapeLoop(): Promise<void> {
       log(`tapes failed (${failures} in a row): ${(error as Error).message}. Backing off ${Math.round(backoff / 1000)}s.`);
       await sleep(backoff);
     }
+  }
+}
+
+/** Keep the trade webhook pointed at the wallets people actually follow. */
+async function webhookLoop(): Promise<void> {
+  log(`watching follows, ${WEBHOOK_INTERVAL_MS}ms between checks`);
+
+  while (running) {
+    try {
+      const watched = await followedPublicWallets();
+      const result = await syncTradeWebhook(watched.map((entry) => entry.wallet));
+      if (result.status !== "unchanged") {
+        log(
+          `trade webhook ${result.status}: ${result.addresses} wallets` +
+            (result.reason ? ` — ${result.reason}` : ""),
+        );
+      }
+    } catch (error) {
+      log(`trade webhook sync failed: ${(error as Error).message}`);
+    }
+    await sleep(WEBHOOK_INTERVAL_MS);
   }
 }
 
