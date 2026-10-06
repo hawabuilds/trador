@@ -26,7 +26,7 @@ export const MIN_POSITION_USD = 0.01;
  * has not been read yet.
  */
 export function heldCommentPosition(): CommentPositionView {
-  return {boughtUsd: 0, status: "holding", gainPct: null};
+  return {band: null, status: "holding", early: false};
 }
 
 export function uiAmountHolds(uiAmount: number, priceUsd: number | null): boolean {
