@@ -358,9 +358,9 @@ function daysSince(iso: string): string {
  * Liquidity added to a pool, or taken out of it.
  *
  * Valued at what the tokens are worth now rather than at the time: there is no
- * price history per coin to reach for, and a deposit worth saying something
- * about is a recent one. A leg nobody can price leaves the card without a
- * figure — the deposit itself is still a fact, and "LP add to STONK / SIXt"
+ * price history per coin to reach for. The card says "now" rather than leaving
+ * a reader to assume otherwise. A leg nobody can price leaves the card without
+ * a figure — the deposit itself is still a fact, and "LP add to STONK / SIXt"
  * says it without inventing the part we do not have.
  */
 async function liquidityCard(
@@ -387,7 +387,10 @@ async function liquidityCard(
   }
 
   const added = move.side === "add";
-  const figure = total === null ? "" : ` ${added ? "+" : "\u2212"}${compactMoney(total)}`;
+  // "now" said out loud, because it is: the legs are priced at today's value,
+  // not at the time of the deposit, and a card that hid that would read as a
+  // historical figure. A buy or a sell is priced at the time and says nothing.
+  const figure = total === null ? "" : ` worth ${compactMoney(total)} now`;
 
   return {
     kind: "solscan-tx",
