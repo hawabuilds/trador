@@ -103,7 +103,9 @@ function decodeCursor(cursor: string | null): {at: string; id: string} | null {
  * A page of twenty comments is rarely twenty different coins, and resolving
  * them one at a time is what turns a feed into twenty round trips.
  */
-async function assetsFor(rows: Row[]): Promise<Map<string, FeedAsset>> {
+export async function assetsFor(
+  rows: readonly {kind: string; asset_id: string}[],
+): Promise<Map<string, FeedAsset>> {
   const found = new Map<string, FeedAsset>();
 
   const mints = [

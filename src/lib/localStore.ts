@@ -436,3 +436,26 @@ export function writePieTargets(
   write("pie-targets", {...all, [wallet]: targets});
   announce();
 }
+
+// ---------------------------------------------------------------------------
+// Notifications
+// ---------------------------------------------------------------------------
+
+/**
+ * When this device last looked at the list.
+ *
+ * Per device on purpose, for now: marking something read belongs on the person
+ * rather than the browser, and that is one column on `users` which is waiting
+ * with the ranking tables. Until then a phone and a laptop each keep their own
+ * idea of what is new, which is wrong in a small way rather than a
+ * notifications screen that cannot tell new from old at all.
+ */
+export function readNotificationsSeenAt(): string | null {
+  const at = read<string | null>("notificationsSeenAt", null);
+  return typeof at === "string" ? at : null;
+}
+
+export function writeNotificationsSeenAt(at: string): void {
+  write("notificationsSeenAt", at);
+  announce();
+}
