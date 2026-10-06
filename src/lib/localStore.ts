@@ -459,3 +459,20 @@ export function writeNotificationsSeenAt(at: string): void {
   write("notificationsSeenAt", at);
   announce();
 }
+
+/**
+ * The last rank this device has congratulated somebody on.
+ *
+ * The screen is a moment, not a message: it belongs to the device you were
+ * holding when it happened, and showing it again on a laptop a week later
+ * would be a celebration of old news.
+ */
+export function readRankSeen(): string | null {
+  const seen = read<string | null>("rankSeen", null);
+  return typeof seen === "string" ? seen : null;
+}
+
+export function writeRankSeen(key: string): void {
+  write("rankSeen", key);
+  announce();
+}

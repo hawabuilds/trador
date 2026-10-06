@@ -6,7 +6,9 @@ import Link from "next/link";
 
 import {StickyPageHeader} from "@/components/AppShell";
 import {NotificationSettings} from "@/components/NotificationSettings";
+import {rankById} from "@/config/ranks";
 import {Avatar} from "@/components/ui/Avatar";
+import {RankBadge} from "@/components/ui/RankBadge";
 import {SettingsIcon} from "@/components/ui/Icons";
 import {Sheet, SheetTitle} from "@/components/ui/Sheet";
 import {useNotifications} from "@/hooks/useNotifications";
@@ -149,6 +151,8 @@ function Face({item}: {item: InboxItem}) {
     );
   }
 
+  if (item.rank) return <RankBadge rank={item.rank} size={40} />;
+
   if (item.asset) {
     return <Avatar name={item.asset.symbol} src={item.asset.imageUrl} seed={item.asset.id} size={40} />;
   }
@@ -200,6 +204,12 @@ function Headline({item}: {item: InboxItem}) {
       return (
         <>
           <span className="font-semibold">{symbol}</span> graduated
+        </>
+      );
+    case "rank_up":
+      return (
+        <>
+          You reached <span className="font-semibold">{rankById(item.rank ?? "intern").name}</span>
         </>
       );
   }
