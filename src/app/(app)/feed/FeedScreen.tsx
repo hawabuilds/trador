@@ -1,6 +1,7 @@
 "use client";
 
 import {useState} from "react";
+import Link from "next/link";
 
 import {StickyPageHeader} from "@/components/AppShell";
 import {FeedCommentRow} from "@/components/feed/FeedCommentRow";
@@ -8,6 +9,7 @@ import {LoadMore} from "@/components/LoadMore";
 import {PanelTabs, type PanelTab} from "@/components/PanelTabs";
 import {BellIcon} from "@/components/ui/Icons";
 import {SegmentedToggle, type SegmentedOption} from "@/components/ui/SegmentedToggle";
+import {useNotifications} from "@/hooks/useNotifications";
 import {useSocialFeed, type FeedTab} from "@/hooks/useSocialFeed";
 
 type TopWindow = "week" | "all";
@@ -41,13 +43,7 @@ export function FeedScreen() {
       <StickyPageHeader>
         <div className="mb-3 flex items-center justify-between">
           <h1 className="text-[28px] font-bold tracking-[-0.03em] text-ink">Feed</h1>
-          <button
-            type="button"
-            aria-label="Alerts"
-            className="grid h-11 w-11 place-items-center rounded-full text-muted transition-colors hover:bg-[var(--overlay-wash)] hover:text-ink"
-          >
-            <BellIcon className="h-[21px] w-[21px]" />
-          </button>
+          <NotificationsBell />
         </div>
         <PanelTabs tabs={TABS} value={tab} onChange={setTab} size="md" align="start" />
       </StickyPageHeader>
@@ -153,5 +149,31 @@ function FeedList({
         <p className="py-8 text-center text-[13px] text-faint">You have seen everything</p>
       )}
     </>
+  );
+}
+
+/**
+ * The way into the list, and the only place a count is shown.
+ *
+ * The number is capped at 9+ because past that it stops being a count and
+ * starts being a reason not to look. Nothing renders when there is nothing
+ * new, so the header stays quiet for someone with an empty list.
+ */
+function NotificationsBell() {
+  const {unread} = useNotifications();
+
+  return (
+    <Link
+      href="/notifications"
+      aria-label={unread > 0 ? `Notifications, ${unread} new` : "Notifications"}
+      className="relative grid h-11 w-11 place-items-center rounded-full text-muted transition-colors hover:bg-[var(--overlay-wash)] hover:text-ink"
+    >
+      <BellIcon className="h-[21px] w-[21px]" />
+      {unread > 0 ? (
+        <span className="tabular-nums absolute right-1 top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-brand-500 px-1 text-[11px] font-semibold text-white">
+          {unread > 9 ? "9+" : unread}
+        </span>
+      ) : null}
+    </Link>
   );
 }
