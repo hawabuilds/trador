@@ -108,6 +108,7 @@ export function LinkCardView({card}: {card: LinkCard}) {
             {card.headline}
           </p>
           <p className="mt-1 flex flex-wrap items-center gap-x-3 text-[13px] text-faint">
+            {card.amount ? <span className="tabular-nums">{card.amount}</span> : null}
             <span>{card.when}</span>
             <span className="tabular-nums">{card.who}</span>
           </p>

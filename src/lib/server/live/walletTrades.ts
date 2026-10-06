@@ -108,7 +108,8 @@ async function parseAll(signatures: string[], key: string) {
   return parsed;
 }
 
-async function stockUsdMap(trades: readonly RawTrade[]): Promise<Map<string, number>> {
+/** Spot USD for the tokenized stocks in these trades, which is what they are quoted in. */
+export async function stockUsdMap(trades: readonly RawTrade[]): Promise<Map<string, number>> {
   const mints: Pubkey[] = [];
   for (const trade of trades) {
     const paid = asPubkey(trade.paidMint);

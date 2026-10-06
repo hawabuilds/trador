@@ -120,6 +120,8 @@ export interface TxCard extends CardBase {
   /** Colours the headline, and null when the transaction was not a trade. */
   side: "buy" | "sell" | null;
   headline: string;
+  /** Units traded, when the headline is in dollars. Null when it is not. */
+  amount: string | null;
   /** The grey line under it: when, and whose wallet. */
   when: string;
   who: string;

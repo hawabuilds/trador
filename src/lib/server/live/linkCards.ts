@@ -12,7 +12,7 @@
 
 import type {Asset} from "@/lib/types";
 import {asPubkey} from "@/lib/pubkey";
-import {compact, relativeTime, shortAddress, units} from "@/lib/format";
+import {compact, compactMoney, relativeTime, shortAddress, units} from "@/lib/format";
 import {
   type CommentLink,
   type LinkCard,
@@ -25,15 +25,23 @@ import {
   txIsProof,
   walletIsProof,
 } from "@/lib/linkPreview";
-import {BASE_MINTS, SOL_MINT, tradesFromTx} from "@/lib/walletTrades";
+import {BASE_MINTS, SOL_MINT, type RawTrade, tradesFromTx, valueTrade} from "@/lib/walletTrades";
 import {USDC_MINT} from "@/lib/programs";
 import {cached} from "./cache";
+import {kvGet, kvSet, kvUsable} from "./kv";
 import {cleanTweet, decodeEntities, meta, textFromHtml} from "./linkParse";
 import {rawTransactions} from "./rawTransactions";
 import {safeFetch} from "./safeFetch";
 
-/** An hour. A post's text does not change, and a stale card is still true. */
-const TTL_MS = 60 * 60_000;
+/**
+ * An hour.
+ *
+ * A post's text does not change, and a card that resolved an hour ago is still
+ * true. A card that *failed* is cached for the same hour on purpose: a site
+ * that blocks us blocks us in ten minutes too, and retrying per reader would
+ * spend a fetch on every scroll past the same dead link.
+ */
+const TTL_SECONDS = 60 * 60;
 
 /**
  * A page is read this far looking for `</head>`, and no further.
@@ -231,9 +239,14 @@ async function txCard(link: CommentLink, mint: string | null): Promise<TxCard | 
     trades.find((entry) => !BASE_MINTS.has(entry.mint)) ??
     trades[0];
 
-  const symbols = await symbolsFor([trade.mint, trade.paidMint]);
+  const [symbols, valued] = await Promise.all([
+    symbolsFor([trade.mint, trade.paidMint]),
+    valueOf(trade),
+  ]);
+
   const verb = trade.side === "buy" ? "Bought" : "Sold";
-  const got = `${compact(trade.amount)} ${symbols.get(trade.mint) ?? ""}`.trim();
+  const symbol = symbols.get(trade.mint) ?? "";
+  const got = `${compact(trade.amount)} ${symbol}`.trim();
   const paid = `${units(trade.paidAmount)} ${symbols.get(trade.paidMint) ?? ""}`.trim();
 
   return {
@@ -242,7 +255,15 @@ async function txCard(link: CommentLink, mint: string | null): Promise<TxCard | 
     domain: "solscan.io",
     proof: txIsProof(trades, mint),
     side: trade.side,
-    headline: `${verb} ${got} for ${paid}`,
+    // What it was worth, which is the number anyone reading a comment is
+    // weighing. The units fall back to the headline only when nothing could
+    // price it — a figure in SOL is still a fact, and inventing a dollar
+    // amount from a missing price would not be.
+    headline:
+      valued === null
+        ? `${verb} ${got} for ${paid}`
+        : `${verb} ${compactMoney(valued)} of ${symbol}`.trim(),
+    amount: valued === null ? null : got,
     when: relativeTime(trade.at),
     who: shortAddress(tx.feePayer, 4),
   };
@@ -320,6 +341,29 @@ function daysSince(iso: string): string {
   return days === 1 ? "a day" : `${days} days`;
 }
 
+/**
+ * What a trade was worth in dollars, priced the way the Stonkfolio prices it.
+ *
+ * SOL at its price that minute, stables at face, and a tokenized stock at
+ * spot — the same rules the stored history uses, so a card and a holding never
+ * disagree about the same trade. Null when none of them apply.
+ */
+async function valueOf(trade: RawTrade): Promise<number | null> {
+  try {
+    const [{solUsdAt}, {stockUsdMap}] = await Promise.all([
+      import("./gecko"),
+      import("./walletTrades"),
+    ]);
+    const [solUsd, mintUsd] = await Promise.all([
+      solUsdAt(Math.floor(Date.parse(trade.at) / 1000)).catch(() => null),
+      stockUsdMap([trade]).catch(() => new Map<string, number>()),
+    ]);
+    return valueTrade(trade, solUsd, mintUsd).valueUsd;
+  } catch {
+    return null;
+  }
+}
+
 /* ------------------------------------------------------------ public ----- */
 
 /**
@@ -334,11 +378,12 @@ export async function resolveCard(
   mint: string | null,
 ): Promise<LinkCard> {
   // Keyed by mint as well: a wallet card says different things under different
-  // coins, and proof is decided per coin.
-  const key = `linkcard:${link.url}:${mint ?? ""}`;
+  // coins, and proof is decided per coin. The version is in the key so that
+  // changing what a card holds cannot serve the old shape to a new reader.
+  const key = `linkcard:v1:${mint ?? ""}:${link.url}`;
 
   try {
-    const {value} = await cached<LinkCard>(key, TTL_MS, async () => {
+    return await remember(key, async () => {
       switch (link.kind) {
         case "x":
           /*
@@ -362,10 +407,35 @@ export async function resolveCard(
           return (await walletCard(link, mint)) ?? plainCard(link.url);
       }
     });
-    return value;
   } catch {
     return plainCard(link.url);
   }
+}
+
+/**
+ * Read a card from the shared store, or resolve it once and keep it.
+ *
+ * Falls back to the in-process cache where there is no Redis — local, and the
+ * worker — so the behaviour is the same everywhere, just not shared.
+ */
+async function remember(key: string, load: () => Promise<LinkCard>): Promise<LinkCard> {
+  if (!kvUsable()) return (await cached<LinkCard>(key, TTL_SECONDS * 1_000, load)).value;
+
+  const stored = await kvGet<LinkCard>(key);
+  if (stored) return stored;
+
+  const card = await load();
+  // Awaited, not detached: a serverless function can freeze the moment it
+  // returns, and a floating write would be dropped mid-flight. `kvSet` never
+  // throws, so this costs a few milliseconds and can never fail a card.
+  const kept = await kvSet(key, card, TTL_SECONDS);
+
+  // The store just failed, so keep this one here instead. Without it the next
+  // reader on this instance would resolve the same link again purely because
+  // the write it could not make was the only copy.
+  if (!kept) await cached<LinkCard>(key, TTL_SECONDS * 1_000, async () => card);
+
+  return card;
 }
 
 /** Every link in a comment, resolved at once and capped. */
