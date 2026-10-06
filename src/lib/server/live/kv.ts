@@ -16,8 +16,19 @@
  * cache, so every call answers null or false and the caller carries on.
  */
 
-const URL_ENV = process.env.KV_REST_API_URL?.replace(/\/$/, "") ?? "";
-const TOKEN_ENV = process.env.KV_REST_API_TOKEN ?? "";
+/*
+ * The cache store's own variables first.
+ *
+ * The project still carries `KV_*` from an earlier store that no longer
+ * exists — its host does not resolve — and those are scoped to Production as
+ * well, so they cannot be replaced without touching production. The store this
+ * cache uses is a separate one, connected to Preview and Development under the
+ * `CACHE_` prefix, and the bare names stay as the fallback for whenever they
+ * point at something real again.
+ */
+const URL_ENV = (process.env.CACHE_KV_REST_API_URL || process.env.KV_REST_API_URL || "")
+  .replace(/\/$/, "");
+const TOKEN_ENV = process.env.CACHE_KV_REST_API_TOKEN || process.env.KV_REST_API_TOKEN || "";
 
 /** Whether this deployment is configured for one. Local and the worker are not. */
 export const kvReady: boolean = Boolean(URL_ENV && TOKEN_ENV);
