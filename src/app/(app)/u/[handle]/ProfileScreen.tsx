@@ -254,6 +254,12 @@ const CHART_MODES: FilterOption<ChartMode>[] = [
 function PublicStonkfolio({wallet, handle, isSelf}: {wallet: string; handle: string; isSelf: boolean}) {
   const [split, setSplit] = useState<Split>("all");
   const [chartMode, setChartMode] = useState<ChartMode>("list");
+  /*
+   * The pie is for reading your own allocation against your own targets.
+   * On someone else's profile it is a breakdown of a stranger's wallet nobody
+   * asked for, so their holdings are a list and the toggle is not offered.
+   */
+  const mode: ChartMode = isSelf ? chartMode : "list";
 
   const query = useQuery({
     queryKey: ["stonkfolio", wallet],
@@ -301,13 +307,15 @@ function PublicStonkfolio({wallet, handle, isSelf}: {wallet: string; handle: str
       ) : null}
 
       <div className="mt-4 space-y-2.5">
-        <FilterRail label="Chart mode" options={CHART_MODES} value={chartMode} onChange={setChartMode} />
-        {chartMode === "list" ? (
+        {isSelf ? (
+          <FilterRail label="Chart mode" options={CHART_MODES} value={chartMode} onChange={setChartMode} />
+        ) : null}
+        {mode === "list" ? (
           <FilterRail label="Split holdings" options={SPLITS} value={split} onChange={setSplit} />
         ) : null}
       </div>
 
-      {chartMode === "pie" ? (
+      {mode === "pie" ? (
         query.isLoading ? (
           <div className="mt-3 h-[168px] animate-pulse rounded-2xl bg-wash" />
         ) : (
