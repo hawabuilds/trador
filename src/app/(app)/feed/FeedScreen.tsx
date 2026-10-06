@@ -7,7 +7,15 @@ import {FeedCommentRow} from "@/components/feed/FeedCommentRow";
 import {LoadMore} from "@/components/LoadMore";
 import {PanelTabs, type PanelTab} from "@/components/PanelTabs";
 import {BellIcon} from "@/components/ui/Icons";
+import {SegmentedToggle, type SegmentedOption} from "@/components/ui/SegmentedToggle";
 import {useSocialFeed, type FeedTab} from "@/hooks/useSocialFeed";
+
+type TopWindow = "week" | "all";
+
+const WINDOWS: SegmentedOption<TopWindow>[] = [
+  {value: "week", label: "This week"},
+  {value: "all", label: "All time"},
+];
 
 const TABS: PanelTab<FeedTab>[] = [
   {value: "following", label: "Following"},
@@ -23,8 +31,9 @@ const TABS: PanelTab<FeedTab>[] = [
  * own reads and are empty until then.
  */
 export function FeedScreen() {
-  const [tab, setTab] = useState<FeedTab>("latest");
-  const feed = useSocialFeed(tab, {enabled: tab === "latest"});
+  const [tab, setTab] = useState<FeedTab>("top");
+  const [period, setPeriod] = useState<TopWindow>("week");
+  const feed = useSocialFeed(tab, {enabled: tab !== "following", period});
   const now = Date.now();
 
   return (
@@ -43,14 +52,29 @@ export function FeedScreen() {
         <PanelTabs tabs={TABS} value={tab} onChange={setTab} size="md" align="start" />
       </StickyPageHeader>
 
-      {tab === "latest" ? (
-        <FeedList feed={feed} now={now} />
-      ) : (
+      {tab === "following" ? (
         <p className="px-2 py-16 text-center text-[13px] leading-[1.5] text-muted">
-          {tab === "following"
-            ? "The people you follow land here next."
-            : "The best calls land here next."}
+          The people you follow land here next.
         </p>
+      ) : (
+        <>
+          {tab === "top" ? (
+            <div className="flex justify-end pb-1 pt-3">
+              <SegmentedToggle options={WINDOWS} value={period} onChange={setPeriod} />
+            </div>
+          ) : null}
+          <FeedList
+            feed={feed}
+            now={now}
+            empty={
+              tab === "top"
+                ? period === "week"
+                  ? "No calls this week yet."
+                  : "No calls yet."
+                : "No takes yet. Open a coin and post the first one."
+            }
+          />
+        </>
       )}
     </div>
   );
@@ -59,9 +83,11 @@ export function FeedScreen() {
 function FeedList({
   feed,
   now,
+  empty,
 }: {
   feed: ReturnType<typeof useSocialFeed>;
   now: number;
+  empty: string;
 }) {
   if (feed.isLoading) {
     return (
@@ -89,7 +115,7 @@ function FeedList({
   if (feed.items.length === 0) {
     return (
       <p className="mx-auto max-w-[30ch] px-2 py-16 text-center text-[13px] leading-[1.5] text-muted">
-        No takes yet. Open a coin and post the first one.
+        {empty}
       </p>
     );
   }

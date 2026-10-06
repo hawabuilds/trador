@@ -277,3 +277,196 @@ export async function latestFeed(options: {
         : null,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Top calls
+// ---------------------------------------------------------------------------
+
+export type TopWindow = "week" | "all";
+
+/** How far back "This week" reaches. */
+const WEEK_MS = 7 * 24 * 60 * 60_000;
+
+/**
+ * How many comments the PostgREST path ranks in memory.
+ *
+ * It cannot order by a count it has to compute, so it reads the window's
+ * comments and ranks them here. The SQL path, which production uses, ranks in
+ * the database and pages properly.
+ */
+const REST_RANK_POOL = 500;
+
+const encodeRankCursor = (likes: number, id: string) => `${likes}|${id}`;
+
+function decodeRankCursor(cursor: string | null | undefined): {likes: number; id: string} | null {
+  if (!cursor) return null;
+  const cut = cursor.lastIndexOf("|");
+  if (cut < 1) return null;
+  const likes = Number(cursor.slice(0, cut));
+  const id = cursor.slice(cut + 1);
+  return Number.isFinite(likes) && /^\d+$/.test(id) ? {likes, id} : null;
+}
+
+async function topRowsPg(
+  since: string | null,
+  limit: number,
+  cursor: {likes: number; id: string} | null,
+  callerId: string | null,
+): Promise<Row[]> {
+  return withClient(async (client) => {
+    const {rows} = await client.query<Row>(
+      `select * from (
+         select c.id::text, c.kind, c.asset_id, c.body, c.created_at,
+                u.handle, u.display_name, u.pfp_url,
+                (select count(*) from public.comment_likes l where l.comment_id = c.id)::int as likes,
+                exists (
+                  select 1 from public.comment_likes l
+                   where l.comment_id = c.id and l.user_id = $1
+                ) as liked,
+                (select count(*) from public.comments r where r.parent_id = c.id)::int as replies
+           from public.comments c
+           join public.users u on u.id = c.user_id
+          where c.parent_id is null
+            and ($2::timestamptz is null or c.created_at >= $2::timestamptz)
+       ) ranked
+        where ($3::int is null or (ranked.likes, ranked.id::bigint) < ($3::int, $4::bigint))
+        order by ranked.likes desc, ranked.id::bigint desc
+        limit $5`,
+      [callerId ?? "", since, cursor?.likes ?? null, cursor?.id ?? "0", limit],
+    );
+    return rows;
+  });
+}
+
+async function topRowsRest(
+  since: string | null,
+  limit: number,
+  cursor: {likes: number; id: string} | null,
+  callerId: string | null,
+): Promise<Row[]> {
+  let request = db()
+    .from("comments")
+    .select("id, kind, asset_id, body, created_at, user_id")
+    .is("parent_id", null)
+    .order("created_at", {ascending: false})
+    .limit(REST_RANK_POOL);
+  if (since) request = request.gte("created_at", since);
+
+  const {data, error} = await request;
+  if (error) throw new Error(error.message);
+  const found = data ?? [];
+  if (found.length === 0) return [];
+
+  const ids = found.map((row) => row.id);
+  const [users, likes, replies] = await Promise.all([
+    db()
+      .from("users")
+      .select("id, handle, display_name, pfp_url")
+      .in("id", [...new Set(found.map((row) => String(row.user_id)))]),
+    db().from("comment_likes").select("comment_id, user_id").in("comment_id", ids),
+    db().from("comments").select("parent_id").in("parent_id", ids),
+  ]);
+
+  const byUser = new Map(
+    (users.data ?? []).map((user) => [String(user.id), user as Record<string, string | null>]),
+  );
+  const likeCount = new Map<string, number>();
+  const likedByCaller = new Set<string>();
+  for (const like of likes.data ?? []) {
+    const id = String(like.comment_id);
+    likeCount.set(id, (likeCount.get(id) ?? 0) + 1);
+    if (callerId && like.user_id === callerId) likedByCaller.add(id);
+  }
+  const replyCount = new Map<string, number>();
+  for (const reply of replies.data ?? []) {
+    const id = String(reply.parent_id);
+    replyCount.set(id, (replyCount.get(id) ?? 0) + 1);
+  }
+
+  return found
+    .map((row) => {
+      const id = String(row.id);
+      const user = byUser.get(String(row.user_id));
+      return {
+        id,
+        kind: row.kind as string,
+        asset_id: row.asset_id as string,
+        body: row.body as string,
+        created_at: row.created_at as string,
+        handle: (user?.handle as string | null) ?? null,
+        display_name: (user?.display_name as string | null) ?? null,
+        pfp_url: (user?.pfp_url as string | null) ?? null,
+        likes: likeCount.get(id) ?? 0,
+        liked: likedByCaller.has(id),
+        replies: replyCount.get(id) ?? 0,
+      };
+    })
+    .sort((left, right) =>
+      Number(right.likes) - Number(left.likes) || Number(right.id) - Number(left.id),
+    )
+    .filter((row) =>
+      !cursor ||
+      Number(row.likes) < cursor.likes ||
+      (Number(row.likes) === cursor.likes && Number(row.id) < Number(cursor.id)),
+    )
+    .slice(0, limit);
+}
+
+/**
+ * The best calls, by Useful votes.
+ *
+ * Votes alone, not votes mixed with age or reach: whatever the ranking phase
+ * adds later, what this says today is exactly what the number beside each
+ * comment says, and anyone can count it.
+ *
+ * Ties break on the newer comment, so a fresh call does not sit behind an old
+ * one forever on an equal score.
+ */
+export async function topCalls(options: {
+  window?: TopWindow;
+  limit?: number;
+  cursor?: string | null;
+  callerId: string | null;
+}): Promise<FeedPage> {
+  const limit = Math.min(Math.max(options.limit ?? FEED_PAGE, 1), 50);
+  const cursor = decodeRankCursor(options.cursor ?? null);
+  const since =
+    (options.window ?? "week") === "week"
+      ? new Date(Date.now() - WEEK_MS).toISOString()
+      : null;
+
+  const rows = useDirectPg
+    ? await topRowsPg(since, limit, cursor, options.callerId)
+    : await topRowsRest(since, limit, cursor, options.callerId);
+
+  const assets = await assetsFor(rows);
+
+  const items: FeedComment[] = rows.flatMap((row) => {
+    const asset = assets.get(`${row.kind}:${row.asset_id}`);
+    if (!asset) return [];
+    return [
+      {
+        type: "comment" as const,
+        id: row.id,
+        asset,
+        author: {
+          handle: row.handle ?? "someone",
+          displayName: row.display_name ?? row.handle ?? "Someone",
+          pfpUrl: row.pfp_url,
+        },
+        body: row.body,
+        createdAt: new Date(row.created_at).toISOString(),
+        likes: Number(row.likes),
+        liked: options.callerId ? Boolean(row.liked) : null,
+        replies: Number(row.replies),
+      },
+    ];
+  });
+
+  const last = rows[rows.length - 1];
+  return {
+    items,
+    cursor:
+      rows.length === limit && last ? encodeRankCursor(Number(last.likes), last.id) : null,
+  };
+}
