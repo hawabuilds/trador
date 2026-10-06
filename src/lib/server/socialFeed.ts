@@ -512,6 +512,9 @@ async function followedCommentRows(
     const user = byUser.get(String(row.user_id));
     return {
       id,
+      // Carried through so the rank beside a name can be looked up for a page
+      // of the feed in one read.
+      user_id: String(row.user_id),
       kind: row.kind as string,
       asset_id: row.asset_id as string,
       body: row.body as string,
@@ -643,7 +646,14 @@ export async function followingFeed(options: {
     ...commentRows,
     ...tradeRows.map((row) => ({...row, kind: "stonk", asset_id: row.mint}) as unknown as Row),
   ]);
-  const [caps, outcomes] = await Promise.all([marketCapsAt(tradeRows), sellOutcomes(tradeRows)]);
+  const [caps, outcomes, standings] = await Promise.all([
+    marketCapsAt(tradeRows),
+    sellOutcomes(tradeRows),
+    // One read of the season's table for the page, like the other two feeds.
+    import("./ranks")
+      .then(({standingsFor}) => standingsFor([...new Set(commentRows.map((row) => row.user_id))]))
+      .catch(() => new Map()),
+  ]);
 
   const comments: FeedItem[] = commentRows.flatMap((row) => {
     const asset = assets.get(`${row.kind}:${row.asset_id}`);
@@ -657,6 +667,7 @@ export async function followingFeed(options: {
           handle: row.handle ?? "someone",
           displayName: row.display_name ?? row.handle ?? "Someone",
           pfpUrl: row.pfp_url,
+          rank: standings.get(row.user_id)?.rank.id ?? "intern",
         },
         body: row.body,
         createdAt: new Date(row.created_at).toISOString(),
