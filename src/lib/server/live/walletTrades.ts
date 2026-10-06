@@ -77,10 +77,17 @@ function isMissingTable(error: {code?: string; message?: string} | null): boolea
 
 export class HistoryUnavailable extends Error {}
 
-async function signaturesSince(wallet: Pubkey, head: string | null) {
-  const rows: {signature: string; err: unknown}[] = [];
+async function signaturesSince(
+  wallet: Pubkey,
+  head: string | null,
+  bound: {sinceMs?: number; max?: number} = {},
+) {
+  const max = Math.min(bound.max ?? FIRST_SYNC_MAX, FIRST_SYNC_MAX);
+  const cutoff = bound.sinceMs ? (Date.now() - bound.sinceMs) / 1000 : null;
+  const rows: {signature: string; err: unknown; blockTime?: number | null}[] = [];
   let before: string | undefined;
-  while (rows.length < FIRST_SYNC_MAX) {
+
+  while (rows.length < max) {
     const page = await signaturesFor(wallet, {
       limit: SIGNATURE_PAGE,
       ...(head ? {until: head} : {}),
@@ -88,9 +95,24 @@ async function signaturesSince(wallet: Pubkey, head: string | null) {
     });
     rows.push(...page);
     if (page.length < SIGNATURE_PAGE) break;
+
+    /*
+     * Stop once the page has reached back past the window asked for. Used by
+     * the backfill a follow triggers: somebody's last week is what makes them
+     * worth following, and reading their whole history to find it would hold
+     * up the tap.
+     */
+    const oldest = page[page.length - 1]?.blockTime;
+    if (cutoff !== null && typeof oldest === "number" && oldest < cutoff) break;
+
     before = page[page.length - 1].signature;
   }
-  return rows.slice(0, FIRST_SYNC_MAX);
+
+  const within =
+    cutoff === null
+      ? rows
+      : rows.filter((row) => typeof row.blockTime !== "number" || row.blockTime >= cutoff);
+  return within.slice(0, max);
 }
 
 async function parseAll(signatures: string[], key: string) {
@@ -207,7 +229,10 @@ async function tradesForPositions(rows: PositionTradeRow[]) {
   return out;
 }
 
-async function syncOnce(wallet: Pubkey): Promise<void> {
+async function syncOnce(
+  wallet: Pubkey,
+  bound: {sinceMs?: number; max?: number} = {},
+): Promise<void> {
   const key = heliusKey();
   if (!key) throw new HistoryUnavailable("No Helius key is configured.");
 
@@ -222,7 +247,7 @@ async function syncOnce(wallet: Pubkey): Promise<void> {
   }
   const head = (cursor.data?.head_signature as string | null | undefined) ?? null;
 
-  const rows = await signaturesSince(wallet, head);
+  const rows = await signaturesSince(wallet, head, bound);
   if (rows.length === 0 && head) return;
 
   const parsed = await parseAll(
@@ -261,10 +286,14 @@ async function syncOnce(wallet: Pubkey): Promise<void> {
 }
 
 /** Bring a wallet's stored trades up to date. Shared by concurrent callers. */
-export async function syncWalletTrades(wallet: Pubkey): Promise<void> {
+export async function syncWalletTrades(
+  wallet: Pubkey,
+  bound: {sinceMs?: number; max?: number} = {},
+): Promise<void> {
   if (!hasDatabase) throw new HistoryUnavailable("Trade history needs the database.");
-  await cached(`wallet-sync:${wallet}`, SYNC_TTL_MS, async () => {
-    await syncOnce(wallet);
+  const key = bound.sinceMs ? `wallet-sync:${wallet}:${bound.sinceMs}` : `wallet-sync:${wallet}`;
+  await cached(key, SYNC_TTL_MS, async () => {
+    await syncOnce(wallet, bound);
     return true;
   });
 }
