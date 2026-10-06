@@ -383,8 +383,8 @@ async function topRowsRest(
     replyCount.set(id, (replyCount.get(id) ?? 0) + 1);
   }
 
-  return found
-    .map((row) => {
+  return rankByVotes(
+    found.map((row) => {
       const id = String(row.id);
       const user = byUser.get(String(row.user_id));
       return {
@@ -400,16 +400,36 @@ async function topRowsRest(
         liked: likedByCaller.has(id),
         replies: replyCount.get(id) ?? 0,
       };
-    })
-    .sort((left, right) =>
-      Number(right.likes) - Number(left.likes) || Number(right.id) - Number(left.id),
+    }),
+    {cursor, limit},
+  );
+}
+
+/**
+ * Order by votes, newest first on a tie, and drop whatever a cursor has
+ * already shown.
+ *
+ * Pure, and the same ordering the SQL path asks the database for
+ * (`order by likes desc, id desc` with the keyset in the where clause). Kept
+ * out of the query so the rule itself can be tested without a database.
+ */
+export function rankByVotes<T extends {id: string; likes: number | string}>(
+  rows: readonly T[],
+  options: {cursor?: {likes: number; id: string} | null; limit: number},
+): T[] {
+  const cursor = options.cursor ?? null;
+  return [...rows]
+    .sort(
+      (left, right) =>
+        Number(right.likes) - Number(left.likes) || Number(right.id) - Number(left.id),
     )
-    .filter((row) =>
-      !cursor ||
-      Number(row.likes) < cursor.likes ||
-      (Number(row.likes) === cursor.likes && Number(row.id) < Number(cursor.id)),
+    .filter(
+      (row) =>
+        !cursor ||
+        Number(row.likes) < cursor.likes ||
+        (Number(row.likes) === cursor.likes && Number(row.id) < Number(cursor.id)),
     )
-    .slice(0, limit);
+    .slice(0, options.limit);
 }
 
 /**
