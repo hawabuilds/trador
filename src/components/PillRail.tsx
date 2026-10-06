@@ -40,7 +40,7 @@ export function PillRail<T extends string>({
         const active = option === value;
         const shown =
           active && resolvedValue && resolvedValue !== option
-            ? `${option} · ${resolvedValue}`
+            ? `${option}\u00a0\u00a0${resolvedValue}`
             : option;
         return (
           <button
