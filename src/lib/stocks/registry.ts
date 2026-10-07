@@ -74,6 +74,21 @@ export interface StockMint {
   readonly transferFeeBps: number | null;
   /** How many StonkFun launches were priced against this mint at sync time. */
   readonly launchesQuotedAgainst: number;
+  /**
+   * What the tradability screen found when the registry was last generated.
+   *
+   * `ok: false` means it failed and was kept anyway, which only happens when
+   * coins are priced against it — dropping one of those would take every coin
+   * quoted in it out of the feed. Null on an entry written before the screen
+   * existed, and absent on one built by hand.
+   */
+  readonly tradability?: {
+    readonly liquidityUsd: number;
+    readonly impactPct: number | null;
+    readonly priceUsd: number | null;
+    readonly ok: boolean;
+    readonly at: string;
+  } | null;
   readonly verified: {
     /** As read off the mint. Per-mint for some issuers, so not proof alone. */
     readonly mintAuthority: Pubkey | null;
