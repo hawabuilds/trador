@@ -406,6 +406,24 @@ function holdingPnl(
   return {usd: coveredValue - coveredCost, costUsd: coveredCost, partial};
 }
 
+/**
+ * Restate a position's quantity in the unit a live balance is reported in.
+ *
+ * A position's `qty` is summed from what the trades moved, which the ledger
+ * records without the mint's scaled multiplier. A live balance comes back with
+ * it applied. Comparing the two directly is comparing different units: on
+ * OPENAI, at 1.486, a holder who never sold reads as holding half as much
+ * again as they ever bought — so the P&L covers two thirds of their position
+ * and the rest is labelled "partial".
+ *
+ * Only the quantity moves. Cost is in dollars, and a split does not change
+ * what somebody paid.
+ */
+export function scalePosition(position: Position, multiplier: number): Position {
+  if (!Number.isFinite(multiplier) || multiplier === 1) return position;
+  return {...position, qty: position.qty * multiplier};
+}
+
 /** Look up cost basis by mint — keys are stored exactly as base58 spells them. */
 export function positionByMint(
   positions: ReadonlyMap<string, Position>,

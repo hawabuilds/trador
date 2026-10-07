@@ -313,6 +313,16 @@ async function positionsFor(
 
     const earliest = await earliestPriceFor(mint);
 
+    /*
+     * Trade quantities restated into the unit the price is quoted in.
+     *
+     * A price is per token as the mint reports it today; a recorded trade
+     * quantity is not. On a scaled stock that mismatch lands straight in the
+     * band under somebody's name — a $1K+ holder of OPENAI reads as $250+.
+     */
+    const {multipliersFor} = await import("./live/scaledMints");
+    const multiplier = (await multipliersFor([mint])).get(mint) ?? 1;
+
     const byWallet = new Map<string, typeof trades>();
     for (const trade of trades) {
       byWallet.set(trade.wallet, [...(byWallet.get(trade.wallet) ?? []), trade]);
@@ -322,7 +332,7 @@ async function positionsFor(
       const position = commentPosition(
         own.map((trade) => ({
           side: trade.side,
-          amount: Number(trade.amount),
+          amount: Number(trade.amount) * multiplier,
           valueUsd: trade.value_usd === null ? null : Number(trade.value_usd),
         })),
         priceUsd,
@@ -473,11 +483,10 @@ export async function holdsAsset(wallet: Pubkey, mint: Pubkey): Promise<boolean>
       const {balancesFor} = await import("./live/holdings");
       const balances = await balancesFor(wallet, [mint]);
       const held = balances.tokens[mint];
-      if (!held || !/^\d+$/.test(held.amount)) {
-        rpc = {ok: true, uiAmount: 0};
-      } else {
-        rpc = {ok: true, uiAmount: Number(held.amount) / 10 ** held.decimals};
-      }
+      // `ui`, never the raw amount divided down: a stock with a scaled
+      // multiplier would otherwise read short, and this decides who may
+      // comment and whose vote earns rep.
+      rpc = {ok: true, uiAmount: held?.ui ?? 0};
     } catch {
       rpc = {ok: false};
     }

@@ -13,6 +13,7 @@
  */
 
 import {lamportsFrom} from "@/lib/amounts";
+import {liveUiAmount} from "@/lib/scaledAmount";
 import {TOKEN_2022_PROGRAM, TOKEN_PROGRAM} from "@/lib/programs";
 import {type Pubkey} from "@/lib/pubkey";
 import {snapshotStocks, snapshotStonks} from "@/lib/server/snapshot";
@@ -255,8 +256,18 @@ export async function stonkfolioFor(
 export interface Balances {
   /** Native SOL, in lamports, as a decimal string. */
   lamports: string;
-  /** Raw base units per requested mint, summed across every account for it. */
-  tokens: Record<string, {amount: string; decimals: number}>;
+  /**
+   * Per requested mint: the raw base units, and what they are actually worth
+   * in tokens.
+   *
+   * Both, because they are for different jobs. `amount` is what a swap moves
+   * and what a signature commits to, so sizing and limits must use it. `ui` is
+   * what the person holds — the RPC's own figure, with the mint's scaled
+   * multiplier applied — so anything shown, valued or banded must use that.
+   * Dividing `amount` by the decimals gets a scaled mint wrong, which is how
+   * OPENAI holders were shown two thirds of their position.
+   */
+  tokens: Record<string, {amount: string; decimals: number; ui: number}>;
 }
 
 /**
@@ -286,13 +297,15 @@ export async function balancesFor(wallet: Pubkey, mints: readonly Pubkey[]): Pro
   mints.forEach((mint, index) => {
     let total = 0n;
     let decimals = 0;
+    let ui = 0;
     for (const entry of perMint[index].value) {
       const amount = entry.account.data.parsed?.info?.tokenAmount;
       if (!amount?.amount || !/^\d+$/.test(amount.amount)) continue;
       total += BigInt(amount.amount);
       decimals = amount.decimals ?? decimals;
+      ui += liveUiAmount(amount);
     }
-    tokens[mint] = {amount: total.toString(), decimals};
+    tokens[mint] = {amount: total.toString(), decimals, ui};
   });
 
   return {lamports: String(lamportsFrom(balance.value) ?? 0), tokens};

@@ -19,6 +19,7 @@ import {db, hasDatabase} from "@/lib/server/db";
 import {
   SOL_MINT,
   positionsFrom,
+  scalePosition,
   tradesFromTx,
   valueTrade,
   type Position,
@@ -334,5 +335,19 @@ export async function walletPositions(wallet: Pubkey): Promise<Position[]> {
     throw new Error(error.message);
   }
   const rows = (data ?? []) as PositionTradeRow[];
-  return positionsFrom(await tradesForPositions(rows));
+  const positions = positionsFrom(await tradesForPositions(rows));
+
+  /*
+   * Quantities restated into the unit live balances come back in.
+   *
+   * Everything downstream — the P&L on a holding row, the portfolio total,
+   * whether a position reads as complete — compares these against a balance
+   * the RPC has already scaled. Doing it here means one read of the mints and
+   * no caller has to remember.
+   */
+  const {multipliersFor} = await import("./scaledMints");
+  const multipliers = await multipliersFor(positions.map((p) => p.mint));
+  return positions.map((position) =>
+    scalePosition(position, multipliers.get(position.mint) ?? 1),
+  );
 }
