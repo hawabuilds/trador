@@ -6,7 +6,12 @@ import type {Pubkey} from "@/lib/pubkey";
 
 export interface BalancesResponse {
   lamports: string;
-  tokens: Record<string, {amount: string; decimals: number}>;
+  /**
+   * `amount` is raw base units, which is what a swap moves and what the ticket
+   * sizes and limits against. `ui` is what the wallet actually holds, with the
+   * mint's scaled multiplier applied — use that for anything shown or valued.
+   */
+  tokens: Record<string, {amount: string; decimals: number; ui: number}>;
 }
 
 export function balancesKey(wallet: Pubkey | null, mints: readonly string[]) {

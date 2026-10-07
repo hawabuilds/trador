@@ -307,8 +307,7 @@ async function walletCard(link: CommentLink, mint: string | null): Promise<Walle
     const asset = universe.get(mint);
     symbol = asset ? tickerOf(asset) : "";
 
-    const held = balances.tokens[mint];
-    holds = held ? Number(held.amount) / 10 ** held.decimals : 0;
+    holds = balances.tokens[mint]?.ui ?? 0;
 
     const supply = asset && asset.kind === "stonk" ? asset.circulatingSupply : null;
     if (holds > 0 && supply && supply > 0) {
