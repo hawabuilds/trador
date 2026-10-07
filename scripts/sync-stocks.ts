@@ -30,6 +30,8 @@ import {readFileSync, writeFileSync} from "node:fs";
 import path from "node:path";
 
 import {type Pubkey} from "@/lib/pubkey";
+import {catalogueMints} from "./catalogues";
+import {screenTradability} from "./tradability";
 import {
   allStonkfunPools,
   assetsByAuthority,
@@ -147,7 +149,17 @@ function isRetired(symbol: string, name: string): boolean {
 
   // The symbol being exactly "TEST", not merely containing it — "ATEST" or a
   // company whose ticker ends in those letters is a real listing.
-  return /^test$/i.test(symbol.trim());
+  if (/^test$/i.test(symbol.trim())) return true;
+
+  /*
+   * An issuer's own test paper, named as such.
+   *
+   * Backpack's "First Test Stock Updated 2" verified cleanly — right authority,
+   * right programme — and sat in the registry as a tradable equity under the
+   * ticker FTSU. The authority check cannot catch this: the mint really is
+   * theirs. Only the name says what it is.
+   */
+  return /\b(first|second|third)?\s*test stock\b/i.test(name);
 }
 
 /**
@@ -178,6 +190,14 @@ interface GeneratedStock {
   /** On-chain transfer fee in bps, or null when the mint charges none. */
   transferFeeBps: number | null;
   launchesQuotedAgainst: number;
+  /** What the tradability screen found, the last time it ran. */
+  tradability: {
+    liquidityUsd: number;
+    impactPct: number | null;
+    priceUsd: number | null;
+    ok: boolean;
+    at: string;
+  } | null;
   verified: {
     /** As read off the mint. Per-mint for some issuers, so not proof alone. */
     mintAuthority: Pubkey | null;
@@ -187,6 +207,32 @@ interface GeneratedStock {
     at: string;
     source: string;
   };
+}
+
+/**
+ * A stock earns its place by being tradable, not merely by being real.
+ *
+ * Verification says whose token this is. It says nothing about whether anyone
+ * can buy it, and after xStocks listed over a thousand names that gap became
+ * the whole problem: 1,047 of them have no pool on Solana at all. A row that
+ * quotes a price and refuses every order is worse than no row.
+ *
+ * The liquidity floor only decides who gets asked for a quote. **The quote is
+ * the test** — a $250 buy has to route and move the price less than 2%.
+ */
+const MIN_LIQUIDITY_USD = 5_000;
+const MAX_IMPACT_PCT = 2;
+
+/**
+ * A stock with launches priced against it is never removed, only flagged.
+ *
+ * Dropping one would orphan every coin quoted in it: those coins fail the
+ * universe test and vanish from the feed, which is a far worse outcome than
+ * carrying a stock whose pool thinned for a day. The flag goes in the entry so
+ * the state is visible in the data rather than only in a console run.
+ */
+function isProtected(entry: {launchesQuotedAgainst: number}): boolean {
+  return entry.launchesQuotedAgainst > 0;
 }
 
 const WRITE = process.argv.includes("--write");
@@ -296,6 +342,23 @@ async function main(): Promise<void> {
         extra.push(mint);
       }
     }
+  }
+
+  /*
+   * And everything the issuers themselves say they list.
+   *
+   * The census only sees what StonkFun quotes and the sweep only sees what an
+   * index reports, so a stock listed this morning is invisible to both. Asking
+   * the issuers directly is what makes the registry a function of what is
+   * actually on offer. Every one of these still has to be minted by a
+   * recognised authority to get any further.
+   */
+  const catalogue = await catalogueMints((line) => console.log(`  ${line}`));
+  const proposed = catalogue.filter((mint) => !censused.has(mint));
+  console.log(`  issuer catalogues: +${proposed.length} mint(s) not already seen`);
+  for (const mint of proposed) {
+    censused.add(mint);
+    extra.push(mint as Pubkey);
   }
 
   /*
@@ -470,6 +533,8 @@ async function main(): Promise<void> {
         priceAuthority: kind === "pre-ipo" ? "none" : "pyth",
         transferFeeBps: account.transferFeeBps,
         launchesQuotedAgainst: member.launches,
+        // Filled in by the screen below, once the verified set is known.
+        tradability: null,
         verified: {
           mintAuthority: account.mintAuthority,
           /*
@@ -506,6 +571,97 @@ async function main(): Promise<void> {
   } else {
     console.log(`  ${stocks.length} verified stock mint(s) across ` +
       `${new Set(stocks.map((s) => s.issuer)).size} issuer(s)`);
+
+    // -------------------------------------------------------------------
+    // Tradability — verified is not the same as buyable
+    // -------------------------------------------------------------------
+
+    heading("Tradability");
+
+    const screened = await screenTradability(
+      stocks.map((stock) => stock.mint),
+      {minLiquidityUsd: MIN_LIQUIDITY_USD, maxImpactPct: MAX_IMPACT_PCT},
+      (line) => console.log(`  ${line}`),
+    );
+
+    const kept: GeneratedStock[] = [];
+    const dropped: {stock: GeneratedStock; why: string}[] = [];
+    const flagged: GeneratedStock[] = [];
+    const known = new Set(readExistingEntries().map((entry) => entry.mint));
+
+    for (const stock of stocks) {
+      const result = screened.get(stock.mint);
+      stock.tradability = result
+        ? {
+            liquidityUsd: Math.round(result.liquidityUsd),
+            impactPct: result.impactPct === null ? null : Number(result.impactPct.toFixed(3)),
+            priceUsd: result.priceUsd,
+            ok: result.ok,
+            at: now,
+          }
+        : null;
+
+      if (result?.ok) {
+        kept.push(stock);
+        continue;
+      }
+
+      // Carried anyway, because dropping it would orphan every coin priced
+      // against it. Flagged so the state is in the data, not just this run.
+      if (isProtected(stock)) {
+        flagged.push(stock);
+        kept.push(stock);
+        continue;
+      }
+
+      dropped.push({stock, why: result?.why ?? "not screened"});
+    }
+
+    const added = kept.filter((stock) => !known.has(stock.mint));
+    console.log(
+      `\n  ${kept.length} tradable, of which ${added.length} new` +
+        `\n  ${flagged.length} kept despite failing, because coins are priced against them` +
+        `\n  ${dropped.length} left out`,
+    );
+
+    if (added.length > 0) {
+      console.log("\n  new:");
+      for (const stock of [...added].sort((a, b) => (b.tradability?.liquidityUsd ?? 0) - (a.tradability?.liquidityUsd ?? 0))) {
+        console.log(
+          `    ${stock.ticker.padEnd(8)} ${stock.issuer.padEnd(10)}` +
+            ` $${(stock.tradability?.liquidityUsd ?? 0).toLocaleString().padStart(9)} liquidity` +
+            `  ${(stock.tradability?.impactPct ?? 0).toFixed(2)}% impact   ${stock.name}`,
+        );
+      }
+    }
+
+    if (flagged.length > 0) {
+      console.log("\n  flagged, kept:");
+      for (const stock of flagged) {
+        console.log(
+          `    ${stock.ticker.padEnd(8)} ${screened.get(stock.mint)?.why ?? "?"}` +
+            `  (${stock.launchesQuotedAgainst} launches priced against it)`,
+        );
+      }
+    }
+
+    if (dropped.length > 0) {
+      const byWhy = new Map<string, number>();
+      for (const row of dropped) byWhy.set(row.why, (byWhy.get(row.why) ?? 0) + 1);
+      console.log(
+        `\n  left out: ${[...byWhy].map(([why, n]) => `${n} ${why}`).join(", ")}`,
+      );
+      const losing = dropped.filter((row) => known.has(row.stock.mint));
+      if (losing.length > 0) {
+        console.log(
+          `    ${losing.length} of them are in the registry today and have no launches:` +
+            `\n      ${losing.map((row) => `${row.stock.ticker} (${row.why})`).join(", ")}`,
+        );
+      }
+    }
+
+    stocks.length = 0;
+    stocks.push(...kept);
 
     if (retired.length > 0) {
       console.log(

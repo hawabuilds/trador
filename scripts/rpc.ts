@@ -90,16 +90,24 @@ export async function poolPairsFor(platformId: Pubkey, kind: string): Promise<Po
 export async function allStonkfunPools(
   onProgress?: (kind: string, count: number) => void,
 ): Promise<PoolPair[]> {
+  /*
+   * Appended one at a time rather than spread.
+   *
+   * `push(...pairs)` passes every element as an argument, and StonkFun crossed
+   * the engine's limit on how many a call can take: at 128,187 pools the sync
+   * died with "Maximum call stack size exceeded" before reading a single mint.
+   * Nothing about the data was wrong — it just got big.
+   */
   const all: PoolPair[] = [];
   for (const platform of STONKFUN_PLATFORMS) {
     const pairs = await poolPairsFor(platform.platformId, platform.kind);
     onProgress?.(platform.kind, pairs.length);
-    all.push(...pairs);
+    for (const pair of pairs) all.push(pair);
   }
 
   const clmm = await clmmPoolPairs();
   onProgress?.("clmm (direct)", clmm.length / 2);
-  all.push(...clmm);
+  for (const pair of clmm) all.push(pair);
 
   return all;
 }

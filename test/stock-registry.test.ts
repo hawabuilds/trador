@@ -298,8 +298,14 @@ test("Tessera is admitted, and retired issues are not", () => {
  * understating the real cost by half.
  */
 test("transfer fees are recorded per mint, and the known ones are right", () => {
+  /*
+   * Snapshots, not constants. An issuer can change its fee and PreStocks did:
+   * OPENAI carried 500bps, then 300, and reads 100 today. The point of pinning
+   * them is that the value is read off each mint rather than assumed per
+   * issuer — so when one moves, this is the thing that notices.
+   */
   const known: [string, number | null][] = [
-    ["OPENAI", 300],
+    ["OPENAI", 100],
     ["tOpenAI", 20],
     ["NVDAx", null],
   ];

@@ -18,6 +18,7 @@ import {
 import {confirmSignature} from "@/lib/confirmSignature";
 import {txUrl} from "@/config/explorer";
 import {useSession} from "@/lib/session";
+import {stockForMint} from "@/lib/stocks/registry";
 import {cn} from "@/lib/cn";
 import {units} from "@/lib/format";
 import {formatPriceUsd} from "@/lib/priceState";
@@ -29,6 +30,13 @@ import {SettingsIcon} from "./ui/Icons";
 
 /** Buys spend SOL; sells pay out SOL (native, unwrapped on build). */
 const SOL = {mint: WSOL_MINT, symbol: "SOL", decimals: 9} as const;
+
+/**
+ * Where the registry stops calling a stock tradable, and where this ticket
+ * starts saying the price is worse than it looks. One number, so the screen
+ * that admits a stock and the warning in front of a trade cannot drift apart.
+ */
+const TRADABLE_IMPACT_PCT = 2;
 
 type BuyAmountUnit = "sol" | "usd";
 type SellAmountUnit = "token" | "sol" | "usd";
@@ -188,6 +196,13 @@ export function OrderSheet({
    * transaction is in base units. This is the one place the two meet.
    */
   const multiplier = held?.multiplier ?? 1;
+
+  /*
+   * Some mints take a cut of every transfer, including each leg of a swap.
+   * Read from the registry, where it was recorded off the mint account rather
+   * than assumed per issuer.
+   */
+  const assetTransferFeeBps = asset ? (stockForMint(asset.mint)?.transferFeeBps ?? null) : null;
 
   const priceUsd = asset?.price.usd ?? null;
   const typed = Number.parseFloat(amount);
@@ -373,6 +388,13 @@ export function OrderSheet({
   const impactPct = quote ? Math.abs(quote.priceImpactPct * 100) : 0;
   const impactBlocks = impactPct >= 50;
   const impactWarns = impactPct >= 15 && !impactBlocks;
+  /*
+   * Two percent is where the registry stops calling a stock tradable, so it is
+   * where the ticket starts saying so. Below the 15% warning on purpose: at 3%
+   * the price is worse than quoted and the trade is still reasonable, and a
+   * red alert on every thin pool is one people learn to click past.
+   */
+  const impactCautions = impactPct >= TRADABLE_IMPACT_PCT && !impactWarns && !impactBlocks;
 
   const fundingSymbol = buying ? SOL.symbol : symbol;
   const execSol =
@@ -750,7 +772,10 @@ export function OrderSheet({
               feeUsd={quote.platformFee ? fee.usd : 0}
               slippageBps={slippageBps}
               impactPct={impactPct}
-              impactLevel={impactBlocks ? "block" : impactWarns ? "warn" : "ok"}
+              impactLevel={
+                impactBlocks ? "block" : impactWarns ? "warn" : impactCautions ? "caution" : "ok"
+              }
+              transferFeeBps={assetTransferFeeBps}
             />
           ) : null}
 
@@ -758,6 +783,13 @@ export function OrderSheet({
             <p role="alert" className="mt-3 text-[12.5px] font-semibold text-error">
               Price impact is {impactPct.toFixed(1)}%. You would receive
               materially less than the quoted price.
+            </p>
+          ) : null}
+
+          {impactCautions ? (
+            <p role="alert" className="mt-3 text-[12.5px] font-semibold text-[var(--warning)]">
+              Price impact is {impactPct.toFixed(1)}%. This pool is thin, so you
+              pay more than the price shown.
             </p>
           ) : null}
 
@@ -871,6 +903,7 @@ function TicketBreakdown({
   slippageBps,
   impactPct,
   impactLevel,
+  transferFeeBps,
 }: {
   quote: QuoteState;
   /** What arrives: the asset on a buy, the chosen payout on a sell. */
@@ -888,7 +921,9 @@ function TicketBreakdown({
   feeUsd: number;
   slippageBps: number;
   impactPct: number;
-  impactLevel: "ok" | "warn" | "block";
+  impactLevel: "ok" | "caution" | "warn" | "block";
+  /** The mint's own transfer fee, charged by the token on top of everything here. */
+  transferFeeBps: number | null;
 }) {
   const minOut = Number(
     baseUnitsToScaled(BigInt(quote.otherAmountThreshold), receivedDecimals, receivedMultiplier),
@@ -899,9 +934,22 @@ function TicketBreakdown({
       <Line label={`Trador fee (${FEE_BPS / 100}%)`}>
         {quote.platformFee ? `$${feeUsd.toFixed(2)}` : "Not taken"}
       </Line>
-      <Line label="Price impact" tone={impactLevel === "ok" ? undefined : "error"}>
+      <Line
+        label="Price impact"
+        tone={impactLevel === "ok" ? undefined : impactLevel === "caution" ? "caution" : "error"}
+      >
         {impactPct.toFixed(2)}%
       </Line>
+      {/*
+        The token's own fee, which Trador neither sets nor receives.
+        PreStocks charges 1% on OPENAI and Tessera 0.2%, taken by the mint on
+        every transfer — including each leg of this swap. A ticket that shows
+        only Trador's fee understates what the trade costs by a figure the
+        person has no way to look up.
+      */}
+      {transferFeeBps ? (
+        <Line label={`Token transfer fee (${transferFeeBps / 100}%)`}>Charged by the token</Line>
+      ) : null}
       <Line label="Minimum received">
         {units(minOut)} {receivedSymbol}
       </Line>
@@ -920,7 +968,7 @@ function Line({
 }: {
   label: string;
   children: React.ReactNode;
-  tone?: "error";
+  tone?: "error" | "caution";
 }) {
   return (
     <div className="flex items-center justify-between gap-3">
@@ -928,7 +976,11 @@ function Line({
       <span
         className={cn(
           "tabular-nums truncate font-bold",
-          tone === "error" ? "text-error" : "text-muted",
+          tone === "error"
+            ? "text-error"
+            : tone === "caution"
+              ? "text-[var(--warning)]"
+              : "text-muted",
         )}
       >
         {children}

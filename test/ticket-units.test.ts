@@ -88,3 +88,37 @@ test("junk and nonsense multipliers never size a trade", () => {
   assert.equal(scaledToBaseUnits("1", 6, Number.NaN), 1_000_000n);
   assert.equal(scaledToBaseUnits("1", 6, 0), 1_000_000n);
 });
+
+/*
+ * The ticket's thresholds, pinned against the registry's.
+ *
+ * The screen admits a stock when a $250 buy moves the price less than 2%. If
+ * the ticket were to warn at some other number, a stock could be listed as
+ * tradable and sold without a word, or warned about on every trade — the two
+ * have to be the same number.
+ */
+test("the ticket cautions from the same impact the registry screens at", async () => {
+  const sheet = await import("node:fs").then((fs) =>
+    fs.readFileSync("src/components/OrderSheet.tsx", "utf8"),
+  );
+  const screen = await import("node:fs").then((fs) =>
+    fs.readFileSync("scripts/sync-stocks.ts", "utf8"),
+  );
+
+  const ticket = sheet.match(/const TRADABLE_IMPACT_PCT = (\d+(?:\.\d+)?)/)?.[1];
+  const sync = screen.match(/const MAX_IMPACT_PCT = (\d+(?:\.\d+)?)/)?.[1];
+
+  assert.equal(ticket, sync, "the ticket and the sync disagree about 'too much impact'");
+  assert.equal(ticket, "2");
+});
+
+test("a mint's own transfer fee reaches the ticket", async () => {
+  const {stockForTicker} = await import("@/lib/stocks/registry");
+
+  // PreStocks takes 1% on OPENAI and Tessera 0.2%, both off the mint account.
+  assert.equal(stockForTicker("OPENAI")?.transferFeeBps, 100);
+  assert.equal(stockForTicker("tOpenAI")?.transferFeeBps, 20);
+  // Backed and Backpack charge none, and the row is not rendered for them.
+  assert.equal(stockForTicker("NVDAx")?.transferFeeBps, null);
+  assert.equal(stockForTicker("NFLX")?.transferFeeBps, null);
+});
