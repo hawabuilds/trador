@@ -267,7 +267,7 @@ export interface Balances {
    * Dividing `amount` by the decimals gets a scaled mint wrong, which is how
    * OPENAI holders were shown two thirds of their position.
    */
-  tokens: Record<string, {amount: string; decimals: number; ui: number}>;
+  tokens: Record<string, {amount: string; decimals: number; ui: number; multiplier: number}>;
 }
 
 /**
@@ -305,8 +305,20 @@ export async function balancesFor(wallet: Pubkey, mints: readonly Pubkey[]): Pro
       decimals = amount.decimals ?? decimals;
       ui += liveUiAmount(amount);
     }
-    tokens[mint] = {amount: total.toString(), decimals, ui};
+    tokens[mint] = {amount: total.toString(), decimals, ui, multiplier: 1};
   });
+
+  /*
+   * The multiplier travels with the balance because the ticket needs it even
+   * when the wallet holds none of the asset: buying one token of a mint that
+   * is scaled ten to one still has to size as one token, not ten.
+   */
+  const {multipliersFor} = await import("./scaledMints");
+  const multipliers = await multipliersFor(mints);
+  for (const mint of mints) {
+    const held = tokens[mint];
+    if (held) held.multiplier = multipliers.get(mint) ?? 1;
+  }
 
   return {lamports: String(lamportsFrom(balance.value) ?? 0), tokens};
 }

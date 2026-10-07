@@ -86,3 +86,50 @@ export const SOL_FEE_RESERVE_LAMPORTS = 10_000_000n; // 0.01 SOL
 export function spendableLamports(balance: bigint): bigint {
   return balance > SOL_FEE_RESERVE_LAMPORTS ? balance - SOL_FEE_RESERVE_LAMPORTS : 0n;
 }
+
+/**
+ * The multiplier as an exact fraction, so sizing stays in integers.
+ *
+ * A token's scaled multiplier arrives as a float — 1.005714560286254, or 10
+ * after a split. Multiplying base units by a float and rounding is how a sell
+ * lands one unit above the balance, which is the failure this file exists to
+ * prevent. So it is turned into a numerator over a fixed denominator once, and
+ * every conversion after that is bigint division.
+ *
+ * Twelve places is far more than the extension carries in practice and leaves
+ * the numerator well inside what a double represents exactly.
+ */
+const MULTIPLIER_DEN = 10n ** 12n;
+
+function asFraction(multiplier: number): bigint {
+  if (!Number.isFinite(multiplier) || multiplier <= 0) return MULTIPLIER_DEN;
+  return BigInt(Math.round(multiplier * 1e12));
+}
+
+/**
+ * A typed amount, in the units a person sees, as the base units a swap moves.
+ *
+ * Rounds **down** at every step: digits past the token's precision are
+ * truncated, and the division floors. Someone typing their whole balance can
+ * therefore come out a base unit short, which fails nothing — the opposite
+ * error is a transaction that cannot settle.
+ */
+export function scaledToBaseUnits(
+  text: string,
+  decimals: number,
+  multiplier = 1,
+): bigint | null {
+  const typed = toBaseUnits(text, decimals);
+  if (typed === null) return null;
+  return (typed * MULTIPLIER_DEN) / asFraction(multiplier);
+}
+
+/**
+ * Base units as the number of tokens somebody actually holds.
+ *
+ * The inverse of the above, and floored for the same reason: a balance shown a
+ * hair low can always be sold, one shown a hair high cannot.
+ */
+export function baseUnitsToScaled(raw: bigint, decimals: number, multiplier = 1): string {
+  return fromBaseUnits((raw * asFraction(multiplier)) / MULTIPLIER_DEN, decimals);
+}

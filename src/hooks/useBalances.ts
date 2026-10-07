@@ -11,7 +11,10 @@ export interface BalancesResponse {
    * sizes and limits against. `ui` is what the wallet actually holds, with the
    * mint's scaled multiplier applied — use that for anything shown or valued.
    */
-  tokens: Record<string, {amount: string; decimals: number; ui: number}>;
+  tokens: Record<
+    string,
+    {amount: string; decimals: number; ui: number; multiplier: number}
+  >;
 }
 
 export function balancesKey(wallet: Pubkey | null, mints: readonly string[]) {
