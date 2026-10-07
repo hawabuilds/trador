@@ -1,6 +1,6 @@
 "use client";
 
-import {useEffect, useMemo, useState} from "react";
+import {useCallback, useEffect, useMemo, useState} from "react";
 import {useQuery, useQueryClient} from "@tanstack/react-query";
 
 import {FEE_BPS, feeFor, tooSmall} from "@/config/fees";
@@ -8,7 +8,9 @@ import {balancesKey, useBalances} from "@/hooks/useBalances";
 import {WALLET_TRADES_KEY} from "@/hooks/useWalletTrades";
 import {
   SOL_FEE_RESERVE_LAMPORTS,
+  baseUnitsToScaled,
   fromBaseUnits,
+  scaledToBaseUnits,
   shareOf,
   spendableLamports,
   toBaseUnits,
@@ -91,7 +93,21 @@ export function OrderSheet({
 
   const [activeSide, setActiveSide] = useState<"buy" | "sell">(side);
   const [inputUnit, setInputUnit] = useState<AmountUnit>("usd");
-  const [amount, setAmount] = useState("");
+  const [amount, setAmountText] = useState("");
+  /*
+   * Set only by the 100% button, and cleared the moment anything else moves.
+   *
+   * "All of it" is the balance, not the number that was printed in the field
+   * for it — printing rounds down, and a sell that leaves a few base units
+   * behind reads as the app having kept something back.
+   */
+  const [sellAll, setSellAll] = useState(false);
+
+  /** Typing, clearing or picking a preset is always an amount of its own. */
+  const setAmount = useCallback((next: string) => {
+    setSellAll(false);
+    setAmountText(next);
+  }, []);
   const [slippageBps, setSlippageBps] = useState(100);
   const [configOpen, setConfigOpen] = useState(false);
   const [quote, setQuote] = useState<QuoteState | null>(null);
@@ -126,7 +142,9 @@ export function OrderSheet({
     setStatus(null);
     setSignature(null);
     setConfigOpen(false);
-  }, [asset?.id, side]);
+    // `setAmount` is stable, but it is a callback now rather than a setter, so
+    // the linter wants to see it.
+  }, [asset?.id, setAmount, side]);
 
   const wallet = session.user?.wallet ?? null;
   const canSign = session.signAndSend !== null && wallet !== null;
@@ -138,11 +156,15 @@ export function OrderSheet({
    * share of a position, had no "sell all", and would happily ask you to sign
    * a trade for more than you own — which then failed in simulation.
    */
-  /** Buys only need native SOL; sells need exact token base units for sizing. */
-  const balanceMints = useMemo(
-    () => (asset && !buying ? [asset.mint] : []),
-    [asset, buying],
-  );
+  /*
+   * The asset's balance is read on both sides.
+   *
+   * A sell needs its exact base units to size against. A buy needs the mint's
+   * scaled multiplier, which travels with the balance: on a mint that is
+   * scaled ten to one, the tokens arriving are ten times the raw figure, and
+   * an estimate that says otherwise is off by that much.
+   */
+  const balanceMints = useMemo(() => (asset ? [asset.mint] : []), [asset]);
   const balances = useBalances(wallet, balanceMints, open && wallet !== null);
   const held = asset ? balances.data?.tokens[asset.mint] : undefined;
   const heldRaw = balances.data ? BigInt(held?.amount ?? "0") : null;
@@ -158,6 +180,14 @@ export function OrderSheet({
   const storedDecimals =
     asset === null ? 6 : asset.kind === "stonk" ? (asset.decimals ?? 6) : asset.decimals;
   const assetDecimals = heldRaw !== null && heldRaw > 0n && held ? held.decimals : storedDecimals;
+
+  /**
+   * What one base unit of this asset is worth in tokens.
+   *
+   * Everything on this ticket is typed, shown and quoted in tokens; only the
+   * transaction is in base units. This is the one place the two meet.
+   */
+  const multiplier = held?.multiplier ?? 1;
 
   const priceUsd = asset?.price.usd ?? null;
   const typed = Number.parseFloat(amount);
@@ -214,7 +244,11 @@ export function OrderSheet({
     }
 
     if (inputUnit === "token") {
-      const parsed = toBaseUnits(amount, assetDecimals);
+      // Selling the lot sends the balance itself, not a number typed back in:
+      // a round trip through text can only ever lose base units, and leaving
+      // dust behind on "100%" is the thing people notice.
+      if (sellAll && heldRaw !== null && heldRaw > 0n) return heldRaw;
+      const parsed = scaledToBaseUnits(amount, assetDecimals, multiplier);
       return parsed !== null && parsed > 0n ? parsed : null;
     }
 
@@ -226,9 +260,23 @@ export function OrderSheet({
       if (solUsd === null || solUsd <= 0) return null;
       tokens = (entered * solUsd) / priceUsd;
     }
-    const parsed = toBaseUnits(tokens.toFixed(assetDecimals), assetDecimals);
+    // `tokens` came from a price quoted per token, so it is in the same unit
+    // the person types in and converts the same way.
+    const parsed = scaledToBaseUnits(tokens.toFixed(assetDecimals), assetDecimals, multiplier);
     return parsed !== null && parsed > 0n ? parsed : null;
-  }, [asset, amount, assetDecimals, buying, entered, inputUnit, priceUsd, solUsd]);
+  }, [
+    asset,
+    amount,
+    assetDecimals,
+    buying,
+    entered,
+    heldRaw,
+    inputUnit,
+    multiplier,
+    priceUsd,
+    sellAll,
+    solUsd,
+  ]);
 
   const amountBaseUnits = amountRaw === null ? null : amountRaw.toString();
 
@@ -236,7 +284,13 @@ export function OrderSheet({
   const availableRaw = buying ? (lamports === null ? null : spendableLamports(lamports)) : heldRaw;
   const availableDecimals = buying ? SOL.decimals : assetDecimals;
   const available =
-    availableRaw === null ? null : Number(fromBaseUnits(availableRaw, availableDecimals));
+    availableRaw === null
+      ? null
+      : Number(
+          buying
+            ? fromBaseUnits(availableRaw, availableDecimals)
+            : baseUnitsToScaled(availableRaw, availableDecimals, multiplier),
+        );
   const overBalance =
     amountRaw !== null &&
     availableRaw !== null &&
@@ -368,9 +422,9 @@ export function OrderSheet({
   /** What the confirm button receives, in the unit it will actually arrive in. */
   const estimatedOut = useMemo(() => {
     if (!quote || !asset) return null;
-    const decimals = buying ? assetDecimals : SOL.decimals;
-    return Number(quote.outAmount) / 10 ** decimals;
-  }, [quote, asset, assetDecimals, buying]);
+    if (!buying) return Number(quote.outAmount) / 10 ** SOL.decimals;
+    return Number(baseUnitsToScaled(BigInt(quote.outAmount), assetDecimals, multiplier));
+  }, [quote, asset, assetDecimals, buying, multiplier]);
 
   async function confirm() {
     if (!asset || !quote || !wallet || !session.signAndSend) return;
@@ -636,7 +690,9 @@ export function OrderSheet({
                       disabled={heldRaw === null || heldRaw <= 0n}
                       onClick={() => {
                         if (heldRaw === null) return;
-                        setAmount(fromBaseUnits(shareOf(heldRaw, step), assetDecimals));
+                        const part = shareOf(heldRaw, step);
+                        setAmount(baseUnitsToScaled(part, assetDecimals, multiplier));
+                        setSellAll(step === 100);
                         setError(null);
                         setSignature(null);
                       }}
@@ -690,6 +746,7 @@ export function OrderSheet({
               quote={quote}
               receivedSymbol={buying ? symbol : SOL.symbol}
               receivedDecimals={buying ? assetDecimals : SOL.decimals}
+              receivedMultiplier={buying ? multiplier : 1}
               feeUsd={quote.platformFee ? fee.usd : 0}
               slippageBps={slippageBps}
               impactPct={impactPct}
@@ -809,6 +866,7 @@ function TicketBreakdown({
   quote,
   receivedSymbol,
   receivedDecimals,
+  receivedMultiplier,
   feeUsd,
   slippageBps,
   impactPct,
@@ -825,12 +883,16 @@ function TicketBreakdown({
    * (9 decimals) would have done the same on a sell.
    */
   receivedDecimals: number;
+  /** Scaled mints report fewer base units than tokens — see `baseUnitsToScaled`. */
+  receivedMultiplier: number;
   feeUsd: number;
   slippageBps: number;
   impactPct: number;
   impactLevel: "ok" | "warn" | "block";
 }) {
-  const minOut = Number(quote.otherAmountThreshold) / 10 ** receivedDecimals;
+  const minOut = Number(
+    baseUnitsToScaled(BigInt(quote.otherAmountThreshold), receivedDecimals, receivedMultiplier),
+  );
 
   return (
     <div className="mt-2.5 space-y-1 px-1 text-[12px] font-semibold">
