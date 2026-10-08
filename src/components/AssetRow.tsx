@@ -19,7 +19,7 @@ import {assetPath} from "@/lib/routes";
 import type {Asset} from "@/lib/types";
 import {Sparkline} from "./Sparkline";
 import {Avatar} from "./ui/Avatar";
-import {LaunchpadMark} from "./LaunchpadMark";
+import {LaunchpadBadge} from "./LaunchpadBadge";
 import {NoLiquidityChip, PairTicker, VerifiedTick} from "./ui/Badges";
 import {PriceDelta} from "./ui/PriceDelta";
 
@@ -65,7 +65,12 @@ export function AssetRow({
       )}
     >
       {stock ? null : (
-        <Avatar name={symbol} src={asset.imageUrl} seed={asset.mint} size={40} />
+        // The launchpad rides on the artwork rather than sitting in the line
+        // below it, where it used to be a third item competing with volume and
+        // age for a row that has no room to spare.
+        <LaunchpadBadge launchpad={asset.launchpad} size={40}>
+          <Avatar name={symbol} src={asset.imageUrl} seed={asset.mint} size={40} />
+        </LaunchpadBadge>
       )}
 
       <div className="min-w-0 flex-1">
@@ -106,18 +111,6 @@ export function AssetRow({
             </span>
           ) : (
             <>
-              {/*
-                The mark only, not the full chip — a dense row has no space for
-                a second word, and the logo alone tells the two launchpads
-                apart at a glance, which is all this line needs to do.
-
-                Deliberately not a link. The whole row is already an `<a>`, and
-                an anchor inside an anchor is invalid HTML that browsers
-                resolve by silently breaking the outer one. The clickable
-                version, which opens the coin on its launchpad, lives on the
-                coin's own page where it is not nested.
-              */}
-              <LaunchpadMark launchpad={asset.launchpad} size={14} />
               <span className="text-faint">
                 {asset.rewards24hUsd && asset.rewards24hUsd > 0
                   ? `${formatVolumeUsd(asset.rewards24hUsd)} Rewards`
