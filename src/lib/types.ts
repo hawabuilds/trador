@@ -1,4 +1,5 @@
 import type {LaunchpadId} from "./programs";
+import type {RankId} from "@/config/ranks";
 import type {Pubkey} from "./pubkey";
 import type {SectorId} from "./sectors";
 import type {PriceAuthority, StockIssuer, StockKind} from "./stocks/registry";
@@ -124,6 +125,8 @@ export interface ChartPoint {
   low?: number;
 }
 
+import type {HoldingBand} from "./holdingBand";
+
 export type ChartStyle = "line" | "candles";
 
 export const TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1D"] as const;
@@ -185,7 +188,7 @@ export function timeframeLabel(
   requested: Timeframe,
   resolved?: Timeframe | null,
 ): string {
-  if (resolved && resolved !== requested) return `${requested} · ${resolved}`;
+  if (resolved && resolved !== requested) return `${requested}\u00a0\u00a0${resolved}`;
   return requested;
 }
 
@@ -221,6 +224,8 @@ export interface CommentAuthor {
   handle: string;
   displayName: string;
   pfpUrl: string | null;
+  /** Their caller rank this season. Absent on a comment saved locally. */
+  rank?: RankId;
 }
 
 export interface AssetComment {
@@ -243,10 +248,14 @@ export interface AssetComment {
 
 /** A commenter's stake in the coin, as shown beside their comment. */
 export interface CommentPositionView {
-  boughtUsd: number;
+  /**
+   * The band their current holding falls in, rounded down. Null when they hold
+   * less than the floor to comment, or when no price was available to value it.
+   */
+  band: HoldingBand | null;
   status: "holding" | "sold";
-  /** Total return on what they put in, or null when it cannot be stated. */
-  gainPct: number | null;
+  /** Bought before the coin first tripled. See `boughtEarly`. */
+  early: boolean;
 }
 
 export interface CommentThread {

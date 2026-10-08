@@ -122,7 +122,7 @@ export function LearnScreen() {
                     {entry.title}
                   </span>
                   <span className="mt-0.5 block truncate text-[12px] font-medium text-faint">
-                    {entry.summary} · {entry.minutes} min
+                    {entry.summary}&nbsp;&nbsp;&nbsp;{entry.minutes} min
                   </span>
                 </span>
 

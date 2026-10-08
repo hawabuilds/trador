@@ -24,12 +24,23 @@ export async function GET(
     const profile = await profileByHandle(params.handle, callerId);
     if (!profile) return notFound("No account with that handle.");
 
-    const [followers, following] = await Promise.all([
+    const [followers, following, standing] = await Promise.all([
       followersOf(profile.id, callerId),
       followingOf(profile.id, callerId),
+      // Their place this season, which the badge and the rep line read from.
+      import("@/lib/server/ranks")
+        .then(({standingFor}) => standingFor(profile.id))
+        .catch(() => null),
     ]);
 
-    return json({profile, followers, following});
+    return json({
+      profile,
+      followers,
+      following,
+      standing: standing
+        ? {rep: standing.rep, rank: standing.rank.id, percentile: standing.percentile}
+        : null,
+    });
   } catch (error) {
     return json({error: (error as Error).message}, {status: 503});
   }

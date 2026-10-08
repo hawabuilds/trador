@@ -436,3 +436,59 @@ export function writePieTargets(
   write("pie-targets", {...all, [wallet]: targets});
   announce();
 }
+
+// ---------------------------------------------------------------------------
+// Notifications
+// ---------------------------------------------------------------------------
+
+/**
+ * When this device last looked at the list.
+ *
+ * Per device on purpose, for now: marking something read belongs on the person
+ * rather than the browser, and that is one column on `users` which is waiting
+ * with the ranking tables. Until then a phone and a laptop each keep their own
+ * idea of what is new, which is wrong in a small way rather than a
+ * notifications screen that cannot tell new from old at all.
+ */
+export function readNotificationsSeenAt(): string | null {
+  const at = read<string | null>("notificationsSeenAt", null);
+  return typeof at === "string" ? at : null;
+}
+
+export function writeNotificationsSeenAt(at: string): void {
+  write("notificationsSeenAt", at);
+  announce();
+}
+
+/**
+ * The last rank this device has congratulated somebody on.
+ *
+ * The screen is a moment, not a message: it belongs to the device you were
+ * holding when it happened, and showing it again on a laptop a week later
+ * would be a celebration of old news.
+ */
+export function readRankSeen(): string | null {
+  const seen = read<string | null>("rankSeen", null);
+  return typeof seen === "string" ? seen : null;
+}
+
+export function writeRankSeen(key: string): void {
+  write("rankSeen", key);
+  announce();
+}
+
+/**
+ * Whether this person has closed the Home banner.
+ *
+ * On the device for now. Closing it belongs to the person rather than the
+ * browser, which is one nullable column on `users` waiting with the next batch
+ * of schema changes; until then a phone and a laptop each have to be told once.
+ */
+export function readBannerClosed(): boolean {
+  return read<boolean>("homeBannerClosed", false) === true;
+}
+
+export function writeBannerClosed(): void {
+  write("homeBannerClosed", true);
+  announce();
+}

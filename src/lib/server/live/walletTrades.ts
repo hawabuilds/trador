@@ -19,6 +19,7 @@ import {db, hasDatabase} from "@/lib/server/db";
 import {
   SOL_MINT,
   positionsFrom,
+  scalePosition,
   tradesFromTx,
   valueTrade,
   type Position,
@@ -77,10 +78,17 @@ function isMissingTable(error: {code?: string; message?: string} | null): boolea
 
 export class HistoryUnavailable extends Error {}
 
-async function signaturesSince(wallet: Pubkey, head: string | null) {
-  const rows: {signature: string; err: unknown}[] = [];
+async function signaturesSince(
+  wallet: Pubkey,
+  head: string | null,
+  bound: {sinceMs?: number; max?: number} = {},
+) {
+  const max = Math.min(bound.max ?? FIRST_SYNC_MAX, FIRST_SYNC_MAX);
+  const cutoff = bound.sinceMs ? (Date.now() - bound.sinceMs) / 1000 : null;
+  const rows: {signature: string; err: unknown; blockTime?: number | null}[] = [];
   let before: string | undefined;
-  while (rows.length < FIRST_SYNC_MAX) {
+
+  while (rows.length < max) {
     const page = await signaturesFor(wallet, {
       limit: SIGNATURE_PAGE,
       ...(head ? {until: head} : {}),
@@ -88,9 +96,24 @@ async function signaturesSince(wallet: Pubkey, head: string | null) {
     });
     rows.push(...page);
     if (page.length < SIGNATURE_PAGE) break;
+
+    /*
+     * Stop once the page has reached back past the window asked for. Used by
+     * the backfill a follow triggers: somebody's last week is what makes them
+     * worth following, and reading their whole history to find it would hold
+     * up the tap.
+     */
+    const oldest = page[page.length - 1]?.blockTime;
+    if (cutoff !== null && typeof oldest === "number" && oldest < cutoff) break;
+
     before = page[page.length - 1].signature;
   }
-  return rows.slice(0, FIRST_SYNC_MAX);
+
+  const within =
+    cutoff === null
+      ? rows
+      : rows.filter((row) => typeof row.blockTime !== "number" || row.blockTime >= cutoff);
+  return within.slice(0, max);
 }
 
 async function parseAll(signatures: string[], key: string) {
@@ -108,7 +131,8 @@ async function parseAll(signatures: string[], key: string) {
   return parsed;
 }
 
-async function stockUsdMap(trades: readonly RawTrade[]): Promise<Map<string, number>> {
+/** Spot USD for the tokenized stocks in these trades, which is what they are quoted in. */
+export async function stockUsdMap(trades: readonly RawTrade[]): Promise<Map<string, number>> {
   const mints: Pubkey[] = [];
   for (const trade of trades) {
     const paid = asPubkey(trade.paidMint);
@@ -207,7 +231,10 @@ async function tradesForPositions(rows: PositionTradeRow[]) {
   return out;
 }
 
-async function syncOnce(wallet: Pubkey): Promise<void> {
+async function syncOnce(
+  wallet: Pubkey,
+  bound: {sinceMs?: number; max?: number} = {},
+): Promise<void> {
   const key = heliusKey();
   if (!key) throw new HistoryUnavailable("No Helius key is configured.");
 
@@ -222,7 +249,7 @@ async function syncOnce(wallet: Pubkey): Promise<void> {
   }
   const head = (cursor.data?.head_signature as string | null | undefined) ?? null;
 
-  const rows = await signaturesSince(wallet, head);
+  const rows = await signaturesSince(wallet, head, bound);
   if (rows.length === 0 && head) return;
 
   const parsed = await parseAll(
@@ -261,10 +288,14 @@ async function syncOnce(wallet: Pubkey): Promise<void> {
 }
 
 /** Bring a wallet's stored trades up to date. Shared by concurrent callers. */
-export async function syncWalletTrades(wallet: Pubkey): Promise<void> {
+export async function syncWalletTrades(
+  wallet: Pubkey,
+  bound: {sinceMs?: number; max?: number} = {},
+): Promise<void> {
   if (!hasDatabase) throw new HistoryUnavailable("Trade history needs the database.");
-  await cached(`wallet-sync:${wallet}`, SYNC_TTL_MS, async () => {
-    await syncOnce(wallet);
+  const key = bound.sinceMs ? `wallet-sync:${wallet}:${bound.sinceMs}` : `wallet-sync:${wallet}`;
+  await cached(key, SYNC_TTL_MS, async () => {
+    await syncOnce(wallet, bound);
     return true;
   });
 }
@@ -304,5 +335,19 @@ export async function walletPositions(wallet: Pubkey): Promise<Position[]> {
     throw new Error(error.message);
   }
   const rows = (data ?? []) as PositionTradeRow[];
-  return positionsFrom(await tradesForPositions(rows));
+  const positions = positionsFrom(await tradesForPositions(rows));
+
+  /*
+   * Quantities restated into the unit live balances come back in.
+   *
+   * Everything downstream — the P&L on a holding row, the portfolio total,
+   * whether a position reads as complete — compares these against a balance
+   * the RPC has already scaled. Doing it here means one read of the mints and
+   * no caller has to remember.
+   */
+  const {multipliersFor} = await import("./scaledMints");
+  const multipliers = await multipliersFor(positions.map((p) => p.mint));
+  return positions.map((position) =>
+    scalePosition(position, multipliers.get(position.mint) ?? 1),
+  );
 }

@@ -71,9 +71,10 @@ test("RPC failure with no cache is a hard miss, not 'not holding'", () => {
   assert.deepEqual(resolved, {failed: true});
 });
 
-test("a public comment can show Holding without inventing what they paid", () => {
+test("a public comment can show Holding without a band it cannot prove", () => {
   const position = heldCommentPosition();
   assert.equal(position.status, "holding");
-  assert.equal(position.boughtUsd, 0);
-  assert.equal(position.gainPct, null);
+  // No priced balance yet, so no band and no claim of conviction.
+  assert.equal(position.band, null);
+  assert.equal(position.early, false);
 });

@@ -9,12 +9,19 @@
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 4863,
+    "launchesQuotedAgainst": 8772,
+    "tradability": {
+      "liquidityUsd": 206778,
+      "impactPct": 0.039,
+      "priceUsd": 167.15350228465584,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
       "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
       "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer mint authority + stonkfun pool census"
     }
   },
@@ -28,12 +35,19 @@
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 4782,
+    "launchesQuotedAgainst": 7776,
+    "tradability": {
+      "liquidityUsd": 3159885,
+      "impactPct": 0,
+      "priceUsd": 236.94904079955194,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
       "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
       "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer mint authority + stonkfun pool census"
     }
   },
@@ -47,31 +61,19 @@
     "kind": "etf",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 3601,
+    "launchesQuotedAgainst": 4138,
+    "tradability": {
+      "liquidityUsd": 581649,
+      "impactPct": 0,
+      "priceUsd": 779.6793223216987,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
       "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
       "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer mint authority + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "OPENAI",
-    "name": "OpenAI PreStocks",
-    "mint": "PreweJYECqtQwBtpxHL171nL2K6umo692gTm7Q3rpgF",
-    "decimals": 9,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "prestocks",
-    "kind": "pre-ipo",
-    "priceAuthority": "none",
-    "transferFeeBps": 300,
-    "launchesQuotedAgainst": 2483,
-    "verified": {
-      "mintAuthority": "WV9PJN7XTmTLVwbutCLFxp8TyePee6Xq5mRq6Fti5Wc",
-      "issuerKey": "WV9PJN7XTmTLVwbutCLFxp8TyePee6Xq5mRq6Fti5Wc",
-      "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer mint authority + stonkfun pool census"
     }
   },
@@ -84,108 +86,20 @@
     "issuer": "prestocks",
     "kind": "pre-ipo",
     "priceAuthority": "none",
-    "transferFeeBps": 300,
-    "launchesQuotedAgainst": 2422,
+    "transferFeeBps": 100,
+    "launchesQuotedAgainst": 3339,
+    "tradability": {
+      "liquidityUsd": 373470,
+      "impactPct": 2.211,
+      "priceUsd": 1027.4873780364899,
+      "ok": false,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "WV9PJN7XTmTLVwbutCLFxp8TyePee6Xq5mRq6Fti5Wc",
       "issuerKey": "WV9PJN7XTmTLVwbutCLFxp8TyePee6Xq5mRq6Fti5Wc",
       "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer mint authority + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "AAPLx",
-    "name": "Apple xStock",
-    "mint": "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp",
-    "decimals": 8,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backed",
-    "kind": "equity",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 1854,
-    "verified": {
-      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
-      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
-      "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer mint authority + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "HOODx",
-    "name": "Robinhood xStock",
-    "mint": "XsvNBAYkrDRNhA7wPHQfX3ZUXZyZLdnCQDfHZ56bzpg",
-    "decimals": 8,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backed",
-    "kind": "equity",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 1813,
-    "verified": {
-      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
-      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
-      "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer mint authority + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "GLDx",
-    "name": "Gold xStock",
-    "mint": "Xsv9hRk1z5ystj9MhnA7Lq4vjSsLwzL2nxrwmwtD3re",
-    "decimals": 8,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backed",
-    "kind": "commodity",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 1757,
-    "verified": {
-      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
-      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
-      "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer mint authority + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "QQQx",
-    "name": "Nasdaq xStock",
-    "mint": "Xs8S1uUs1zvS2p7iwtsG3b6fkhpvmwz4GYU3gWAmWHZ",
-    "decimals": 8,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backed",
-    "kind": "etf",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 1553,
-    "verified": {
-      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
-      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
-      "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer mint authority + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "METAx",
-    "name": "Meta xStock",
-    "mint": "Xsa62P5mvPszXL1krVUnU5ar38bBSVcWAB6fmPCo5Zu",
-    "decimals": 8,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backed",
-    "kind": "equity",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 1549,
-    "verified": {
-      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
-      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
-      "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer mint authority + stonkfun pool census"
     }
   },
@@ -199,107 +113,19 @@
     "kind": "pre-ipo",
     "priceAuthority": "none",
     "transferFeeBps": 20,
-    "launchesQuotedAgainst": 1392,
+    "launchesQuotedAgainst": 3180,
+    "tradability": {
+      "liquidityUsd": 921532,
+      "impactPct": 0,
+      "priceUsd": 1739.5783506031514,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "EXvTtxurWBUNNCtLojaN8ZBJFNJPZFSH3szoih9hh7YW",
       "issuerKey": "EXvTtxurWBUNNCtLojaN8ZBJFNJPZFSH3szoih9hh7YW",
       "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer mint authority + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "GMEx",
-    "name": "Gamestop xStock",
-    "mint": "Xsf9mBktVB9BSU5kf4nHxPq5hCBJ2j2ui3ecFGxPRGc",
-    "decimals": 8,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backed",
-    "kind": "equity",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 1287,
-    "verified": {
-      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
-      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
-      "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer mint authority + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "TSLAx",
-    "name": "Tesla xStock",
-    "mint": "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB",
-    "decimals": 8,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backed",
-    "kind": "equity",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 1275,
-    "verified": {
-      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
-      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
-      "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer mint authority + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "MCDx",
-    "name": "McDonald's xStock",
-    "mint": "XsqE9cRRpzxcGKDXj1BJ7Xmg4GRhZoyY1KpmGSxAWT2",
-    "decimals": 8,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backed",
-    "kind": "equity",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 1268,
-    "verified": {
-      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
-      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
-      "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer mint authority + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "MSFTx",
-    "name": "Microsoft xStock",
-    "mint": "XspzcW1PRtgf6Wj92HCiZdjzKCyFekVD8P5Ueh3dRMX",
-    "decimals": 8,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backed",
-    "kind": "equity",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 1251,
-    "verified": {
-      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
-      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
-      "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer mint authority + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "GOOGLx",
-    "name": "Alphabet xStock",
-    "mint": "XsCPL9dNWBMvFtTmwcCA5v3xWPSMEBCszbQdiLLq6aN",
-    "decimals": 8,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backed",
-    "kind": "equity",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 1240,
-    "verified": {
-      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
-      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
-      "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer mint authority + stonkfun pool census"
     }
   },
@@ -313,13 +139,306 @@
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 1011,
+    "launchesQuotedAgainst": 3163,
+    "tradability": {
+      "liquidityUsd": 510650,
+      "impactPct": 0.601,
+      "priceUsd": 8.168245355399106,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "3zbLadZi7cn7A6SavYkKah2QzUQEGNDtwmf5o17Rx17G",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "OPENAI",
+    "name": "OpenAI PreStocks",
+    "mint": "PreweJYECqtQwBtpxHL171nL2K6umo692gTm7Q3rpgF",
+    "decimals": 9,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "prestocks",
+    "kind": "pre-ipo",
+    "priceAuthority": "none",
+    "transferFeeBps": 100,
+    "launchesQuotedAgainst": 3093,
+    "tradability": {
+      "liquidityUsd": 117209,
+      "impactPct": 2.175,
+      "priceUsd": 1474.4111610171162,
+      "ok": false,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "WV9PJN7XTmTLVwbutCLFxp8TyePee6Xq5mRq6Fti5Wc",
+      "issuerKey": "WV9PJN7XTmTLVwbutCLFxp8TyePee6Xq5mRq6Fti5Wc",
+      "via": "mint-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer mint authority + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "AAPLx",
+    "name": "Apple xStock",
+    "mint": "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backed",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 2029,
+    "tradability": {
+      "liquidityUsd": 353878,
+      "impactPct": 0,
+      "priceUsd": 336.9634834611461,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "via": "mint-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer mint authority + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "GLDx",
+    "name": "Gold xStock",
+    "mint": "Xsv9hRk1z5ystj9MhnA7Lq4vjSsLwzL2nxrwmwtD3re",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backed",
+    "kind": "commodity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 1990,
+    "tradability": {
+      "liquidityUsd": 929729,
+      "impactPct": 0.083,
+      "priceUsd": 377.0521687552856,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "via": "mint-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer mint authority + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "METAx",
+    "name": "Meta xStock",
+    "mint": "Xsa62P5mvPszXL1krVUnU5ar38bBSVcWAB6fmPCo5Zu",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backed",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 1944,
+    "tradability": {
+      "liquidityUsd": 833427,
+      "impactPct": 0.238,
+      "priceUsd": 723.1693513864393,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "via": "mint-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer mint authority + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "HOODx",
+    "name": "Robinhood xStock",
+    "mint": "XsvNBAYkrDRNhA7wPHQfX3ZUXZyZLdnCQDfHZ56bzpg",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backed",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 1937,
+    "tradability": {
+      "liquidityUsd": 1414012,
+      "impactPct": 0.013,
+      "priceUsd": 109.31439470151936,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "via": "mint-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer mint authority + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "QQQx",
+    "name": "Nasdaq xStock",
+    "mint": "Xs8S1uUs1zvS2p7iwtsG3b6fkhpvmwz4GYU3gWAmWHZ",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backed",
+    "kind": "etf",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 1811,
+    "tradability": {
+      "liquidityUsd": 2220893,
+      "impactPct": 0.073,
+      "priceUsd": 755.8425802700158,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "via": "mint-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer mint authority + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "GOOGLx",
+    "name": "Alphabet xStock",
+    "mint": "XsCPL9dNWBMvFtTmwcCA5v3xWPSMEBCszbQdiLLq6aN",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backed",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 1699,
+    "tradability": {
+      "liquidityUsd": 1317993,
+      "impactPct": 0.096,
+      "priceUsd": 346.83751587081287,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "via": "mint-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer mint authority + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "MSFTx",
+    "name": "Microsoft xStock",
+    "mint": "XspzcW1PRtgf6Wj92HCiZdjzKCyFekVD8P5Ueh3dRMX",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backed",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 1611,
+    "tradability": {
+      "liquidityUsd": 513494,
+      "impactPct": 0.19,
+      "priceUsd": 530.4762812086224,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "via": "mint-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer mint authority + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "TSLAx",
+    "name": "Tesla xStock",
+    "mint": "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backed",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 1603,
+    "tradability": {
+      "liquidityUsd": 2321752,
+      "impactPct": 0.002,
+      "priceUsd": 376.72041973780625,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "via": "mint-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer mint authority + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "MCDx",
+    "name": "McDonald's xStock",
+    "mint": "XsqE9cRRpzxcGKDXj1BJ7Xmg4GRhZoyY1KpmGSxAWT2",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backed",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 1519,
+    "tradability": {
+      "liquidityUsd": 104703,
+      "impactPct": 0.132,
+      "priceUsd": 232.1164635834245,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "via": "mint-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer mint authority + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "GMEx",
+    "name": "Gamestop xStock",
+    "mint": "Xsf9mBktVB9BSU5kf4nHxPq5hCBJ2j2ui3ecFGxPRGc",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backed",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 1480,
+    "tradability": {
+      "liquidityUsd": 327517,
+      "impactPct": 0.268,
+      "priceUsd": 24.514634168012282,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "via": "mint-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer mint authority + stonkfun pool census"
     }
   },
   {
@@ -332,12 +451,19 @@
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 918,
+    "launchesQuotedAgainst": 1086,
+    "tradability": {
+      "liquidityUsd": 26824,
+      "impactPct": 0.102,
+      "priceUsd": 34.18158193619827,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "5tPguepcKacsBPHrbWXr8Zo8A3osVKzLG65y697SvKTh",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
@@ -351,32 +477,20 @@
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 798,
+    "launchesQuotedAgainst": 945,
+    "tradability": {
+      "liquidityUsd": 1492051,
+      "impactPct": 0.088,
+      "priceUsd": 179.10158682880535,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
       "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
       "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer mint authority + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "GRND",
-    "name": "Grindr - Backpack Securities",
-    "mint": "GRNDYDpqwpCm6jVxpbh4xT5AM4r3p391qYsKTHqgaET2",
-    "decimals": 6,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backpack",
-    "kind": "equity",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 720,
-    "verified": {
-      "mintAuthority": "EfB3iMswBzLBrVamjRHqPMKzvu7fyYsuLY1zu9fiPGFY",
-      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
-      "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
   {
@@ -389,12 +503,71 @@
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 704,
+    "launchesQuotedAgainst": 796,
+    "tradability": {
+      "liquidityUsd": 79521,
+      "impactPct": 0.343,
+      "priceUsd": 19.06565540279104,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "mHRjfhQqbuPZcHk1YSoNSQmZWFqj2Yc3om1UTQgQJef",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "TTWO",
+    "name": "Take-Two Interactive Software - Backpack Securities",
+    "mint": "TTWofwAge91oFhZs7kpQdyrVRkmevgM88xijGvQFbKo",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backpack",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 781,
+    "tradability": {
+      "liquidityUsd": 3259,
+      "impactPct": null,
+      "priceUsd": null,
+      "ok": false,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "CwWGWmE3MLyRmFiLkVsZU9oDyWhF3XtULciqTjj2bNkv",
+      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
+      "via": "control-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "GRND",
+    "name": "Grindr - Backpack Securities",
+    "mint": "GRNDYDpqwpCm6jVxpbh4xT5AM4r3p391qYsKTHqgaET2",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backpack",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 763,
+    "tradability": {
+      "liquidityUsd": 22626,
+      "impactPct": 0.503,
+      "priceUsd": 14.226325597885227,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "EfB3iMswBzLBrVamjRHqPMKzvu7fyYsuLY1zu9fiPGFY",
+      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
+      "via": "control-authority",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
@@ -408,12 +581,19 @@
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 644,
+    "launchesQuotedAgainst": 751,
+    "tradability": {
+      "liquidityUsd": 162229,
+      "impactPct": 0,
+      "priceUsd": 190.73957685723906,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
       "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
       "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer mint authority + stonkfun pool census"
     }
   },
@@ -427,51 +607,20 @@
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 601,
+    "launchesQuotedAgainst": 727,
+    "tradability": {
+      "liquidityUsd": 404778,
+      "impactPct": 0.476,
+      "priceUsd": 259.5806369456155,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
       "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
       "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer mint authority + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "TTWO",
-    "name": "Take-Two Interactive Software - Backpack Securities",
-    "mint": "TTWofwAge91oFhZs7kpQdyrVRkmevgM88xijGvQFbKo",
-    "decimals": 6,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backpack",
-    "kind": "equity",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 589,
-    "verified": {
-      "mintAuthority": "CwWGWmE3MLyRmFiLkVsZU9oDyWhF3XtULciqTjj2bNkv",
-      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
-      "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "COPX",
-    "name": "Global X Copper Miners ETF - Backpack Securities",
-    "mint": "CzLTZppPdZtTjyq3WGpHLstoc3GLhu7zH5Zg6xUa6Gv5",
-    "decimals": 6,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backpack",
-    "kind": "commodity",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 557,
-    "verified": {
-      "mintAuthority": "4S7eNNQcLMHeZr8MCX7cPmMKbqnVVUZ1PRRLAopTTeQt",
-      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
-      "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
   {
@@ -484,126 +633,45 @@
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 535,
+    "launchesQuotedAgainst": 663,
+    "tradability": {
+      "liquidityUsd": 846540,
+      "impactPct": 0.321,
+      "priceUsd": 154.02033058747477,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
       "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
       "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer mint authority + stonkfun pool census"
     }
   },
   {
-    "ticker": "KOx",
-    "name": "Coca-Cola xStock",
-    "mint": "XsaBXg8dU5cPM6ehmVctMkVqoiRG2ZjMo1cyBJ3AykQ",
-    "decimals": 8,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backed",
-    "kind": "equity",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 489,
-    "verified": {
-      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
-      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
-      "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer mint authority + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "RDDT",
-    "name": "Reddit - Backpack Securities",
-    "mint": "RDDTGbhHwVXfyCvQMXzzowKjf5qrYBZAnehoXW83ooh",
+    "ticker": "COPX",
+    "name": "Global X Copper Miners ETF - Backpack Securities",
+    "mint": "CzLTZppPdZtTjyq3WGpHLstoc3GLhu7zH5Zg6xUa6Gv5",
     "decimals": 6,
     "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
     "issuer": "backpack",
-    "kind": "equity",
+    "kind": "commodity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 442,
+    "launchesQuotedAgainst": 575,
+    "tradability": {
+      "liquidityUsd": 50985,
+      "impactPct": 0.017,
+      "priceUsd": 83.88817752385214,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
-      "mintAuthority": "3Snj7Qdc6ggJcJ27LwRRBE4a4XEtSzWWUBgoaheW46n7",
+      "mintAuthority": "4S7eNNQcLMHeZr8MCX7cPmMKbqnVVUZ1PRRLAopTTeQt",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "RBLX",
-    "name": "Roblox - Backpack Securities",
-    "mint": "RBLXDGRD64AtRamHMFVcjqne3Ar7NLWtFtYNtsrf1cE",
-    "decimals": 6,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backpack",
-    "kind": "equity",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 442,
-    "verified": {
-      "mintAuthority": "Fg4Aop8rMCETvXZBuNDrGab9cdMqR5qeYSqQPsbiWTKp",
-      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
-      "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "POLYMARKET",
-    "name": "Polymarket PreStocks",
-    "mint": "Pre8AREmFPtoJFT8mQSXQLh56cwJmM7CFDRuoGBZiUP",
-    "decimals": 9,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "prestocks",
-    "kind": "pre-ipo",
-    "priceAuthority": "none",
-    "transferFeeBps": 300,
-    "launchesQuotedAgainst": 410,
-    "verified": {
-      "mintAuthority": "WV9PJN7XTmTLVwbutCLFxp8TyePee6Xq5mRq6Fti5Wc",
-      "issuerKey": "WV9PJN7XTmTLVwbutCLFxp8TyePee6Xq5mRq6Fti5Wc",
-      "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer mint authority + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "AMD",
-    "name": "Advanced Micro Devices - Backpack Securities",
-    "mint": "AMD8XwJXgQ9WV45Wyj9yFLejxzf2J6VM1PJY8bJEjeES",
-    "decimals": 6,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backpack",
-    "kind": "equity",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 403,
-    "verified": {
-      "mintAuthority": "ByQt1hrWaQBAgQr4jpxuYSnJsYnM8nr4rX6gZrVTzz94",
-      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
-      "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "BABA",
-    "name": "Alibaba Group Holding - Backpack Securities",
-    "mint": "BABANGA4JE7Kkam4nTrALAwAVgsNJUuFJnnkF7S16BZp",
-    "decimals": 6,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backpack",
-    "kind": "equity",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 401,
-    "verified": {
-      "mintAuthority": "4oquU2Jyw8FWjyfYCqshnQctPmVwDs3pZXXRh4Lnu89w",
-      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
-      "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
@@ -617,12 +685,227 @@
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 385,
+    "launchesQuotedAgainst": 560,
+    "tradability": {
+      "liquidityUsd": 37805,
+      "impactPct": 0,
+      "priceUsd": 29.72404071213353,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "AQGfwosRHg8uZGf7cCPe1yax8fVoWKnW6r3odYVJuC31",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "BLK",
+    "name": "BlackRock - Backpack Securities",
+    "mint": "BLKKYfF41c6xRPrtX1rdYbxLE1xxEdZUnxQsB5hcZ8Nf",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backpack",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 538,
+    "tradability": {
+      "liquidityUsd": 57269,
+      "impactPct": 0.507,
+      "priceUsd": 1064.1882345919269,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "F49ZyQCqpCfAL4ZwhqguWpsPLjaa2USTGhZkSTk9rR2x",
+      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
+      "via": "control-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "BABA",
+    "name": "Alibaba Group Holding - Backpack Securities",
+    "mint": "BABANGA4JE7Kkam4nTrALAwAVgsNJUuFJnnkF7S16BZp",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backpack",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 529,
+    "tradability": {
+      "liquidityUsd": 125808,
+      "impactPct": 0.285,
+      "priceUsd": 106.63850143788255,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "4oquU2Jyw8FWjyfYCqshnQctPmVwDs3pZXXRh4Lnu89w",
+      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
+      "via": "control-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "KOx",
+    "name": "Coca-Cola xStock",
+    "mint": "XsaBXg8dU5cPM6ehmVctMkVqoiRG2ZjMo1cyBJ3AykQ",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backed",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 512,
+    "tradability": {
+      "liquidityUsd": 63003,
+      "impactPct": 0.18,
+      "priceUsd": 86.06742895242694,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "via": "mint-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer mint authority + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "RDDT",
+    "name": "Reddit - Backpack Securities",
+    "mint": "RDDTGbhHwVXfyCvQMXzzowKjf5qrYBZAnehoXW83ooh",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backpack",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 506,
+    "tradability": {
+      "liquidityUsd": 91672,
+      "impactPct": 0.512,
+      "priceUsd": 152.60534824018313,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "3Snj7Qdc6ggJcJ27LwRRBE4a4XEtSzWWUBgoaheW46n7",
+      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
+      "via": "control-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "AMD",
+    "name": "Advanced Micro Devices - Backpack Securities",
+    "mint": "AMD8XwJXgQ9WV45Wyj9yFLejxzf2J6VM1PJY8bJEjeES",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backpack",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 491,
+    "tradability": {
+      "liquidityUsd": 47386,
+      "impactPct": 0.577,
+      "priceUsd": 641.9309146894194,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "ByQt1hrWaQBAgQr4jpxuYSnJsYnM8nr4rX6gZrVTzz94",
+      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
+      "via": "control-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "RBLX",
+    "name": "Roblox - Backpack Securities",
+    "mint": "RBLXDGRD64AtRamHMFVcjqne3Ar7NLWtFtYNtsrf1cE",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backpack",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 474,
+    "tradability": {
+      "liquidityUsd": 99428,
+      "impactPct": 0.209,
+      "priceUsd": 46.067718308157374,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "Fg4Aop8rMCETvXZBuNDrGab9cdMqR5qeYSqQPsbiWTKp",
+      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
+      "via": "control-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "POLYMARKET",
+    "name": "Polymarket PreStocks",
+    "mint": "Pre8AREmFPtoJFT8mQSXQLh56cwJmM7CFDRuoGBZiUP",
+    "decimals": 9,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "prestocks",
+    "kind": "pre-ipo",
+    "priceAuthority": "none",
+    "transferFeeBps": 100,
+    "launchesQuotedAgainst": 465,
+    "tradability": {
+      "liquidityUsd": 26302,
+      "impactPct": 2.325,
+      "priceUsd": 144.62147777353346,
+      "ok": false,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "WV9PJN7XTmTLVwbutCLFxp8TyePee6Xq5mRq6Fti5Wc",
+      "issuerKey": "WV9PJN7XTmTLVwbutCLFxp8TyePee6Xq5mRq6Fti5Wc",
+      "via": "mint-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer mint authority + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "SQQQ",
+    "name": "ProShares UltraPro Short QQQ - Backpack Securities",
+    "mint": "SQQQAa3gUxgnqcEsdjPA4RQNQBgB97TnG2hJhk2WaGE",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backpack",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 451,
+    "tradability": {
+      "liquidityUsd": 52338,
+      "impactPct": 0.206,
+      "priceUsd": 32.252997046765046,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "EzHCq2gnCdFaeZcAf9ujd3a84ZzzmCRwGcUqLhFBKsUE",
+      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
+      "via": "control-authority",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
@@ -636,12 +919,19 @@
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 380,
+    "launchesQuotedAgainst": 400,
+    "tradability": {
+      "liquidityUsd": 58634,
+      "impactPct": 0.415,
+      "priceUsd": 41.15987218572259,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "BAwDA2CGupPg56SJkeELvf9sC3YzsQ8Nc5MnnALdp7hp",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
@@ -655,12 +945,19 @@
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 351,
+    "launchesQuotedAgainst": 385,
+    "tradability": {
+      "liquidityUsd": 19841,
+      "impactPct": 0.485,
+      "priceUsd": 6.112881136319411,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "2R1N2gJibQEZJVe2b1hzutGUQ2sCAAQcyv9sCQQGfwg8",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
@@ -673,32 +970,46 @@
     "issuer": "prestocks",
     "kind": "pre-ipo",
     "priceAuthority": "none",
-    "transferFeeBps": 300,
-    "launchesQuotedAgainst": 347,
+    "transferFeeBps": 100,
+    "launchesQuotedAgainst": 377,
+    "tradability": {
+      "liquidityUsd": 35216,
+      "impactPct": 4.63,
+      "priceUsd": 357.952412508501,
+      "ok": false,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "WV9PJN7XTmTLVwbutCLFxp8TyePee6Xq5mRq6Fti5Wc",
       "issuerKey": "WV9PJN7XTmTLVwbutCLFxp8TyePee6Xq5mRq6Fti5Wc",
       "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer mint authority + stonkfun pool census"
     }
   },
   {
-    "ticker": "CYPH",
-    "name": "Cypherpunk Technologies - Backpack Securities",
-    "mint": "CYPHuMmCL1GxJWa2tsPhLKykC7GrHJTCHwbXD4g5uawK",
+    "ticker": "NFLX",
+    "name": "Netflix - Backpack Securities",
+    "mint": "NFLX7qV57zuVxCoHy3s1jiGZyALraLNwttbxdvmYJLJ",
     "decimals": 6,
     "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
     "issuer": "backpack",
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 331,
+    "launchesQuotedAgainst": 370,
+    "tradability": {
+      "liquidityUsd": 77446,
+      "impactPct": 0.083,
+      "priceUsd": 69.37968029493074,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
-      "mintAuthority": "Cmzoo3U8ezcb95BJYmy3e6p6Lh1kyPm2bjDLcvNtVXES",
+      "mintAuthority": "CM2inmV9TJLtwVjtHvz2UXv86jDTwHaC57ySEgPvQnsF",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
@@ -712,31 +1023,71 @@
     "kind": "commodity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 326,
+    "launchesQuotedAgainst": 354,
+    "tradability": {
+      "liquidityUsd": 30675,
+      "impactPct": 0.646,
+      "priceUsd": 142.66866813743079,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "9QcovrmyR7yb988nznuHDEJQvRFvtcjPaNEJjg8htmru",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
   {
-    "ticker": "SCHH",
-    "name": "Schwab U.S. REIT ETF - Backpack Securities",
-    "mint": "SCHHJ3jRdSjeFEVAaLrnYdx3Brphn92Ys7z1qkiCtPX",
+    "ticker": "CYPH",
+    "name": "Cypherpunk Technologies - Backpack Securities",
+    "mint": "CYPHuMmCL1GxJWa2tsPhLKykC7GrHJTCHwbXD4g5uawK",
     "decimals": 6,
     "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
     "issuer": "backpack",
-    "kind": "etf",
+    "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 317,
+    "launchesQuotedAgainst": 347,
+    "tradability": {
+      "liquidityUsd": 32989,
+      "impactPct": 0,
+      "priceUsd": 3.0022232251665404,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
-      "mintAuthority": "426KMHpNKRmfd12AvWPvZXErQbbN1xgDzDszmPFnVPeA",
+      "mintAuthority": "Cmzoo3U8ezcb95BJYmy3e6p6Lh1kyPm2bjDLcvNtVXES",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "NOK",
+    "name": "Nokia Oyj - Backpack Securities",
+    "mint": "N7Q5fYX7YRnDQksfdBKnoUb3awm92n7QNAD35X3Rq1X",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backpack",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 333,
+    "tradability": {
+      "liquidityUsd": 58702,
+      "impactPct": 0.538,
+      "priceUsd": 10.682240574429988,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "9ggrttNZGitnpLZLxt3wVHWCiwZ5XPWDh2g7c5MTFN8R",
+      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
+      "via": "control-authority",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
@@ -750,69 +1101,45 @@
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 312,
+    "launchesQuotedAgainst": 331,
+    "tradability": {
+      "liquidityUsd": 78549,
+      "impactPct": 0.115,
+      "priceUsd": 5.789411089312924,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "2tX1LvpCB2qrg8ABZGrgRpFFcGbJrHNV31wXkinBoogY",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
   {
-    "ticker": "BB",
-    "name": "BlackBerry - Backpack Securities",
-    "mint": "BBosJLw8ZzoATiEyywiifx7AgmrD2Cm3XjFWbhbRhChy",
-    "decimals": 6,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backpack",
-    "kind": "equity",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 305,
-    "verified": {
-      "mintAuthority": "ChKbRQbNXCd5FAupajHHZLY2LLB7Hq47yXx7xMnCswfS",
-      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
-      "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "PTN",
-    "name": "Palatin Technologies, Inc. - Backpack Securities",
-    "mint": "PTNzAfFAB4LvoUQEUUGrFMyUoRLExMYjH6CcfyQfsVP",
-    "decimals": 6,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backpack",
-    "kind": "equity",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 304,
-    "verified": {
-      "mintAuthority": "Ht96hhtpQwxEqHt9K7PeSEvzorFV6RbFKJS75w3maBTy",
-      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
-      "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "URA",
-    "name": "Global X Uranium ETF - Backpack Securities",
-    "mint": "URARfsinxCRw4JpvQhuT4CxavdZXZEMjv9ZwWmWpwag",
+    "ticker": "SCHH",
+    "name": "Schwab U.S. REIT ETF - Backpack Securities",
+    "mint": "SCHHJ3jRdSjeFEVAaLrnYdx3Brphn92Ys7z1qkiCtPX",
     "decimals": 6,
     "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
     "issuer": "backpack",
     "kind": "etf",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 299,
+    "launchesQuotedAgainst": 322,
+    "tradability": {
+      "liquidityUsd": 10557,
+      "impactPct": 0.649,
+      "priceUsd": 21.89307042548021,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
-      "mintAuthority": "7YKhgXzbSug6r9nZZNaVSXpCfin8ntMnQhM8HHSnBXHZ",
+      "mintAuthority": "426KMHpNKRmfd12AvWPvZXErQbbN1xgDzDszmPFnVPeA",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
@@ -826,31 +1153,19 @@
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 298,
+    "launchesQuotedAgainst": 318,
+    "tradability": {
+      "liquidityUsd": 50420,
+      "impactPct": 0.568,
+      "priceUsd": 298.5641003258644,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "3iVaLFZtBZ9qbkYrdnaExxPargnWDZwDKskHPFjcaRY6",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "BROS",
-    "name": "Dutch Bros - Backpack Securities",
-    "mint": "BRVaZKg6J9iF2BEsdpsxJ9NyvN9PPxPZuoQUX2v8qqkk",
-    "decimals": 6,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backpack",
-    "kind": "equity",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 298,
-    "verified": {
-      "mintAuthority": "KRj8bpcVTfMnPvSCNqsbJuZTNgu88QNwkkj43aRt5u7",
-      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
-      "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
@@ -864,31 +1179,71 @@
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 289,
+    "launchesQuotedAgainst": 317,
+    "tradability": {
+      "liquidityUsd": 2278572,
+      "impactPct": 0.2,
+      "priceUsd": 81.1331761612279,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
       "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
       "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer mint authority + stonkfun pool census"
     }
   },
   {
-    "ticker": "DNUT",
-    "name": "Krispy Kreme, Inc. Common Stock - Backpack Securities",
-    "mint": "DNUTsCvKbKwu2RM72cUuW3TD9YpzArzACcqYQssjPLSk",
+    "ticker": "BB",
+    "name": "BlackBerry - Backpack Securities",
+    "mint": "BBosJLw8ZzoATiEyywiifx7AgmrD2Cm3XjFWbhbRhChy",
     "decimals": 6,
     "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
     "issuer": "backpack",
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 267,
+    "launchesQuotedAgainst": 316,
+    "tradability": {
+      "liquidityUsd": 69894,
+      "impactPct": 2.037,
+      "priceUsd": 9.237783578140869,
+      "ok": false,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
-      "mintAuthority": "GsxfJifoHKMP7QRuzoxWfhzcj3sDTdv65FrBYngWvNHJ",
+      "mintAuthority": "ChKbRQbNXCd5FAupajHHZLY2LLB7Hq47yXx7xMnCswfS",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "URA",
+    "name": "Global X Uranium ETF - Backpack Securities",
+    "mint": "URARfsinxCRw4JpvQhuT4CxavdZXZEMjv9ZwWmWpwag",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backpack",
+    "kind": "etf",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 309,
+    "tradability": {
+      "liquidityUsd": 4845,
+      "impactPct": null,
+      "priceUsd": null,
+      "ok": false,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "7YKhgXzbSug6r9nZZNaVSXpCfin8ntMnQhM8HHSnBXHZ",
+      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
+      "via": "control-authority",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
@@ -902,50 +1257,123 @@
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 259,
+    "launchesQuotedAgainst": 308,
+    "tradability": {
+      "liquidityUsd": 264475,
+      "impactPct": 0.128,
+      "priceUsd": 99.61381465069671,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
       "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
       "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer mint authority + stonkfun pool census"
     }
   },
   {
-    "ticker": "IREN",
-    "name": "IREN - Backpack Securities",
-    "mint": "RENzhrJQgmAnfcLhU1U5XwAMc6TC15UA6jCbPBaasnj",
+    "ticker": "MU",
+    "name": "Micron Technology - Backpack Securities",
+    "mint": "MUxEsUKSMACyw5fZf68wxf5FLnZVhtU9CwH8uNNGay1",
     "decimals": 6,
     "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
     "issuer": "backpack",
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 243,
+    "launchesQuotedAgainst": 307,
+    "tradability": {
+      "liquidityUsd": 4395967,
+      "impactPct": 0.299,
+      "priceUsd": 1085.378480010556,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
-      "mintAuthority": "7jdrGaAgoAzJfNzLJctbqCzeZKVFeXg9wXGUTPAgBdp3",
+      "mintAuthority": "6XPofT3JgdoZAkUxqAbYZLNbsDvBCkDqrEWeaTiQKRBD",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
   {
-    "ticker": "LMT",
-    "name": "Lockheed Martin - Backpack Securities",
-    "mint": "LMT3i1BHgixFqPUgcyteJhnEz2dpy9i3cYy4pi9BoeV",
+    "ticker": "PTN",
+    "name": "Palatin Technologies, Inc. - Backpack Securities",
+    "mint": "PTNzAfFAB4LvoUQEUUGrFMyUoRLExMYjH6CcfyQfsVP",
     "decimals": 6,
     "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
     "issuer": "backpack",
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 234,
+    "launchesQuotedAgainst": 306,
+    "tradability": {
+      "liquidityUsd": 12787,
+      "impactPct": 0.875,
+      "priceUsd": 9.309337964416338,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
-      "mintAuthority": "5h1SwcGk1FBqxbuwp2p4VfwWvtFkNbo1c9SYKDWu3Que",
+      "mintAuthority": "Ht96hhtpQwxEqHt9K7PeSEvzorFV6RbFKJS75w3maBTy",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "BROS",
+    "name": "Dutch Bros - Backpack Securities",
+    "mint": "BRVaZKg6J9iF2BEsdpsxJ9NyvN9PPxPZuoQUX2v8qqkk",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backpack",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 303,
+    "tradability": {
+      "liquidityUsd": 53026,
+      "impactPct": 2.062,
+      "priceUsd": 38.281426392703224,
+      "ok": false,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "KRj8bpcVTfMnPvSCNqsbJuZTNgu88QNwkkj43aRt5u7",
+      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
+      "via": "control-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "DNUT",
+    "name": "Krispy Kreme, Inc. Common Stock - Backpack Securities",
+    "mint": "DNUTsCvKbKwu2RM72cUuW3TD9YpzArzACcqYQssjPLSk",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backpack",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 277,
+    "tradability": {
+      "liquidityUsd": 61688,
+      "impactPct": 0.551,
+      "priceUsd": 2.959322949955623,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "GsxfJifoHKMP7QRuzoxWfhzcj3sDTdv65FrBYngWvNHJ",
+      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
+      "via": "control-authority",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
@@ -959,145 +1387,71 @@
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 234,
+    "launchesQuotedAgainst": 272,
+    "tradability": {
+      "liquidityUsd": 82200,
+      "impactPct": 0.306,
+      "priceUsd": 91.26291338848607,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "4dFwFB8UdV9xV5FSVsKquYwd2k9FXgT2Fy4EKgjKLiL9",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
   {
-    "ticker": "BRK.Bx",
-    "name": "Berkshire Hathaway xStock",
-    "mint": "Xs6B6zawENwAbWVi7w92rjazLuAr5Az59qgWKcNb45x",
-    "decimals": 8,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backed",
-    "kind": "equity",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 223,
-    "verified": {
-      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
-      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
-      "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer mint authority + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "COST",
-    "name": "Costco Wholesale - Backpack Securities",
-    "mint": "CZEB3WNZuF2Yz1z2H81RcCk8T7fsw82KB33zqamASVsg",
+    "ticker": "LMT",
+    "name": "Lockheed Martin - Backpack Securities",
+    "mint": "LMT3i1BHgixFqPUgcyteJhnEz2dpy9i3cYy4pi9BoeV",
     "decimals": 6,
     "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
     "issuer": "backpack",
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 218,
+    "launchesQuotedAgainst": 266,
+    "tradability": {
+      "liquidityUsd": 99318,
+      "impactPct": 0.555,
+      "priceUsd": 501.8966273789714,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
-      "mintAuthority": "HSoK14XcYifGGuHyBi5DVctoK77VbNXs2Je4Znmz6owC",
+      "mintAuthority": "5h1SwcGk1FBqxbuwp2p4VfwWvtFkNbo1c9SYKDWu3Que",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
   {
-    "ticker": "INTCx",
-    "name": "Intel xStock",
-    "mint": "XshPgPdXFRWB8tP1j82rebb2Q9rPgGX37RuqzohmArM",
-    "decimals": 8,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backed",
-    "kind": "equity",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 208,
-    "verified": {
-      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
-      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
-      "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer mint authority + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "HTZ",
-    "name": "Hertz Global Holdings, Inc Common Stock - Backpack Securities",
-    "mint": "HTZsLG4zqaNvWMwXSLHH3GG5KyJpKwpBRsKVdMG6hvzP",
+    "ticker": "IREN",
+    "name": "IREN - Backpack Securities",
+    "mint": "RENzhrJQgmAnfcLhU1U5XwAMc6TC15UA6jCbPBaasnj",
     "decimals": 6,
     "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
     "issuer": "backpack",
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 208,
+    "launchesQuotedAgainst": 259,
+    "tradability": {
+      "liquidityUsd": 58338,
+      "impactPct": 0.64,
+      "priceUsd": 38.53864129137978,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
-      "mintAuthority": "99esU2CxAvPoP21t6wHkfiE2oSM7YVrNETujPv2rH2eh",
+      "mintAuthority": "7jdrGaAgoAzJfNzLJctbqCzeZKVFeXg9wXGUTPAgBdp3",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "AMC",
-    "name": "AMC Entertainment - Backpack Securities",
-    "mint": "AMC1qwR9KhiyrQBRPrxnfo4JfMeMZqEBvt5tgTytNNoc",
-    "decimals": 6,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backpack",
-    "kind": "equity",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 202,
-    "verified": {
-      "mintAuthority": "7ZhVi7sS7HLWteVAvn6g6fzUZxPwzZdRXeK9B3eG3c12",
-      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
-      "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "UPS",
-    "name": "United Parcel Service - Backpack Securities",
-    "mint": "UPSqUeMHcWbkdg784XuBUEF9DtySSnW9ur5LAVdcuB9",
-    "decimals": 6,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backpack",
-    "kind": "equity",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 202,
-    "verified": {
-      "mintAuthority": "FPP96YKQ7FNw5WAet69wEMjby6ZePiT6hBZcn8o5zfyx",
-      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
-      "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "FWDI",
-    "name": "Forward Industries, Inc. - Backpack Securities",
-    "mint": "FWDtiB5fXHdVAewPqvHPL2dh4aBC1C6GacQbePoQXKjz",
-    "decimals": 6,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backpack",
-    "kind": "equity",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 200,
-    "verified": {
-      "mintAuthority": "9yCM9pZHhefojiTqLm1cDbQZFaKR1YvZU4KPWzW3rdbc",
-      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
-      "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
@@ -1111,31 +1465,123 @@
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 200,
+    "launchesQuotedAgainst": 256,
+    "tradability": {
+      "liquidityUsd": 121754,
+      "impactPct": 0,
+      "priceUsd": 221.2606695155577,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "7D7ZBEbWfCGco23pKqEqb9uySdMe25mbKaeHwh16opfh",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
   {
-    "ticker": "CRWV",
-    "name": "CoreWeave - Backpack Securities",
-    "mint": "CRWVJeR2yEZuDUKYfGuKCHvLz8ywn4LGvovHfy5WiFmi",
+    "ticker": "BRK.Bx",
+    "name": "Berkshire Hathaway xStock",
+    "mint": "Xs6B6zawENwAbWVi7w92rjazLuAr5Az59qgWKcNb45x",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backed",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 249,
+    "tradability": {
+      "liquidityUsd": 103185,
+      "impactPct": 0.488,
+      "priceUsd": 504.0950786892269,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "via": "mint-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer mint authority + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "COST",
+    "name": "Costco Wholesale - Backpack Securities",
+    "mint": "CZEB3WNZuF2Yz1z2H81RcCk8T7fsw82KB33zqamASVsg",
     "decimals": 6,
     "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
     "issuer": "backpack",
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 199,
+    "launchesQuotedAgainst": 237,
+    "tradability": {
+      "liquidityUsd": 76539,
+      "impactPct": 0.674,
+      "priceUsd": 944.6008939350189,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
-      "mintAuthority": "6Fw4z711wTEZNLe5amd8BrRRQRB38cvVvtadCKkHEn6N",
+      "mintAuthority": "HSoK14XcYifGGuHyBi5DVctoK77VbNXs2Je4Znmz6owC",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "INTCx",
+    "name": "Intel xStock",
+    "mint": "XshPgPdXFRWB8tP1j82rebb2Q9rPgGX37RuqzohmArM",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backed",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 236,
+    "tradability": {
+      "liquidityUsd": 61921,
+      "impactPct": 0.691,
+      "priceUsd": 112.82690743465344,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "via": "mint-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer mint authority + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "AMC",
+    "name": "AMC Entertainment - Backpack Securities",
+    "mint": "AMC1qwR9KhiyrQBRPrxnfo4JfMeMZqEBvt5tgTytNNoc",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backpack",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 236,
+    "tradability": {
+      "liquidityUsd": 17209,
+      "impactPct": 0.315,
+      "priceUsd": 2.8988601426547067,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "7ZhVi7sS7HLWteVAvn6g6fzUZxPwzZdRXeK9B3eG3c12",
+      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
+      "via": "control-authority",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
@@ -1149,32 +1595,20 @@
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 198,
+    "launchesQuotedAgainst": 230,
+    "tradability": {
+      "liquidityUsd": 90829,
+      "impactPct": 0.545,
+      "priceUsd": 29.34265961830609,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "HcSDK8nSoSft3VMP2d8ASnXnzDJnnY4Ak2xkhBtHgQ4H",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "KALSHI",
-    "name": "Kalshi PreStocks",
-    "mint": "PreLWGkkeqG1s4HEfFZSy9moCrJ7btsHuUtfcCeoRua",
-    "decimals": 9,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "prestocks",
-    "kind": "pre-ipo",
-    "priceAuthority": "none",
-    "transferFeeBps": 300,
-    "launchesQuotedAgainst": 196,
-    "verified": {
-      "mintAuthority": "WV9PJN7XTmTLVwbutCLFxp8TyePee6Xq5mRq6Fti5Wc",
-      "issuerKey": "WV9PJN7XTmTLVwbutCLFxp8TyePee6Xq5mRq6Fti5Wc",
-      "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer mint authority + stonkfun pool census"
     }
   },
   {
@@ -1187,31 +1621,175 @@
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 194,
+    "launchesQuotedAgainst": 230,
+    "tradability": {
+      "liquidityUsd": 63533,
+      "impactPct": 0.461,
+      "priceUsd": 1193.622670938605,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "8A28ACAcUXHTmfKk8jZFBBzimGsEcfZQf1VnwEYDYNX1",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
   {
-    "ticker": "FLWS",
-    "name": "1-800-FLOWERS.COM - Backpack Securities",
-    "mint": "FLWSojG1gB5VStYR3Sb4nQFRt43UBYkqih1j2CpVLqgd",
+    "ticker": "KALSHI",
+    "name": "Kalshi PreStocks",
+    "mint": "PreLWGkkeqG1s4HEfFZSy9moCrJ7btsHuUtfcCeoRua",
+    "decimals": 9,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "prestocks",
+    "kind": "pre-ipo",
+    "priceAuthority": "none",
+    "transferFeeBps": 100,
+    "launchesQuotedAgainst": 223,
+    "tradability": {
+      "liquidityUsd": 14231,
+      "impactPct": 2.493,
+      "priceUsd": 893.6003381314171,
+      "ok": false,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "WV9PJN7XTmTLVwbutCLFxp8TyePee6Xq5mRq6Fti5Wc",
+      "issuerKey": "WV9PJN7XTmTLVwbutCLFxp8TyePee6Xq5mRq6Fti5Wc",
+      "via": "mint-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer mint authority + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "UPS",
+    "name": "United Parcel Service - Backpack Securities",
+    "mint": "UPSqUeMHcWbkdg784XuBUEF9DtySSnW9ur5LAVdcuB9",
     "decimals": 6,
     "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
     "issuer": "backpack",
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 193,
+    "launchesQuotedAgainst": 221,
+    "tradability": {
+      "liquidityUsd": 57470,
+      "impactPct": 0.626,
+      "priceUsd": 92.93921619420685,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
-      "mintAuthority": "BtSKef76m1JsUR4QxjduukD7FFLWiWsfQB6uMUeTMyz3",
+      "mintAuthority": "FPP96YKQ7FNw5WAet69wEMjby6ZePiT6hBZcn8o5zfyx",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "HTZ",
+    "name": "Hertz Global Holdings, Inc Common Stock - Backpack Securities",
+    "mint": "HTZsLG4zqaNvWMwXSLHH3GG5KyJpKwpBRsKVdMG6hvzP",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backpack",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 213,
+    "tradability": {
+      "liquidityUsd": 2273,
+      "impactPct": null,
+      "priceUsd": null,
+      "ok": false,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "99esU2CxAvPoP21t6wHkfiE2oSM7YVrNETujPv2rH2eh",
+      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
+      "via": "control-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "CRWV",
+    "name": "CoreWeave - Backpack Securities",
+    "mint": "CRWVJeR2yEZuDUKYfGuKCHvLz8ywn4LGvovHfy5WiFmi",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backpack",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 213,
+    "tradability": {
+      "liquidityUsd": 55263,
+      "impactPct": 0.23,
+      "priceUsd": 88.70186795897264,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "6Fw4z711wTEZNLe5amd8BrRRQRB38cvVvtadCKkHEn6N",
+      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
+      "via": "control-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "FWDI",
+    "name": "Forward Industries, Inc. - Backpack Securities",
+    "mint": "FWDtiB5fXHdVAewPqvHPL2dh4aBC1C6GacQbePoQXKjz",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backpack",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 207,
+    "tradability": {
+      "liquidityUsd": 55435,
+      "impactPct": 0.202,
+      "priceUsd": 7.559037896209551,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "9yCM9pZHhefojiTqLm1cDbQZFaKR1YvZU4KPWzW3rdbc",
+      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
+      "via": "control-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "RACE",
+    "name": "Ferrari - Backpack Securities",
+    "mint": "RACEyWiM2ztEZcJx2AHXU2eWjhxU57x3vXn92b39dLD",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backpack",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 202,
+    "tradability": {
+      "liquidityUsd": 26554,
+      "impactPct": 0.06,
+      "priceUsd": 388.3882382684081,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "EJFcxJinQxhQhNeyu3NykXH5pq6zfzJuaSETCMi2XstX",
+      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
+      "via": "control-authority",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
@@ -1225,69 +1803,45 @@
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 190,
+    "launchesQuotedAgainst": 202,
+    "tradability": {
+      "liquidityUsd": 83496,
+      "impactPct": 0.134,
+      "priceUsd": 165.7732433270878,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "CdiZcEvWcCs2hbUzW9x3ZpBftbPNwm2W3QrY5ZuyupK8",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
   {
-    "ticker": "FLY",
-    "name": "Firefly Aerospace - Backpack Securities",
-    "mint": "FLYRq3en8r2Z69gN3KyAnDrvnitEJNkwPYY7favinHeD",
+    "ticker": "FLWS",
+    "name": "1-800-FLOWERS.COM - Backpack Securities",
+    "mint": "FLWSojG1gB5VStYR3Sb4nQFRt43UBYkqih1j2CpVLqgd",
     "decimals": 6,
     "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
     "issuer": "backpack",
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 186,
+    "launchesQuotedAgainst": 195,
+    "tradability": {
+      "liquidityUsd": 4567,
+      "impactPct": null,
+      "priceUsd": null,
+      "ok": false,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
-      "mintAuthority": "53CLKmmVrAuR2kD1rztBSDhYCCa8CMiBrmytx9btVi5h",
+      "mintAuthority": "BtSKef76m1JsUR4QxjduukD7FFLWiWsfQB6uMUeTMyz3",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "WULF",
-    "name": "TeraWulf - Backpack Securities",
-    "mint": "WULFeyfrj1VJKD9HhRTcW8R4g5HefUA11HDEdBv2WxD",
-    "decimals": 6,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backpack",
-    "kind": "equity",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 183,
-    "verified": {
-      "mintAuthority": "DZDiU8T6FkmPFZV155LZukgEjXnGnQuW7xcDEEi1pU4p",
-      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
-      "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "MU",
-    "name": "Micron Technology - Backpack Securities",
-    "mint": "MUxEsUKSMACyw5fZf68wxf5FLnZVhtU9CwH8uNNGay1",
-    "decimals": 6,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backpack",
-    "kind": "equity",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 183,
-    "verified": {
-      "mintAuthority": "6XPofT3JgdoZAkUxqAbYZLNbsDvBCkDqrEWeaTiQKRBD",
-      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
-      "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
@@ -1301,70 +1855,72 @@
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 180,
+    "launchesQuotedAgainst": 195,
+    "tradability": {
+      "liquidityUsd": 30860,
+      "impactPct": 1.012,
+      "priceUsd": 1.2621707191465523,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "DfQxrp1uSZG6pk8BNfU7aeVQmTxTy7tuM8zdVe3h9K4z",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
   {
-    "ticker": "RUM",
-    "name": "RUM Group Inc. - Backpack Securities",
-    "mint": "RUMsPfFZFnN1ZmGANwP7FNMJMjKH4m9RiMePrtVtLe7",
+    "ticker": "FLY",
+    "name": "Firefly Aerospace - Backpack Securities",
+    "mint": "FLYRq3en8r2Z69gN3KyAnDrvnitEJNkwPYY7favinHeD",
     "decimals": 6,
     "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
     "issuer": "backpack",
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 170,
+    "launchesQuotedAgainst": 188,
+    "tradability": {
+      "liquidityUsd": 6997,
+      "impactPct": 0.692,
+      "priceUsd": 21.815630578097917,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
-      "mintAuthority": "4ffj7SAFJJEnqPgbyrtL77MqtQ61MpzED9o8Ei94N1gj",
+      "mintAuthority": "53CLKmmVrAuR2kD1rztBSDhYCCa8CMiBrmytx9btVi5h",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
   {
-    "ticker": "SPHR",
-    "name": "Sphere Entertainment Co. - Backpack Securities",
-    "mint": "SPHRp8cZaSQBTp1KMNP4V1X821SXhXWt4Q2yLdyHzju",
+    "ticker": "WULF",
+    "name": "TeraWulf - Backpack Securities",
+    "mint": "WULFeyfrj1VJKD9HhRTcW8R4g5HefUA11HDEdBv2WxD",
     "decimals": 6,
     "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
     "issuer": "backpack",
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 165,
+    "launchesQuotedAgainst": 186,
+    "tradability": {
+      "liquidityUsd": 52949,
+      "impactPct": 1.911,
+      "priceUsd": 14.107768643484683,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
-      "mintAuthority": "2oPTjFXJBp6CxsCzCXSDp23PZ11T4sPgcVTV2G8yDmoH",
+      "mintAuthority": "DZDiU8T6FkmPFZV155LZukgEjXnGnQuW7xcDEEi1pU4p",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "DFDVx",
-    "name": "DFDV xStock",
-    "mint": "Xs2yquAgsHByNzx68WJC55WHjHBvG9JsMB7CWjTLyPy",
-    "decimals": 8,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backed",
-    "kind": "equity",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 162,
-    "verified": {
-      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
-      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
-      "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer mint authority + stonkfun pool census"
     }
   },
   {
@@ -1377,12 +1933,45 @@
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 156,
+    "launchesQuotedAgainst": 182,
+    "tradability": {
+      "liquidityUsd": 124826,
+      "impactPct": 0.141,
+      "priceUsd": 1728.435256959922,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "umtnrdLnVDfqXgm9iTnU1jFphfEgYMTJRSgryahGWky",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "DRAM",
+    "name": "Roundhill Memory ETF - Backpack Securities",
+    "mint": "DRAMjSWR7HRfJKjRkvQWYL2bcaejaVhuxEcjf4pAY4Cw",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backpack",
+    "kind": "etf",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 179,
+    "tradability": {
+      "liquidityUsd": 431890,
+      "impactPct": 0,
+      "priceUsd": 60.17853331770938,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "3KcsEVwamShn8CQwkikHsVxJqZxD49PsZwVvZwPnK9cx",
+      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
+      "via": "control-authority",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
@@ -1396,12 +1985,45 @@
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 156,
+    "launchesQuotedAgainst": 178,
+    "tradability": {
+      "liquidityUsd": 69092,
+      "impactPct": 0.516,
+      "priceUsd": 7.530043903610669,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "B98JFNttxEtfUNH3sj83FBWHKyxWinhmAcisWC1Xa1Nr",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "SPHR",
+    "name": "Sphere Entertainment Co. - Backpack Securities",
+    "mint": "SPHRp8cZaSQBTp1KMNP4V1X821SXhXWt4Q2yLdyHzju",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backpack",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 175,
+    "tradability": {
+      "liquidityUsd": 45637,
+      "impactPct": 3.614,
+      "priceUsd": 106.24690036078448,
+      "ok": false,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "2oPTjFXJBp6CxsCzCXSDp23PZ11T4sPgcVTV2G8yDmoH",
+      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
+      "via": "control-authority",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
@@ -1415,183 +2037,97 @@
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 150,
+    "launchesQuotedAgainst": 173,
+    "tradability": {
+      "liquidityUsd": 60924,
+      "impactPct": 1.013,
+      "priceUsd": 186.71604995425218,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "2cvL5ctqB4sgDwHW3zYR1wbULu7KeV7UJ9xHcHrTyDyx",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
   {
-    "ticker": "VIDAx",
-    "name": "Vida Global xStock",
-    "mint": "XsfCC9VL4DamVGNgdJpfLXB3sBVa158Gbx8sh7NzmTk",
+    "ticker": "DFDVx",
+    "name": "DFDV xStock",
+    "mint": "Xs2yquAgsHByNzx68WJC55WHjHBvG9JsMB7CWjTLyPy",
     "decimals": 8,
     "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
     "issuer": "backed",
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 124,
+    "launchesQuotedAgainst": 172,
+    "tradability": {
+      "liquidityUsd": 59397,
+      "impactPct": 1.499,
+      "priceUsd": 4.712246535626797,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
       "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
       "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer mint authority + stonkfun pool census"
     }
   },
   {
-    "ticker": "ANDURIL",
-    "name": "Anduril PreStocks",
-    "mint": "PresTj4Yc2bAR197Er7wz4UUKSfqt6FryBEdAriBoQB",
-    "decimals": 9,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "prestocks",
-    "kind": "pre-ipo",
-    "priceAuthority": "none",
-    "transferFeeBps": 300,
-    "launchesQuotedAgainst": 113,
-    "verified": {
-      "mintAuthority": "WV9PJN7XTmTLVwbutCLFxp8TyePee6Xq5mRq6Fti5Wc",
-      "issuerKey": "WV9PJN7XTmTLVwbutCLFxp8TyePee6Xq5mRq6Fti5Wc",
-      "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer mint authority + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "MRVL",
-    "name": "Marvell Technology - Backpack Securities",
-    "mint": "MRVLSjkR2ceUBukujaD3xCyHP1H3B2SzpsNTZF546jo",
+    "ticker": "RUM",
+    "name": "RUM Group Inc. - Backpack Securities",
+    "mint": "RUMsPfFZFnN1ZmGANwP7FNMJMjKH4m9RiMePrtVtLe7",
     "decimals": 6,
     "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
     "issuer": "backpack",
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 109,
+    "launchesQuotedAgainst": 171,
+    "tradability": {
+      "liquidityUsd": 54735,
+      "impactPct": 0.103,
+      "priceUsd": 7.529882429048656,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
-      "mintAuthority": "DNq6CnSdUr6SQ5SPgxK8Qsdom6fuUDZJ5zgbDsqPMaDJ",
+      "mintAuthority": "4ffj7SAFJJEnqPgbyrtL77MqtQ61MpzED9o8Ei94N1gj",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
   {
-    "ticker": "SKHY",
-    "name": "SK Hynix - Backpack Securities",
-    "mint": "SKHYhSjuRWHgikq8eRKbtBbpABgJSkd7ytQV14i9EQ3",
+    "ticker": "RKLB",
+    "name": "Rocket Lab - Backpack Securities",
+    "mint": "RKLBnAXGqv31iZomqsuAWkQm1aqC7JwwvbCfzGdqAhz",
     "decimals": 6,
     "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
     "issuer": "backpack",
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 104,
+    "launchesQuotedAgainst": 168,
+    "tradability": {
+      "liquidityUsd": 52476,
+      "impactPct": 0.502,
+      "priceUsd": 71.55343991606901,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
-      "mintAuthority": "Bv1CLW7r7JNv18Zgp8bebE6KPjhkaeFHCHgNDHHXjkYD",
+      "mintAuthority": "9ShhTYQG9YcjbkDmDyjF4NcCQ2ikoTkBuNxs6aRqo13q",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "tKalshi",
-    "name": "T-Kalshi",
-    "mint": "TKLSidmLVt3cqGaaodG8tyRzoANfQwoh67AccjmubeZ",
-    "decimals": 9,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "tessera",
-    "kind": "pre-ipo",
-    "priceAuthority": "none",
-    "transferFeeBps": 20,
-    "launchesQuotedAgainst": 102,
-    "verified": {
-      "mintAuthority": "EXvTtxurWBUNNCtLojaN8ZBJFNJPZFSH3szoih9hh7YW",
-      "issuerKey": "EXvTtxurWBUNNCtLojaN8ZBJFNJPZFSH3szoih9hh7YW",
-      "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer mint authority + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "DRAM",
-    "name": "Roundhill Memory ETF - Backpack Securities",
-    "mint": "DRAMjSWR7HRfJKjRkvQWYL2bcaejaVhuxEcjf4pAY4Cw",
-    "decimals": 6,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backpack",
-    "kind": "etf",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 100,
-    "verified": {
-      "mintAuthority": "3KcsEVwamShn8CQwkikHsVxJqZxD49PsZwVvZwPnK9cx",
-      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
-      "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "MRNA",
-    "name": "Moderna - Backpack Securities",
-    "mint": "MRNAzXzhNcaEXJPibHEn8cd4vyekCDiivTyEwswLUCT",
-    "decimals": 6,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backpack",
-    "kind": "equity",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 99,
-    "verified": {
-      "mintAuthority": "EjUD1psutpGB7jGcG1Jojyc2m7R7NhJrBLVsqJ1GNFAE",
-      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
-      "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "BULL",
-    "name": "Webull Corporation - Backpack Securities",
-    "mint": "BULL151gUXcFV5wXEUqu9Am2L7Qt4bTJRLRuAUjkcspC",
-    "decimals": 6,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backpack",
-    "kind": "equity",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 90,
-    "verified": {
-      "mintAuthority": "GstZxcNV2U1nZAiPQLw1nA263xyfhKJMEMJp6spo7yqc",
-      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
-      "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "LUV",
-    "name": "Southwest Airlines Co. - Backpack Securities",
-    "mint": "LUV9GB51PNZNRyzzyYK3rtqFfvDvWtRiXZ34wVq2HrX",
-    "decimals": 6,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backpack",
-    "kind": "equity",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 86,
-    "verified": {
-      "mintAuthority": "3xpRMraH1NEmaivVi9EN83yHnHj5z7i1o7svyAjVmx5n",
-      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
-      "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
@@ -1605,12 +2141,279 @@
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 85,
+    "launchesQuotedAgainst": 161,
+    "tradability": {
+      "liquidityUsd": 12780,
+      "impactPct": 0.181,
+      "priceUsd": 27.99153716677825,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "AbPEjpzANSfEvSycSdYmMZZ1n6RVqRSBVn8DYXdYaXw1",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "BE",
+    "name": "Bloom Energy - Backpack Securities",
+    "mint": "BEBVfXZ8uCxRBuunEbW9wcq9r7W9ySNo14oJBJkDgpZx",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backpack",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 160,
+    "tradability": {
+      "liquidityUsd": 55045,
+      "impactPct": 0.043,
+      "priceUsd": 289.7199044646611,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "5n3rbjAkTa2KFD2j7Bmzmq8p43y9P2fVFYe9WEbLwc1Q",
+      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
+      "via": "control-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "EWY",
+    "name": "iShares MSCI South Korea ETF - Backpack Securities",
+    "mint": "EWY4owSJYMpwN33qGDu5gGxpkQkpMJu8ZUsQJaNZG5dv",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backpack",
+    "kind": "etf",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 156,
+    "tradability": {
+      "liquidityUsd": 51779,
+      "impactPct": 1.054,
+      "priceUsd": 182.6794760338904,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "U5NvrVjzd8R49CU6hgKFxra379Tnwrw9eNp3vEohLQc",
+      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
+      "via": "control-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "SKHY",
+    "name": "SK Hynix - Backpack Securities",
+    "mint": "SKHYhSjuRWHgikq8eRKbtBbpABgJSkd7ytQV14i9EQ3",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backpack",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 155,
+    "tradability": {
+      "liquidityUsd": 2426746,
+      "impactPct": 0.207,
+      "priceUsd": 179.02070176013936,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "Bv1CLW7r7JNv18Zgp8bebE6KPjhkaeFHCHgNDHHXjkYD",
+      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
+      "via": "control-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "MRNA",
+    "name": "Moderna - Backpack Securities",
+    "mint": "MRNAzXzhNcaEXJPibHEn8cd4vyekCDiivTyEwswLUCT",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backpack",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 150,
+    "tradability": {
+      "liquidityUsd": 31783,
+      "impactPct": 0.086,
+      "priceUsd": 192.05648815747637,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "EjUD1psutpGB7jGcG1Jojyc2m7R7NhJrBLVsqJ1GNFAE",
+      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
+      "via": "control-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "tKalshi",
+    "name": "T-Kalshi",
+    "mint": "TKLSidmLVt3cqGaaodG8tyRzoANfQwoh67AccjmubeZ",
+    "decimals": 9,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "tessera",
+    "kind": "pre-ipo",
+    "priceAuthority": "none",
+    "transferFeeBps": 20,
+    "launchesQuotedAgainst": 149,
+    "tradability": {
+      "liquidityUsd": 704648,
+      "impactPct": 0.205,
+      "priceUsd": 447.08322524009805,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "EXvTtxurWBUNNCtLojaN8ZBJFNJPZFSH3szoih9hh7YW",
+      "issuerKey": "EXvTtxurWBUNNCtLojaN8ZBJFNJPZFSH3szoih9hh7YW",
+      "via": "mint-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer mint authority + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "EWZ",
+    "name": "iShares MSCI Brazil ETF - Backpack Securities",
+    "mint": "EWZzCki1igp2y73UyUM4RCG4QUVMQAtnrQUVNaDHzDxJ",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backpack",
+    "kind": "etf",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 142,
+    "tradability": {
+      "liquidityUsd": 48336,
+      "impactPct": 1.413,
+      "priceUsd": 42.12028794126454,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "NkYT3jFHaT1MzKS9fianJmd8X6YSjtd7pMtEXgZAqhd",
+      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
+      "via": "control-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "ANDURIL",
+    "name": "Anduril PreStocks",
+    "mint": "PresTj4Yc2bAR197Er7wz4UUKSfqt6FryBEdAriBoQB",
+    "decimals": 9,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "prestocks",
+    "kind": "pre-ipo",
+    "priceAuthority": "none",
+    "transferFeeBps": 100,
+    "launchesQuotedAgainst": 134,
+    "tradability": {
+      "liquidityUsd": 42821,
+      "impactPct": 1.827,
+      "priceUsd": 159.27370795102354,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "WV9PJN7XTmTLVwbutCLFxp8TyePee6Xq5mRq6Fti5Wc",
+      "issuerKey": "WV9PJN7XTmTLVwbutCLFxp8TyePee6Xq5mRq6Fti5Wc",
+      "via": "mint-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer mint authority + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "MRVL",
+    "name": "Marvell Technology - Backpack Securities",
+    "mint": "MRVLSjkR2ceUBukujaD3xCyHP1H3B2SzpsNTZF546jo",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backpack",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 128,
+    "tradability": {
+      "liquidityUsd": 37424,
+      "impactPct": 0.031,
+      "priceUsd": 280.5152523813024,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "DNq6CnSdUr6SQ5SPgxK8Qsdom6fuUDZJ5zgbDsqPMaDJ",
+      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
+      "via": "control-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "VIDAx",
+    "name": "Vida Global xStock",
+    "mint": "XsfCC9VL4DamVGNgdJpfLXB3sBVa158Gbx8sh7NzmTk",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backed",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 126,
+    "tradability": {
+      "liquidityUsd": 47149,
+      "impactPct": 0.134,
+      "priceUsd": 1.4934797953620444,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "via": "mint-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer mint authority + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "PUSA",
+    "name": "Powerus Corporation - Backpack Securities",
+    "mint": "PUSAG1stksTcAoK9MjinEHUwAYRJsbovywYCk37m6hy",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backpack",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 122,
+    "tradability": {
+      "liquidityUsd": 78373,
+      "impactPct": 0.115,
+      "priceUsd": 2.490116775100246,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "DWvr3rVt8PesAfetQTQrRdTu26PrNA3VKDfhAwo82wBq",
+      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
+      "via": "control-authority",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
@@ -1624,12 +2427,71 @@
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 83,
+    "launchesQuotedAgainst": 122,
+    "tradability": {
+      "liquidityUsd": 73986,
+      "impactPct": 0.074,
+      "priceUsd": 578.4313832188783,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "8ffbEV276khmZuLftwR8XTUTDFZ16GFogxx4vdyuoJXs",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "BULL",
+    "name": "Webull Corporation - Backpack Securities",
+    "mint": "BULL151gUXcFV5wXEUqu9Am2L7Qt4bTJRLRuAUjkcspC",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backpack",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 100,
+    "tradability": {
+      "liquidityUsd": 58188,
+      "impactPct": 0.574,
+      "priceUsd": 5.906325964775961,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "GstZxcNV2U1nZAiPQLw1nA263xyfhKJMEMJp6spo7yqc",
+      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
+      "via": "control-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "CBRS",
+    "name": "Cerebras Systems - Backpack Securities",
+    "mint": "CBRSFBbQPpp77NpMcwbTN6fhBHmZM94oFLJvruytw4Fi",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backpack",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 97,
+    "tradability": {
+      "liquidityUsd": 57024,
+      "impactPct": 1.041,
+      "priceUsd": 172.29943901344157,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "3xGNGjP55JMbdmbrEL9MKyvLMGpRFUJ6xGXxpxkChfMg",
+      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
+      "via": "control-authority",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
@@ -1643,31 +2505,45 @@
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 82,
+    "launchesQuotedAgainst": 93,
+    "tradability": {
+      "liquidityUsd": 64363,
+      "impactPct": 0.534,
+      "priceUsd": 259.00859393450776,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "5vUPHURNE2sanrrWNTxyfyo3j37UFCTyxD6Warae9pBU",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
   {
-    "ticker": "MGM",
-    "name": "MGM Resorts International - Backpack Securities",
-    "mint": "MGMuubtUEirmkhfEQdmGUh4pr7HuUdMWcZXFtpPbVJD",
+    "ticker": "LUV",
+    "name": "Southwest Airlines Co. - Backpack Securities",
+    "mint": "LUV9GB51PNZNRyzzyYK3rtqFfvDvWtRiXZ34wVq2HrX",
     "decimals": 6,
     "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
     "issuer": "backpack",
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 80,
+    "launchesQuotedAgainst": 92,
+    "tradability": {
+      "liquidityUsd": 46091,
+      "impactPct": 1.429,
+      "priceUsd": 41.87807197169326,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
-      "mintAuthority": "9XSEXpLnarTRAVzxjCrCM85zjmwXcqUopfaUGbgf1N2B",
+      "mintAuthority": "3xpRMraH1NEmaivVi9EN83yHnHj5z7i1o7svyAjVmx5n",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
@@ -1681,12 +2557,45 @@
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 72,
+    "launchesQuotedAgainst": 85,
+    "tradability": {
+      "liquidityUsd": 11464,
+      "impactPct": 0.519,
+      "priceUsd": 234.8729377794834,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "4ATEQWSyeEaGaBNoJjKKrEnpf7vTozhvoeZme64BVm3t",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "MGM",
+    "name": "MGM Resorts International - Backpack Securities",
+    "mint": "MGMuubtUEirmkhfEQdmGUh4pr7HuUdMWcZXFtpPbVJD",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backpack",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 84,
+    "tradability": {
+      "liquidityUsd": 65476,
+      "impactPct": 1.82,
+      "priceUsd": 29.704523097248043,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "9XSEXpLnarTRAVzxjCrCM85zjmwXcqUopfaUGbgf1N2B",
+      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
+      "via": "control-authority",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
@@ -1699,13 +2608,20 @@
     "issuer": "prestocks",
     "kind": "pre-ipo",
     "priceAuthority": "none",
-    "transferFeeBps": 300,
-    "launchesQuotedAgainst": 53,
+    "transferFeeBps": 100,
+    "launchesQuotedAgainst": 74,
+    "tradability": {
+      "liquidityUsd": 10883,
+      "impactPct": 4.856,
+      "priceUsd": 173.71695297993887,
+      "ok": false,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "WV9PJN7XTmTLVwbutCLFxp8TyePee6Xq5mRq6Fti5Wc",
       "issuerKey": "WV9PJN7XTmTLVwbutCLFxp8TyePee6Xq5mRq6Fti5Wc",
       "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer mint authority + stonkfun pool census"
     }
   },
@@ -1719,13 +2635,176 @@
     "kind": "equity",
     "priceAuthority": "pyth",
     "transferFeeBps": null,
-    "launchesQuotedAgainst": 33,
+    "launchesQuotedAgainst": 37,
+    "tradability": {
+      "liquidityUsd": 61542,
+      "impactPct": 2.001,
+      "priceUsd": 14.138598195729314,
+      "ok": false,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "DPXB3CuqUKaYwwiCtwT312ixhHH1hoNXVbNuZpZC8EN5",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "AVGOx",
+    "name": "Broadcom xStock",
+    "mint": "XsgSaSvNSqLTtFuyWPBhK9196Xb9Bbdyjj4fH3cPJGo",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backed",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 0,
+    "tradability": {
+      "liquidityUsd": 160088,
+      "impactPct": 0.034,
+      "priceUsd": 377.55584171607615,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "via": "mint-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer mint authority + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "NFLXx",
+    "name": "Netflix xStock",
+    "mint": "XsEH7wWfJJu2ZT3UCFeVfALnVA6CP5ur7Ee11KmzVpL",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backed",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 0,
+    "tradability": {
+      "liquidityUsd": 15102,
+      "impactPct": 1.721,
+      "priceUsd": 68.74290105962461,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "via": "mint-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer mint authority + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "PEPx",
+    "name": "PepsiCo xStock",
+    "mint": "Xsv99frTRUeornyvCfvhnDesQDWuvns1M852Pez91vF",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backed",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 0,
+    "tradability": {
+      "liquidityUsd": 14711,
+      "impactPct": 0.601,
+      "priceUsd": 127.12887247873199,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "via": "mint-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer mint authority + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "TQQQx",
+    "name": "TQQQ xStock",
+    "mint": "XsjQP3iMAaQ3kQScQKthQpx9ALRbjKAjQtHg6TFomoc",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backed",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 0,
+    "tradability": {
+      "liquidityUsd": 91200,
+      "impactPct": 1.037,
+      "priceUsd": 83.32837846644446,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "via": "mint-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer mint authority + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "TSMx",
+    "name": "TSMC xStock",
+    "mint": "XsafvsGtzFqqHgTnA3aPC83EAMkacU5mcGtcSayhpVV",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backed",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 0,
+    "tradability": {
+      "liquidityUsd": 9899,
+      "impactPct": 0,
+      "priceUsd": 494.80572398095813,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "via": "mint-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer mint authority + stonkfun pool census"
+    }
+  },
+  {
+    "ticker": "UNHx",
+    "name": "UnitedHealth xStock",
+    "mint": "XszvaiXGPwvk2nwb3o9C1CX4K6zH8sez11E6uyup6fe",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "issuer": "backed",
+    "kind": "equity",
+    "priceAuthority": "pyth",
+    "transferFeeBps": null,
+    "launchesQuotedAgainst": 0,
+    "tradability": {
+      "liquidityUsd": 12662,
+      "impactPct": 1.077,
+      "priceUsd": 381.3735515145279,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
+    "verified": {
+      "mintAuthority": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "issuerKey": "7pt9tkctJPK7PPNQJ77GKg8ZffSF6QxoMiCFYHxrtaCj",
+      "via": "mint-authority",
+      "at": "2026-10-07T18:12:56.331Z",
+      "source": "issuer mint authority + stonkfun pool census"
     }
   },
   {
@@ -1739,30 +2818,18 @@
     "priceAuthority": "none",
     "transferFeeBps": 0,
     "launchesQuotedAgainst": 0,
+    "tradability": {
+      "liquidityUsd": 99501,
+      "impactPct": 0,
+      "priceUsd": 92.51718663905163,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "WV9PJN7XTmTLVwbutCLFxp8TyePee6Xq5mRq6Fti5Wc",
       "issuerKey": "WV9PJN7XTmTLVwbutCLFxp8TyePee6Xq5mRq6Fti5Wc",
       "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer mint authority + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "SPACEX",
-    "name": "SpaceX PreStocks",
-    "mint": "PreANxuXjsy2pvisWWMNB6YaJNzr7681wJJr2rHsfTh",
-    "decimals": 9,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "prestocks",
-    "kind": "pre-ipo",
-    "priceAuthority": "none",
-    "transferFeeBps": 100,
-    "launchesQuotedAgainst": 0,
-    "verified": {
-      "mintAuthority": "WV9PJN7XTmTLVwbutCLFxp8TyePee6Xq5mRq6Fti5Wc",
-      "issuerKey": "WV9PJN7XTmTLVwbutCLFxp8TyePee6Xq5mRq6Fti5Wc",
-      "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer mint authority + stonkfun pool census"
     }
   },
@@ -1775,13 +2842,20 @@
     "issuer": "tessera",
     "kind": "pre-ipo",
     "priceAuthority": "none",
-    "transferFeeBps": 20,
+    "transferFeeBps": 0,
     "launchesQuotedAgainst": 0,
+    "tradability": {
+      "liquidityUsd": 597520,
+      "impactPct": 0,
+      "priceUsd": 563.2138864111687,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "EXvTtxurWBUNNCtLojaN8ZBJFNJPZFSH3szoih9hh7YW",
       "issuerKey": "EXvTtxurWBUNNCtLojaN8ZBJFNJPZFSH3szoih9hh7YW",
       "via": "mint-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer mint authority + stonkfun pool census"
     }
   },
@@ -1796,30 +2870,18 @@
     "priceAuthority": "pyth",
     "transferFeeBps": null,
     "launchesQuotedAgainst": 0,
+    "tradability": {
+      "liquidityUsd": 271407,
+      "impactPct": 0.088,
+      "priceUsd": 108.47251805370279,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "2WNad2FPwqZUZ3rcbDDiogyuFuxnZ6Az4DX2Ji6wV7fC",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "FTSU",
-    "name": "First Test Stock Updated 2",
-    "mint": "FMp4Q2jTRbNgN3b2jPpBCNakieb5A8Bw9kYvf33zhGY3",
-    "decimals": 6,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backpack",
-    "kind": "equity",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 0,
-    "verified": {
-      "mintAuthority": "2hrn4CmES3Jp29XCkuiexUPU4iNx9UhhWL2wtYDpVoDb",
-      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
-      "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
@@ -1834,11 +2896,18 @@
     "priceAuthority": "pyth",
     "transferFeeBps": null,
     "launchesQuotedAgainst": 0,
+    "tradability": {
+      "liquidityUsd": 123199,
+      "impactPct": 0,
+      "priceUsd": 113.48737539745079,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "E1mVLefL62DoeUjZ5i1KMNjpTE3ZyiS3yZ2bCEpkUhJc",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
@@ -1853,30 +2922,18 @@
     "priceAuthority": "pyth",
     "transferFeeBps": null,
     "launchesQuotedAgainst": 0,
+    "tradability": {
+      "liquidityUsd": 436506,
+      "impactPct": 0.048,
+      "priceUsd": 167.1215267394937,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "HK6jF79duLLLfCMRQFBSgo6CgQ5mF4tFMFU7CmKcXctZ",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
-      "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
-    }
-  },
-  {
-    "ticker": "NVDA",
-    "name": "Nvidia - Backpack Securities",
-    "mint": "NVDAVuiB7hwd3m5Wa1JuHNovPaPG6BH1QNztbKFxNjv",
-    "decimals": 6,
-    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "issuer": "backpack",
-    "kind": "equity",
-    "priceAuthority": "pyth",
-    "transferFeeBps": null,
-    "launchesQuotedAgainst": 0,
-    "verified": {
-      "mintAuthority": "FYpBQQogCrLhsJF9j22XkMngQekjX41weHbEZvktwzov",
-      "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
-      "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   },
@@ -1891,11 +2948,18 @@
     "priceAuthority": "pyth",
     "transferFeeBps": null,
     "launchesQuotedAgainst": 0,
+    "tradability": {
+      "liquidityUsd": 304546,
+      "impactPct": 0.113,
+      "priceUsd": 154.2854731298182,
+      "ok": true,
+      "at": "2026-10-07T18:12:56.331Z"
+    },
     "verified": {
       "mintAuthority": "BQ27XhAatVvhHqMCKbfDXaq1Yj7UxDpJm1gDhn8kon2N",
       "issuerKey": "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a",
       "via": "control-authority",
-      "at": "2026-09-25T13:55:38.509Z",
+      "at": "2026-10-07T18:12:56.331Z",
       "source": "issuer control key (freeze + metadata + permanent delegate) + stonkfun pool census"
     }
   }

@@ -78,6 +78,31 @@ export const SECTOR_DESCRIPTION: ReadonlyMap<SectorId, string> = new Map(
  * where the category goes.
  */
 const BY_TICKER: Record<string, SectorId> = {
+  /*
+   * Stocks the issuers listed after the first sync, mapped when they arrived.
+   *
+   * A stock with no sector is invisible to the sector rail — it is filtered
+   * out of every chip, so it exists in the registry and nowhere a person can
+   * reach it. The registry test fails on an unmapped ticker for that reason.
+   */
+  AVGOx: "semis",
+  TSMx: "semis",
+  CBRS: "ai",
+  NOK: "semis",
+  NFLX: "internet",
+  NFLXx: "internet",
+  RKLB: "space",
+  BE: "energy",
+  RACE: "consumer",
+  PEPx: "consumer",
+  PUSA: "energy",
+  UNHx: "health",
+  BLK: "finance",
+  SQQQ: "funds",
+  TQQQx: "funds",
+  EWY: "funds",
+  EWZ: "funds",
+
   // Semiconductors
   NVDAx: "semis",
   NVDA: "semis",

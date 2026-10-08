@@ -72,7 +72,43 @@ class RpcCoolingDown extends Error {
   }
 }
 
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Minimum spacing between indexer RPC calls.
+ *
+ * The per-stock sweeps are one call per registry stock, and the registry is a
+ * hundred stocks. Back to back that is ~20 calls a second, and Helius answers
+ * 429 around the thirty-seventh — every pass, which then cools the key for
+ * five minutes and takes the next pass's StonkFun sweep down with it. At
+ * 150ms a hundred-call sweep completes in about twenty seconds. The public
+ * endpoint needs far wider spacing.
+ */
+const RPC_GAP_MS = (() => {
+  const configured = Number(process.env.INDEXER_RPC_GAP_MS);
+  if (Number.isFinite(configured) && configured >= 0) return configured;
+  return process.env.INDEXER_RPC_URL || process.env.HELIUS_RPC_URL || process.env.SOLANA_RPC_URL
+    ? 150
+    : 700;
+})();
+
+let nextRpcAt = 0;
+
+/** Reserve the next call slot synchronously, so concurrent callers queue too. */
+async function paceRpc(): Promise<void> {
+  const now = Date.now();
+  const at = Math.max(now, nextRpcAt);
+  nextRpcAt = at + RPC_GAP_MS;
+  if (at > now) await sleep(at - now);
+}
+
 async function rpc<T>(method: string, params: unknown[]): Promise<T> {
+  if (Date.now() < rpcCooldownUntil) {
+    throw new RpcCoolingDown();
+  }
+
+  await paceRpc();
   if (Date.now() < rpcCooldownUntil) {
     throw new RpcCoolingDown();
   }
@@ -103,15 +139,6 @@ async function rpc<T>(method: string, params: unknown[]): Promise<T> {
   if (body.error) throw new Error(body.error.message);
   return body.result as T;
 }
-
-const sleep = (ms: number): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, ms));
-
-/** Gap between pump sweep calls. Zero when a paid RPC removes the limit. */
-const PUMP_SWEEP_GAP_MS =
-  process.env.INDEXER_RPC_URL || process.env.HELIUS_RPC_URL || process.env.SOLANA_RPC_URL
-    ? 0
-    : 700;
 
 /**
  * `rpc` with a circuit breaker, not a retry storm.
@@ -481,7 +508,6 @@ export async function indexGraduating(): Promise<IndexPass> {
        * quoted in a stock further down the loop. Every stock is scanned and
        * the top rows are taken after sorting, below.
        */
-      if (PUMP_SWEEP_GAP_MS > 0) await sleep(PUMP_SWEEP_GAP_MS);
     }
 
     writes.sort((a, b) => (b.curve_progress ?? 0) - (a.curve_progress ?? 0));
@@ -559,15 +585,8 @@ export async function indexPumpCustomPairs(): Promise<IndexPass> {
   const writes: StonkWrite[] = [];
 
   try {
-    for (const [index, stock] of STOCK_MINTS.entries()) {
-      /*
-       * Pace the sweep. This is 29 getProgramAccounts calls in a row, and the
-       * public endpoint rate-limits well before the end of them — the first
-       * real run got nine in before being cut off. A Helius key removes the
-       * need for this, but the free path has to work too.
-       */
-      if (index > 0) await sleep(PUMP_SWEEP_GAP_MS);
-
+    // One call per registry stock, back to back; `rpc` paces them.
+    for (const stock of STOCK_MINTS) {
       const accounts = await getProgramAccountsV2All(rpcWithRetry, PUMP_AMM, {
         encoding: "base64",
         commitment: "finalized",

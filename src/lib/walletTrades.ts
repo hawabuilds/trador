@@ -108,9 +108,15 @@ function ownAccountsFromInstructions(tx: ParsedTx, wallet: string): Map<string, 
   return found;
 }
 
-export function tradesFromTx(tx: ParsedTx, wallet: string): RawTrade[] {
-  if (tx.transactionError) return [];
-
+/**
+ * What the wallet itself gained and lost, by mint.
+ *
+ * Shared by everything that reads a transaction as the wallet's own: a swap, a
+ * deposit into a pool, a withdrawal out of one. The accounting is the whole
+ * difficulty — rent, wrapped SOL and the fee all look like money moving until
+ * they are taken out — so it lives in one place and every reader gets it.
+ */
+export function walletLegs(tx: ParsedTx, wallet: string): Leg[] {
   const tokens = new Map<string, number>();
   const ownTokenAccounts = new Map<string, string>(); // account -> mint
   let lamports = 0;
@@ -148,6 +154,106 @@ export function tradesFromTx(tx: ParsedTx, wallet: string): RawTrade[] {
 
   const opposed = legs.some((leg) => leg.amount > 0) && legs.some((leg) => leg.amount < 0);
   if (Math.abs(sol) >= (opposed ? SOL_NOISE : 1e-9)) legs.push({mint: SOL_MINT, amount: sol});
+
+  return legs;
+}
+
+/**
+ * Liquidity put into a pool, or taken out of one.
+ *
+ * A deposit is not a trade, and read as one it is a lie with a number on it:
+ * both tokens leave the wallet at once, so a swap reader pairs them and
+ * reports a sale of one for the other at a price nobody traded at.
+ *
+ * What makes it certain is the receipt. A pool hands back an LP token, or —
+ * for a concentrated position — an NFT, and that receipt is *minted*, not
+ * transferred: nobody else's balance falls to pay for it. Summing every
+ * account's change for a mint separates the two for nothing, since a transfer
+ * nets to zero and a mint does not. So:
+ *
+ *   - a token the wallet received that this transaction minted, or sent that
+ *     it burned, and
+ *   - two or more assets moving the other way, together.
+ *
+ * Both, or this returns null and the caller shows a plain link. A routed buy
+ * can leave the wallet holding dust of an intermediate token, which looks like
+ * two assets moving together until you ask what was minted.
+ */
+export interface LiquidityMove {
+  signature: string;
+  at: string;
+  side: "add" | "remove";
+  /** What went in, or came out, with positive amounts. */
+  legs: Leg[];
+  /** The LP token or position NFT this transaction minted or burned. */
+  receipt: string;
+}
+
+/**
+ * SOL under this much, alongside a deposit, is the cost of doing it.
+ *
+ * Opening a position account, two token accounts and the fee comes to a few
+ * thousandths — the add this was measured against spent 0.00516. Nobody
+ * provides liquidity in a hundredth of a SOL, so below the line it is rent and
+ * above it is money.
+ */
+const SOL_COSTS = 0.01;
+
+/** Net change in a mint's supply: zero for a transfer, non-zero for a mint or burn. */
+function supplyChanges(tx: ParsedTx): Map<string, number> {
+  const net = new Map<string, number>();
+  for (const account of tx.accountData ?? []) {
+    for (const change of account.tokenBalanceChanges ?? []) {
+      const amount = Number(change.rawTokenAmount.tokenAmount) / 10 ** change.rawTokenAmount.decimals;
+      net.set(change.mint, (net.get(change.mint) ?? 0) + amount);
+    }
+  }
+  return net;
+}
+
+export function liquidityFromTx(tx: ParsedTx, wallet: string): LiquidityMove | null {
+  if (tx.transactionError) return null;
+
+  const legs = walletLegs(tx, wallet);
+  if (legs.length < 3) return null; // two assets and a receipt, at least
+
+  const minted = supplyChanges(tx);
+
+  /*
+   * The receipt moved the wallet's way and the supply moved with it. A token
+   * with a transfer fee burns a little of itself on every swap, which is a
+   * supply change the wallet never received — hence both halves of the test.
+   */
+  const receipt = legs.find((leg) => {
+    const supply = minted.get(leg.mint) ?? 0;
+    return supply !== 0 && Math.sign(supply) === Math.sign(leg.amount);
+  });
+  if (!receipt) return null;
+
+  const assets = legs.filter(
+    (leg) =>
+      leg.mint !== receipt.mint &&
+      (leg.mint !== SOL_MINT || Math.abs(leg.amount) >= SOL_COSTS),
+  );
+  // Deposited together, withdrawn together — and always opposite the receipt.
+  const side = receipt.amount > 0 ? "add" : "remove";
+  const wanted = side === "add" ? -1 : 1;
+  if (assets.length < 2) return null;
+  if (!assets.every((leg) => Math.sign(leg.amount) === wanted)) return null;
+
+  return {
+    signature: tx.signature,
+    at: new Date(tx.timestamp * 1000).toISOString(),
+    side,
+    legs: assets.map((leg) => ({mint: leg.mint, amount: Math.abs(leg.amount)})),
+    receipt: receipt.mint,
+  };
+}
+
+export function tradesFromTx(tx: ParsedTx, wallet: string): RawTrade[] {
+  if (tx.transactionError) return [];
+
+  const legs = walletLegs(tx, wallet);
 
   const ins = legs.filter((leg) => leg.amount > 0);
   const outs = legs.filter((leg) => leg.amount < 0);
@@ -298,6 +404,24 @@ function holdingPnl(
   if (!(coveredCost > 0)) return null;
   const partial = !position.complete || held > position.qty * (1 + QTY_TOLERANCE);
   return {usd: coveredValue - coveredCost, costUsd: coveredCost, partial};
+}
+
+/**
+ * Restate a position's quantity in the unit a live balance is reported in.
+ *
+ * A position's `qty` is summed from what the trades moved, which the ledger
+ * records without the mint's scaled multiplier. A live balance comes back with
+ * it applied. Comparing the two directly is comparing different units: on
+ * OPENAI, at 1.486, a holder who never sold reads as holding half as much
+ * again as they ever bought — so the P&L covers two thirds of their position
+ * and the rest is labelled "partial".
+ *
+ * Only the quantity moves. Cost is in dollars, and a split does not change
+ * what somebody paid.
+ */
+export function scalePosition(position: Position, multiplier: number): Position {
+  if (!Number.isFinite(multiplier) || multiplier === 1) return position;
+  return {...position, qty: position.qty * multiplier};
 }
 
 /** Look up cost basis by mint — keys are stored exactly as base58 spells them. */

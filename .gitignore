@@ -40,3 +40,8 @@ unknown-quotes.json
 
 # Pitch deck lives outside the repo (sibling folder).
 docs/pitch-deck/
+.env*
+
+# Agent skill docs the Vercel marketplace installs beside a resource.
+.agents/
+skills-lock.json

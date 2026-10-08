@@ -7,6 +7,7 @@ import {usePathname, useRouter, useSearchParams} from "next/navigation";
 import {useQueryClient} from "@tanstack/react-query";
 
 import {StickyPageHeader} from "@/components/AppShell";
+import {HomeBanner} from "@/components/HomeBanner";
 import {filterNewFeedStonks, filterTrendingFeedStonks} from "@/config/feed";
 import {isGraduatedListedStonk, sortStonksGraduating} from "@/lib/graduatingFeedSort";
 import {AssetList} from "@/components/AssetRow";
@@ -453,6 +454,8 @@ export function HomeFeed({
             Create
           </button>
         </div>
+
+        <HomeBanner onCreate={() => setCreateOpen(true)} />
 
         <HomeTabs value={tab} onChange={setTab} />
 

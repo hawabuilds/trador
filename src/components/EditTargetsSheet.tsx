@@ -129,7 +129,7 @@ export function EditTargetsSheet({
               valid ? "text-muted" : "text-price-down",
             )}
           >
-            Total: {total.toFixed(1)}% {valid ? "" : "· must equal 100%"}
+            Total: {total.toFixed(1)}% {valid ? "" : "\u00a0\u00a0must equal 100%"}
           </div>
 
           <Button variant="primary" fullWidth className="mt-4" disabled={!valid} onClick={save}>

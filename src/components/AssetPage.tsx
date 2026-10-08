@@ -1,8 +1,8 @@
 "use client";
 
-import {useCallback, useEffect, useMemo, useState} from "react";
+import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import dynamic from "next/dynamic";
-import {useRouter} from "next/navigation";
+import {useRouter, useSearchParams} from "next/navigation";
 import {useQueryClient} from "@tanstack/react-query";
 
 import {APP_SCROLL_PAD_TOP} from "@/components/AppShell";
@@ -143,7 +143,15 @@ export function AssetPage({
   };
 
   const tfOptions: readonly Timeframe[] = kind === "stock" ? STOCK_TIMEFRAMES : TIMEFRAMES;
-  const [panel, setPanel] = useState<PanelKey>("trades");
+  /*
+   * A notification about a comment opens the page on the comments.
+   *
+   * The tab is where the thing being linked to actually is, and landing on
+   * Trades instead means the person has to go looking for what they tapped.
+   */
+  const linkedComment = useSearchParams()?.get("comment") ?? null;
+  const [panel, setPanel] = useState<PanelKey>(linkedComment ? "comments" : "trades");
+  const tabsRef = useRef<HTMLDivElement>(null);
   const [scrubbed, setScrubbed] = useState<ChartPoint | null>(null);
   const [orderSide, setOrderSide] = useState<"buy" | "sell" | null>(null);
   const [receiveOpen, setReceiveOpen] = useState(false);
@@ -481,7 +489,29 @@ export function AssetPage({
         />
       </div>
 
-      <PanelTabs tabs={tabs} value={panel} onChange={setPanel} />
+      {/*
+        Stuck under the header once the chart scrolls away, so the thread can
+        be read without losing the way back to Trades. Tapping the tab you are
+        already on returns to the top, which is what a second tap means
+        everywhere else.
+      */}
+      <div
+        ref={tabsRef}
+        className="sticky top-0 z-10 -mx-[22px] px-[22px] pt-1"
+        style={{backgroundColor: "var(--surface-base)"}}
+      >
+        <PanelTabs
+          tabs={tabs}
+          value={panel}
+          onChange={(next) => {
+            if (next === panel) {
+              tabsRef.current?.scrollIntoView({behavior: "smooth", block: "start"});
+              return;
+            }
+            setPanel(next);
+          }}
+        />
+      </div>
 
       <div className="pt-3">
         {panel === "trades" ? (
@@ -516,12 +546,7 @@ export function AssetPage({
             )}
           </>
         ) : panel === "comments" ? (
-          <CommentsPanel
-            kind={asset.kind}
-            assetId={asset.id}
-            symbol={symbol}
-            imageUrl={asset.kind === "stonk" ? asset.imageUrl : null}
-          />
+          <CommentsPanel kind={asset.kind} assetId={asset.id} symbol={symbol} />
         ) : asset.kind === "stonk" ? (
           <InfoPanel stonk={asset} />
         ) : (

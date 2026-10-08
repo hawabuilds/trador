@@ -17,6 +17,7 @@ import {Switch} from "./ui/Switch";
 import {
   ArrowUpRightIcon,
   BellIcon,
+  CapIcon,
   CopyIcon,
   LockIcon,
   LogoutIcon,
@@ -208,6 +209,12 @@ export function SettingsMenu() {
             onClick={then(() => setNotifyOpen(true))}
             icon={<BellIcon className="h-4 w-4" />}
             label="Notifications"
+          />
+          {/* The lessons kept their screen when the tab became the Feed. */}
+          <MenuRow
+            onClick={then(() => router.push("/learn"))}
+            icon={<CapIcon className="h-4 w-4" />}
+            label="Learn the basics"
           />
           {admin.data ? (
             <MenuRow

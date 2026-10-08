@@ -1,6 +1,6 @@
 "use client";
 
-import {useEffect, useMemo, useState} from "react";
+import {useCallback, useEffect, useMemo, useState} from "react";
 import {useQuery, useQueryClient} from "@tanstack/react-query";
 
 import {FEE_BPS, feeFor, tooSmall} from "@/config/fees";
@@ -8,7 +8,9 @@ import {balancesKey, useBalances} from "@/hooks/useBalances";
 import {WALLET_TRADES_KEY} from "@/hooks/useWalletTrades";
 import {
   SOL_FEE_RESERVE_LAMPORTS,
+  baseUnitsToScaled,
   fromBaseUnits,
+  scaledToBaseUnits,
   shareOf,
   spendableLamports,
   toBaseUnits,
@@ -16,6 +18,7 @@ import {
 import {confirmSignature} from "@/lib/confirmSignature";
 import {txUrl} from "@/config/explorer";
 import {useSession} from "@/lib/session";
+import {stockForMint} from "@/lib/stocks/registry";
 import {cn} from "@/lib/cn";
 import {units} from "@/lib/format";
 import {formatPriceUsd} from "@/lib/priceState";
@@ -27,6 +30,13 @@ import {SettingsIcon} from "./ui/Icons";
 
 /** Buys spend SOL; sells pay out SOL (native, unwrapped on build). */
 const SOL = {mint: WSOL_MINT, symbol: "SOL", decimals: 9} as const;
+
+/**
+ * Where the registry stops calling a stock tradable, and where this ticket
+ * starts saying the price is worse than it looks. One number, so the screen
+ * that admits a stock and the warning in front of a trade cannot drift apart.
+ */
+const TRADABLE_IMPACT_PCT = 2;
 
 type BuyAmountUnit = "sol" | "usd";
 type SellAmountUnit = "token" | "sol" | "usd";
@@ -91,7 +101,21 @@ export function OrderSheet({
 
   const [activeSide, setActiveSide] = useState<"buy" | "sell">(side);
   const [inputUnit, setInputUnit] = useState<AmountUnit>("usd");
-  const [amount, setAmount] = useState("");
+  const [amount, setAmountText] = useState("");
+  /*
+   * Set only by the 100% button, and cleared the moment anything else moves.
+   *
+   * "All of it" is the balance, not the number that was printed in the field
+   * for it — printing rounds down, and a sell that leaves a few base units
+   * behind reads as the app having kept something back.
+   */
+  const [sellAll, setSellAll] = useState(false);
+
+  /** Typing, clearing or picking a preset is always an amount of its own. */
+  const setAmount = useCallback((next: string) => {
+    setSellAll(false);
+    setAmountText(next);
+  }, []);
   const [slippageBps, setSlippageBps] = useState(100);
   const [configOpen, setConfigOpen] = useState(false);
   const [quote, setQuote] = useState<QuoteState | null>(null);
@@ -126,7 +150,9 @@ export function OrderSheet({
     setStatus(null);
     setSignature(null);
     setConfigOpen(false);
-  }, [asset?.id, side]);
+    // `setAmount` is stable, but it is a callback now rather than a setter, so
+    // the linter wants to see it.
+  }, [asset?.id, setAmount, side]);
 
   const wallet = session.user?.wallet ?? null;
   const canSign = session.signAndSend !== null && wallet !== null;
@@ -138,11 +164,15 @@ export function OrderSheet({
    * share of a position, had no "sell all", and would happily ask you to sign
    * a trade for more than you own — which then failed in simulation.
    */
-  /** Buys only need native SOL; sells need exact token base units for sizing. */
-  const balanceMints = useMemo(
-    () => (asset && !buying ? [asset.mint] : []),
-    [asset, buying],
-  );
+  /*
+   * The asset's balance is read on both sides.
+   *
+   * A sell needs its exact base units to size against. A buy needs the mint's
+   * scaled multiplier, which travels with the balance: on a mint that is
+   * scaled ten to one, the tokens arriving are ten times the raw figure, and
+   * an estimate that says otherwise is off by that much.
+   */
+  const balanceMints = useMemo(() => (asset ? [asset.mint] : []), [asset]);
   const balances = useBalances(wallet, balanceMints, open && wallet !== null);
   const held = asset ? balances.data?.tokens[asset.mint] : undefined;
   const heldRaw = balances.data ? BigInt(held?.amount ?? "0") : null;
@@ -158,6 +188,21 @@ export function OrderSheet({
   const storedDecimals =
     asset === null ? 6 : asset.kind === "stonk" ? (asset.decimals ?? 6) : asset.decimals;
   const assetDecimals = heldRaw !== null && heldRaw > 0n && held ? held.decimals : storedDecimals;
+
+  /**
+   * What one base unit of this asset is worth in tokens.
+   *
+   * Everything on this ticket is typed, shown and quoted in tokens; only the
+   * transaction is in base units. This is the one place the two meet.
+   */
+  const multiplier = held?.multiplier ?? 1;
+
+  /*
+   * Some mints take a cut of every transfer, including each leg of a swap.
+   * Read from the registry, where it was recorded off the mint account rather
+   * than assumed per issuer.
+   */
+  const assetTransferFeeBps = asset ? (stockForMint(asset.mint)?.transferFeeBps ?? null) : null;
 
   const priceUsd = asset?.price.usd ?? null;
   const typed = Number.parseFloat(amount);
@@ -214,7 +259,11 @@ export function OrderSheet({
     }
 
     if (inputUnit === "token") {
-      const parsed = toBaseUnits(amount, assetDecimals);
+      // Selling the lot sends the balance itself, not a number typed back in:
+      // a round trip through text can only ever lose base units, and leaving
+      // dust behind on "100%" is the thing people notice.
+      if (sellAll && heldRaw !== null && heldRaw > 0n) return heldRaw;
+      const parsed = scaledToBaseUnits(amount, assetDecimals, multiplier);
       return parsed !== null && parsed > 0n ? parsed : null;
     }
 
@@ -226,9 +275,23 @@ export function OrderSheet({
       if (solUsd === null || solUsd <= 0) return null;
       tokens = (entered * solUsd) / priceUsd;
     }
-    const parsed = toBaseUnits(tokens.toFixed(assetDecimals), assetDecimals);
+    // `tokens` came from a price quoted per token, so it is in the same unit
+    // the person types in and converts the same way.
+    const parsed = scaledToBaseUnits(tokens.toFixed(assetDecimals), assetDecimals, multiplier);
     return parsed !== null && parsed > 0n ? parsed : null;
-  }, [asset, amount, assetDecimals, buying, entered, inputUnit, priceUsd, solUsd]);
+  }, [
+    asset,
+    amount,
+    assetDecimals,
+    buying,
+    entered,
+    heldRaw,
+    inputUnit,
+    multiplier,
+    priceUsd,
+    sellAll,
+    solUsd,
+  ]);
 
   const amountBaseUnits = amountRaw === null ? null : amountRaw.toString();
 
@@ -236,7 +299,13 @@ export function OrderSheet({
   const availableRaw = buying ? (lamports === null ? null : spendableLamports(lamports)) : heldRaw;
   const availableDecimals = buying ? SOL.decimals : assetDecimals;
   const available =
-    availableRaw === null ? null : Number(fromBaseUnits(availableRaw, availableDecimals));
+    availableRaw === null
+      ? null
+      : Number(
+          buying
+            ? fromBaseUnits(availableRaw, availableDecimals)
+            : baseUnitsToScaled(availableRaw, availableDecimals, multiplier),
+        );
   const overBalance =
     amountRaw !== null &&
     availableRaw !== null &&
@@ -319,6 +388,13 @@ export function OrderSheet({
   const impactPct = quote ? Math.abs(quote.priceImpactPct * 100) : 0;
   const impactBlocks = impactPct >= 50;
   const impactWarns = impactPct >= 15 && !impactBlocks;
+  /*
+   * Two percent is where the registry stops calling a stock tradable, so it is
+   * where the ticket starts saying so. Below the 15% warning on purpose: at 3%
+   * the price is worse than quoted and the trade is still reasonable, and a
+   * red alert on every thin pool is one people learn to click past.
+   */
+  const impactCautions = impactPct >= TRADABLE_IMPACT_PCT && !impactWarns && !impactBlocks;
 
   const fundingSymbol = buying ? SOL.symbol : symbol;
   const execSol =
@@ -368,9 +444,9 @@ export function OrderSheet({
   /** What the confirm button receives, in the unit it will actually arrive in. */
   const estimatedOut = useMemo(() => {
     if (!quote || !asset) return null;
-    const decimals = buying ? assetDecimals : SOL.decimals;
-    return Number(quote.outAmount) / 10 ** decimals;
-  }, [quote, asset, assetDecimals, buying]);
+    if (!buying) return Number(quote.outAmount) / 10 ** SOL.decimals;
+    return Number(baseUnitsToScaled(BigInt(quote.outAmount), assetDecimals, multiplier));
+  }, [quote, asset, assetDecimals, buying, multiplier]);
 
   async function confirm() {
     if (!asset || !quote || !wallet || !session.signAndSend) return;
@@ -614,7 +690,7 @@ export function OrderSheet({
                 : quoting && entered > 0
                   ? "Finding route…"
                   : buying && inputUnit === "usd" && execSol !== null && entered > 0
-                    ? `≈ ${units(execSol)} SOL · ${formatPriceUsd(priceUsd)} per ${symbol}`
+                    ? `≈ ${units(execSol)} SOL\u00a0\u00a0${formatPriceUsd(priceUsd)} per ${symbol}`
                     : `${formatPriceUsd(priceUsd)} per ${symbol}`}
             </div>
           </div>
@@ -636,7 +712,9 @@ export function OrderSheet({
                       disabled={heldRaw === null || heldRaw <= 0n}
                       onClick={() => {
                         if (heldRaw === null) return;
-                        setAmount(fromBaseUnits(shareOf(heldRaw, step), assetDecimals));
+                        const part = shareOf(heldRaw, step);
+                        setAmount(baseUnitsToScaled(part, assetDecimals, multiplier));
+                        setSellAll(step === 100);
                         setError(null);
                         setSignature(null);
                       }}
@@ -661,7 +739,7 @@ export function OrderSheet({
                     ? "…"
                     : `${amountLabel(available)} ${buying ? SOL.symbol : symbol}`}
                 {buying && available !== null
-                  ? ` · ${Number(SOL_FEE_RESERVE_LAMPORTS) / 1e9} kept for fees`
+                  ? `\u00a0\u00a0${Number(SOL_FEE_RESERVE_LAMPORTS) / 1e9} kept for fees`
                   : ""}
               </span>
             </div>
@@ -680,7 +758,7 @@ export function OrderSheet({
                   ? `${units(entered)} ${unit}`
                   : `— ${unit}`}
               {Number.isFinite(amountUsd) && amountUsd > 0
-                ? ` · $${amountUsd.toFixed(2)}`
+                ? `\u00a0\u00a0$${amountUsd.toFixed(2)}`
                 : ""}
             </span>
           </div>
@@ -690,10 +768,14 @@ export function OrderSheet({
               quote={quote}
               receivedSymbol={buying ? symbol : SOL.symbol}
               receivedDecimals={buying ? assetDecimals : SOL.decimals}
+              receivedMultiplier={buying ? multiplier : 1}
               feeUsd={quote.platformFee ? fee.usd : 0}
               slippageBps={slippageBps}
               impactPct={impactPct}
-              impactLevel={impactBlocks ? "block" : impactWarns ? "warn" : "ok"}
+              impactLevel={
+                impactBlocks ? "block" : impactWarns ? "warn" : impactCautions ? "caution" : "ok"
+              }
+              transferFeeBps={assetTransferFeeBps}
             />
           ) : null}
 
@@ -701,6 +783,13 @@ export function OrderSheet({
             <p role="alert" className="mt-3 text-[12.5px] font-semibold text-error">
               Price impact is {impactPct.toFixed(1)}%. You would receive
               materially less than the quoted price.
+            </p>
+          ) : null}
+
+          {impactCautions ? (
+            <p role="alert" className="mt-3 text-[12.5px] font-semibold text-[var(--warning)]">
+              Price impact is {impactPct.toFixed(1)}%. This pool is thin, so you
+              pay more than the price shown.
             </p>
           ) : null}
 
@@ -729,7 +818,7 @@ export function OrderSheet({
               <p className="text-[12.5px] font-extrabold text-ink">Not enough SOL</p>
               <p className="mt-1 text-[12.5px] font-semibold text-muted">
                 You have {insufficientSol.balance} SOL
-                {insufficientSol.detail ? ` · ${insufficientSol.detail}` : ""}
+                {insufficientSol.detail ? `\u00a0\u00a0${insufficientSol.detail}` : ""}
               </p>
               {onReceive ? (
                 <button
@@ -766,7 +855,7 @@ export function OrderSheet({
           </button>
 
           <p className="mt-2.5 text-center text-[11px] font-medium leading-[1.5] text-faint">
-            Max slippage {slippageBps / 100}% · One signature, no approval step
+            Max slippage {slippageBps / 100}%&nbsp;&nbsp;&nbsp;One signature, no approval step
           </p>
         </>
       ) : null}
@@ -809,10 +898,12 @@ function TicketBreakdown({
   quote,
   receivedSymbol,
   receivedDecimals,
+  receivedMultiplier,
   feeUsd,
   slippageBps,
   impactPct,
   impactLevel,
+  transferFeeBps,
 }: {
   quote: QuoteState;
   /** What arrives: the asset on a buy, the chosen payout on a sell. */
@@ -825,21 +916,40 @@ function TicketBreakdown({
    * (9 decimals) would have done the same on a sell.
    */
   receivedDecimals: number;
+  /** Scaled mints report fewer base units than tokens — see `baseUnitsToScaled`. */
+  receivedMultiplier: number;
   feeUsd: number;
   slippageBps: number;
   impactPct: number;
-  impactLevel: "ok" | "warn" | "block";
+  impactLevel: "ok" | "caution" | "warn" | "block";
+  /** The mint's own transfer fee, charged by the token on top of everything here. */
+  transferFeeBps: number | null;
 }) {
-  const minOut = Number(quote.otherAmountThreshold) / 10 ** receivedDecimals;
+  const minOut = Number(
+    baseUnitsToScaled(BigInt(quote.otherAmountThreshold), receivedDecimals, receivedMultiplier),
+  );
 
   return (
     <div className="mt-2.5 space-y-1 px-1 text-[12px] font-semibold">
       <Line label={`Trador fee (${FEE_BPS / 100}%)`}>
         {quote.platformFee ? `$${feeUsd.toFixed(2)}` : "Not taken"}
       </Line>
-      <Line label="Price impact" tone={impactLevel === "ok" ? undefined : "error"}>
+      <Line
+        label="Price impact"
+        tone={impactLevel === "ok" ? undefined : impactLevel === "caution" ? "caution" : "error"}
+      >
         {impactPct.toFixed(2)}%
       </Line>
+      {/*
+        The token's own fee, which Trador neither sets nor receives.
+        PreStocks charges 1% on OPENAI and Tessera 0.2%, taken by the mint on
+        every transfer — including each leg of this swap. A ticket that shows
+        only Trador's fee understates what the trade costs by a figure the
+        person has no way to look up.
+      */}
+      {transferFeeBps ? (
+        <Line label={`Token transfer fee (${transferFeeBps / 100}%)`}>Charged by the token</Line>
+      ) : null}
       <Line label="Minimum received">
         {units(minOut)} {receivedSymbol}
       </Line>
@@ -858,7 +968,7 @@ function Line({
 }: {
   label: string;
   children: React.ReactNode;
-  tone?: "error";
+  tone?: "error" | "caution";
 }) {
   return (
     <div className="flex items-center justify-between gap-3">
@@ -866,7 +976,11 @@ function Line({
       <span
         className={cn(
           "tabular-nums truncate font-bold",
-          tone === "error" ? "text-error" : "text-muted",
+          tone === "error"
+            ? "text-error"
+            : tone === "caution"
+              ? "text-[var(--warning)]"
+              : "text-muted",
         )}
       >
         {children}

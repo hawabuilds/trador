@@ -15,16 +15,26 @@ export function PanelTabs<T extends string>({
   tabs,
   value,
   onChange,
+  size = "sm",
+  align = "fill",
+  label = "Asset detail",
 }: {
   tabs: PanelTab<T>[];
   value: T;
   onChange: (value: T) => void;
+  /** `sm` sits under a chart, `md` under a page title. */
+  size?: "sm" | "md";
+  /** `fill` splits the width evenly; `start` keeps the labels together. */
+  align?: "fill" | "start";
+  label?: string;
 }) {
+  const md = size === "md";
+
   return (
     <div
       role="tablist"
-      aria-label="Asset detail"
-      className="flex"
+      aria-label={label}
+      className={cn("flex", align === "start" && "gap-6")}
     >
       {tabs.map((tab) => {
         const active = tab.value === value;
@@ -36,15 +46,20 @@ export function PanelTabs<T extends string>({
             aria-selected={active}
             onClick={() => onChange(tab.value)}
             className={cn(
-              "relative flex-1 pb-2.5 pt-1 text-[13px] transition-colors duration-150",
-              active ? "font-extrabold text-ink" : "font-bold text-faint hover:text-muted",
+              "relative pb-2.5 pt-1 transition-colors duration-150",
+              align === "fill" ? "flex-1" : "flex-none",
+              md ? "text-[15px]" : "text-[13px]",
+              active
+                ? cn("text-ink", md ? "font-semibold" : "font-extrabold")
+                : cn("text-faint hover:text-muted", md ? "font-normal" : "font-bold"),
             )}
           >
             {tab.label}
             <span
               aria-hidden="true"
               className={cn(
-                "absolute inset-x-3 -bottom-px h-[2px] rounded-full transition-opacity duration-150",
+                "absolute -bottom-px h-[2px] rounded-full transition-opacity duration-150",
+                align === "fill" ? "inset-x-3" : "inset-x-0",
                 active ? "bg-brand-500 opacity-100" : "opacity-0",
               )}
             />

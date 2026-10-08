@@ -40,7 +40,7 @@ export function NewsPanel({
                 {item.title}
               </div>
               <div className="mt-1 text-[12px] font-medium text-faint">
-                {item.source} · {relativeTime(item.publishedAt)}
+                {item.source}&nbsp;&nbsp;&nbsp;{relativeTime(item.publishedAt)}
               </div>
             </>
           );

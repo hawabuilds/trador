@@ -562,7 +562,7 @@ export function CreateSheet({open, onClose}: {open: boolean; onClose: () => void
           <div className="mt-3 flex items-center justify-between gap-2">
             <div>
               <div className="text-[12px] font-semibold text-faint">Dev buy</div>
-              <div className="text-[10.5px] font-medium text-faint">Optional · buy first, at launch price</div>
+              <div className="text-[10.5px] font-medium text-faint">Optional, buy first at launch price</div>
             </div>
             <div className="flex items-center gap-1">
               {DEV_BUY_PRESETS.map((preset) => (
@@ -677,7 +677,7 @@ export function CreateSheet({open, onClose}: {open: boolean; onClose: () => void
               ? "Demo mode cannot sign. Add a Privy app id to launch."
               : bill?.signatures === 2
                 ? `Two approvals: SOL → ${bill.stockTicker} for the dev buy, then the launch`
-                : `One approval · listed on ${launchpadFace(launchpad).label}, priced in ${quoteTicker}`}
+                : `One approval, listed on ${launchpadFace(launchpad).label} and priced in ${quoteTicker}`}
           </p>
         </>
       )}
@@ -821,12 +821,12 @@ function Bill({
           <Line
             label={`${launchpadLabel} trading fee`}
             note="Taken from the buy by the launchpad"
-            value={`${amount(bill.devBuy.tradingFeeStock)} ${bill.stockTicker} · ${(bill.devBuy.tradingFeeBps / 100).toFixed(2)}%`}
+            value={`${amount(bill.devBuy.tradingFeeStock)} ${bill.stockTicker}\u00a0\u00a0${(bill.devBuy.tradingFeeBps / 100).toFixed(2)}%`}
           />
           <Line
             label="You receive"
             note="Simulated on the new curve at launch price"
-            value={`≈${compact(bill.devBuy.tokensOut)} ${symbol} · ${bill.devBuy.supplyPct.toFixed(2)}%`}
+            value={`≈${compact(bill.devBuy.tokensOut)} ${symbol}\u00a0\u00a0${bill.devBuy.supplyPct.toFixed(2)}%`}
             strong
           />
         </Section>
@@ -844,7 +844,7 @@ function Bill({
         </span>
       </div>
       <div className={cn("mt-0.5 text-right text-[10.5px] font-semibold tabular-nums", short ? "text-error" : "text-faint")}>
-        {short ? "Not enough SOL · " : ""}Wallet holds {sol(bill.balanceLamports)}
+        {short ? "Not enough SOL\u00a0\u00a0" : ""}Wallet holds {sol(bill.balanceLamports)}
       </div>
     </div>
   );

@@ -6,13 +6,13 @@ import {usePathname, useRouter} from "next/navigation";
 
 import {TABS, type TabKey} from "@/config/app";
 import {cn} from "@/lib/cn";
-import {CapIcon, HomeIcon, NewsIcon, SearchIcon, WalletIcon} from "./ui/Icons";
+import {ChatIcon, HomeIcon, NewsIcon, SearchIcon, WalletIcon} from "./ui/Icons";
 
 const ICONS: Record<TabKey, (props: {className?: string}) => JSX.Element> = {
   home: HomeIcon,
   search: SearchIcon,
   news: NewsIcon,
-  learn: CapIcon,
+  feed: ChatIcon,
   stonkfolio: WalletIcon,
 };
 

@@ -1,7 +1,7 @@
 "use client";
 
 import {useCallback, useMemo} from "react";
-import {useQuery, useQueryClient} from "@tanstack/react-query";
+import {useInfiniteQuery, useQueryClient} from "@tanstack/react-query";
 import {readLocalComments, writeLocalComment} from "@/lib/localStore";
 import {useSession} from "@/lib/session";
 import type {
@@ -20,6 +20,19 @@ import {requestPushIntent} from "@/components/PushPrompt";
  * its own rather than dropped, so a long-running asset never silently loses
  * comments off the top.
  */
+interface CommentsResponse {
+  comments: AssetComment[];
+  cursor: string | null;
+  localOnly: boolean;
+  /** Whether the caller holds this asset, which is what posting requires. */
+  canPost?: boolean;
+}
+
+interface CommentsPages {
+  pages: CommentsResponse[];
+  pageParams: unknown[];
+}
+
 function buildThreads(comments: AssetComment[]): CommentThread[] {
   const threads = new Map<string, CommentThread>();
   const orphans: AssetComment[] = [];
@@ -55,26 +68,31 @@ export function useComments(kind: AssetKind, assetId: string) {
   const session = useSession();
   const queryClient = useQueryClient();
 
-  const remote = useQuery({
+  const remote = useInfiniteQuery({
     queryKey: ["comments", kind, assetId],
-    queryFn: async () => {
+    initialPageParam: null as string | null,
+    queryFn: async ({pageParam}) => {
       // With a token, so the server can say which of these the caller liked.
       const token = await session.getAccessToken();
-      const res = await fetch(`/api/asset/${kind}/${assetId}/comments`, {
-        headers: token ? {authorization: `Bearer ${token}`} : undefined,
-      });
+      const params = new URLSearchParams();
+      if (pageParam) params.set("cursor", pageParam);
+      const query = params.toString();
+      const res = await fetch(
+        `/api/asset/${kind}/${assetId}/comments${query ? `?${query}` : ""}`,
+        {headers: token ? {authorization: `Bearer ${token}`} : undefined},
+      );
       if (!res.ok) throw new Error("Could not load comments.");
-      return (await res.json()) as {
-        comments: AssetComment[];
-        localOnly: boolean;
-        /** Whether the caller holds this asset, which is what posting requires. */
-        canPost?: boolean;
-      };
+      return (await res.json()) as CommentsResponse;
     },
+    getNextPageParam: (last) => last.cursor ?? null,
     retry: false,
     // Comments are a conversation: new ones should arrive without a reload.
     refetchInterval: 20_000,
   });
+
+  // The first page carries what the whole thread needs to know: whether this
+  // deployment has a store, and whether the caller holds enough to speak.
+  const head = remote.data?.pages[0];
 
   const readLocal = useCallback(
     () => readLocalComments(assetId),
@@ -83,7 +101,7 @@ export function useComments(kind: AssetKind, assetId: string) {
   const [local] = useLocalStore<AssetComment[]>(readLocal, []);
 
   const comments = useMemo(() => {
-    const merged = [...(remote.data?.comments ?? []), ...local];
+    const merged = [...(remote.data?.pages.flatMap((page) => page.comments) ?? []), ...local];
     return merged.sort(
       (a, b) =>
         new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
@@ -97,7 +115,7 @@ export function useComments(kind: AssetKind, assetId: string) {
       const trimmed = body.trim();
       if (!trimmed || !authenticated) return;
       requestPushIntent("comment");
-      if (remote.data?.localOnly === false) {
+      if (head?.localOnly === false) {
         void session.getAccessToken().then(async (token) => {
           if (!token) return;
           await fetch(`/api/asset/${kind}/${assetId}/comments`, {
@@ -125,7 +143,7 @@ export function useComments(kind: AssetKind, assetId: string) {
         createdAt: new Date().toISOString(),
       });
     },
-    [assetId, authenticated, handle, displayName, pfpUrl, kind, queryClient, remote.data?.localOnly, session],
+    [assetId, authenticated, handle, displayName, pfpUrl, kind, queryClient, head?.localOnly, session],
   );
 
   /*
@@ -136,19 +154,24 @@ export function useComments(kind: AssetKind, assetId: string) {
    */
   const toggleLike = useCallback(
     (commentId: string) => {
-      if (!authenticated || remote.data?.localOnly !== false) return;
+      if (!authenticated || head?.localOnly !== false) return;
       const key = ["comments", kind, assetId];
-      const current = queryClient.getQueryData<{comments: AssetComment[]; localOnly: boolean}>(key);
-      const target = current?.comments.find((comment) => comment.id === commentId);
+      const current = queryClient.getQueryData<CommentsPages>(key);
+      const target = current?.pages
+        .flatMap((page) => page.comments)
+        .find((comment) => comment.id === commentId);
       if (!current || !target) return;
 
       const nextLiked = !target.liked;
       const patch = (likes: number, liked: boolean) =>
-        queryClient.setQueryData(key, {
+        queryClient.setQueryData<CommentsPages>(key, {
           ...current,
-          comments: current.comments.map((comment) =>
-            comment.id === commentId ? {...comment, likes, liked} : comment,
-          ),
+          pages: current.pages.map((page) => ({
+            ...page,
+            comments: page.comments.map((comment) =>
+              comment.id === commentId ? {...comment, likes, liked} : comment,
+            ),
+          })),
         });
 
       patch(Math.max(0, (target.likes ?? 0) + (nextLiked ? 1 : -1)), nextLiked);
@@ -170,7 +193,7 @@ export function useComments(kind: AssetKind, assetId: string) {
         }
       });
     },
-    [assetId, authenticated, kind, queryClient, remote.data?.localOnly, session],
+    [assetId, authenticated, kind, queryClient, head?.localOnly, session],
   );
 
   return {
@@ -180,18 +203,21 @@ export function useComments(kind: AssetKind, assetId: string) {
     isLoading: remote.isLoading,
     error: remote.error ? (remote.error as Error).message : null,
     retry: () => void remote.refetch(),
+    hasMore: Boolean(remote.hasNextPage),
+    loadingMore: remote.isFetchingNextPage,
+    loadMore: () => void remote.fetchNextPage(),
     /*
      * Posting needs a holding, decided by the server from the live balance.
      * Only a deployment with no comment store falls back to "signed in", since
      * those posts never leave the browser anyway.
      */
     canPost:
-      authenticated && (remote.data?.localOnly === false ? Boolean(remote.data.canPost) : true),
+      authenticated && (head?.localOnly === false ? Boolean(head?.canPost) : true),
     /** Liking is open to anyone signed in; only speaking needs a position. */
-    canLike: authenticated && remote.data?.localOnly === false,
+    canLike: authenticated && head?.localOnly === false,
     /** Signed in, but not holding — the composer says so rather than just greying out. */
-    needsPosition: authenticated && remote.data?.localOnly === false && !remote.data.canPost,
-    localOnly: remote.data?.localOnly ?? true,
+    needsPosition: authenticated && head?.localOnly === false && !head?.canPost,
+    localOnly: head?.localOnly ?? true,
     post,
   };
 }
