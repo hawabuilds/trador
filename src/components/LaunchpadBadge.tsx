@@ -17,6 +17,10 @@ import type {LaunchpadId} from "@/lib/programs";
  * and a coin's artwork can be any colour at all. Without a border in the
  * page's own background the mark either disappears into the picture or looks
  * like part of it.
+ *
+ * Round, to match the artwork it sits on. A rounded square against a circle
+ * reads as two different systems meeting at the corner, and the corner is
+ * exactly where the eye lands.
  */
 export function LaunchpadBadge({
   launchpad,
@@ -42,11 +46,13 @@ export function LaunchpadBadge({
   return (
     <span className={cn("relative inline-flex shrink-0", className)}>
       {children}
-      <span
-        className="absolute -bottom-0.5 -right-0.5 grid place-items-center rounded-[6px] bg-[var(--surface-base)] p-[1.5px]"
-        style={{borderRadius: Math.round(mark * 0.35)}}
-      >
-        <LaunchpadMark launchpad={launchpad} size={mark} />
+      <span className="absolute -bottom-0.5 -right-0.5 grid place-items-center rounded-full bg-[var(--surface-base)] p-[1.5px]">
+        {/*
+          The mark is rounded off with the ring. StonkFun's is a square tile and
+          becomes a disc; pump.fun's is drawn to fill its box and is already
+          round enough that nothing of it is lost.
+        */}
+        <LaunchpadMark launchpad={launchpad} size={mark} shape="circle" />
       </span>
     </span>
   );
