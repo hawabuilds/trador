@@ -27,10 +27,19 @@ import type {LaunchpadId} from "@/lib/programs";
 export function LaunchpadMark({
   launchpad,
   size = 16,
+  shape = "squircle",
   className,
 }: {
   launchpad: LaunchpadId;
   size?: number;
+  /**
+   * How the mark is cut. A badge sitting on round artwork asks for `circle`.
+   *
+   * A prop rather than a class passed in from outside: `cn` joins, it does not
+   * merge, so a `rounded-full` arriving alongside this file's own `rounded`
+   * would leave two rules fighting and the winner decided by stylesheet order.
+   */
+  shape?: "squircle" | "circle";
   className?: string;
 }) {
   const face = launchpadFace(launchpad);
@@ -46,7 +55,11 @@ export function LaunchpadMark({
         width={size}
         height={size}
         style={{width: size, height: size}}
-        className={cn("shrink-0 rounded-[5px] object-cover", className)}
+        className={cn(
+          "shrink-0 object-cover",
+          shape === "circle" ? "rounded-full" : "rounded-[5px]",
+          className,
+        )}
       />
     );
   }
