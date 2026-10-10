@@ -153,6 +153,38 @@ export function feeFromParts(params: {
   };
 }
 
+/**
+ * What the fee actually comes to, in base units of the mint it is taken in.
+ *
+ * Only the output side can use Jupiter's own number. `platformFee.amount` on a
+ * quote is always denominated in the *output* mint, even when the fee is taken
+ * from the input, so on a buy it describes the token being bought and is no use
+ * at all — on a $25 USDC buy it read 16,076 token units against a real charge
+ * of 125,000 USDC units. The input side is therefore worked out here, from the
+ * amount being spent, which is exactly what the router charges: floor of
+ * `inAmount * bps / 10000`, measured against mainnet.
+ */
+export function feeAmountFor(params: {
+  fee: Pick<TradeFee, "side" | "bps">;
+  /** Base units going in, from the quote. */
+  inAmount: string;
+  /** Jupiter's figure, in output-mint base units. */
+  quotedFeeAmount: string | null;
+}): string | null {
+  if (params.fee.side === "output") return params.quotedFeeAmount;
+  if (!/^\d+$/.test(params.inAmount)) return null;
+  return ((BigInt(params.inAmount) * BigInt(params.fee.bps)) / 10_000n).toString();
+}
+
+/** How a fee mint is written and counted on the ticket. */
+export function feeTokenFace(mint: Pubkey): {symbol: string; decimals: number} {
+  // wSOL is shown as SOL: the swap wraps and unwraps around the trade, so
+  // "wSOL" would name something the person never knowingly holds.
+  return samePubkey(mint, WSOL_MINT)
+    ? {symbol: "SOL", decimals: 9}
+    : {symbol: "USDC", decimals: 6};
+}
+
 const CACHE_MS = 30_000;
 const cache = new Map<string, {at: number; value: TradeFee | null}>();
 

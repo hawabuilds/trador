@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import {describe, it} from "node:test";
 
+import {PublicKey} from "@solana/web3.js";
+
 import {feeBpsFromEnv} from "@/config/fees";
 import {USDC_MINT, WSOL_MINT} from "@/lib/programs";
 import {
   feeAccountAddress,
+  feeAmountFor,
   feeFromParts,
   feeLegFor,
   feeWalletFromEnv,
@@ -17,9 +20,15 @@ const STONK = assertPubkey(
   "FjTfaSH861nVcbAxdFAHTvhoSL4kyR6wgTWynuJkapht",
   "stonk",
 );
-/** A Squads vault: a program address, so off the ed25519 curve. */
+/**
+ * A Squads-shaped vault: a program address, so off the ed25519 curve.
+ *
+ * Derived rather than picked, because an ordinary wallet address is on the
+ * curve and would let the off-curve test pass against code that cannot in fact
+ * handle a vault.
+ */
 const VAULT = assertPubkey(
-  "S7vYFFWH6BjJyEsdrPQpqpYTqLTrPRK6KW3VwsJuRaS",
+  "66msETUaW5rszZ43wHJquYFmSqQ9JErz8uB8rjfMubtC",
   "vault",
 );
 
@@ -106,6 +115,11 @@ describe("feeAccountAddress", () => {
   it("derives an account for an off-curve owner", () => {
     // A Squads vault is a program address. Deriving with the on-curve check
     // left on throws, which would take the whole quote down with it.
+    assert.equal(
+      PublicKey.isOnCurve(new PublicKey(VAULT)),
+      false,
+      "the fixture must be off-curve or this proves nothing",
+    );
     assert.doesNotThrow(() => feeAccountAddress(VAULT, USDC_MINT));
     assert.notEqual(
       feeAccountAddress(VAULT, USDC_MINT),
@@ -168,5 +182,87 @@ describe("quoteWithoutPlatformFee", () => {
     assert.equal(raw.platformFee, undefined);
     assert.equal(raw.platformFeeBps, undefined);
     assert.equal(raw.inAmount, "1000");
+  });
+});
+
+describe("feeAmountFor", () => {
+  /*
+   * The numbers come from simulating each leg against mainnet — built, never
+   * sent — and reading what the collection account actually gained. They are
+   * here so a change to the arithmetic has to disagree with the chain out loud.
+   */
+  it("charges a buy out of what is spent", () => {
+    // $25 of USDC in, 50 bps: the vault gained exactly 125,000 USDC units.
+    assert.equal(
+      feeAmountFor({
+        fee: {side: "input", bps: 50},
+        inAmount: "25000000",
+        quotedFeeAmount: "16076",
+      }),
+      "125000",
+    );
+    // 0.15 SOL in, 50 bps: the vault gained exactly 750,000 lamports.
+    assert.equal(
+      feeAmountFor({
+        fee: {side: "input", bps: 50},
+        inAmount: "150000000",
+        quotedFeeAmount: "10402",
+      }),
+      "750000",
+    );
+  });
+
+  it("ignores the router's figure on a buy, which names the wrong token", () => {
+    // The quote said 16,076 — of the stock being bought, not of the USDC paid.
+    assert.notEqual(
+      feeAmountFor({
+        fee: {side: "input", bps: 50},
+        inAmount: "25000000",
+        quotedFeeAmount: "16076",
+      }),
+      "16076",
+    );
+  });
+
+  it("takes a sell's fee from the router, which is already in the right mint", () => {
+    assert.equal(
+      feeAmountFor({
+        fee: {side: "output", bps: 50},
+        inAmount: "2000000",
+        quotedFeeAmount: "77741",
+      }),
+      "77741",
+    );
+    assert.equal(
+      feeAmountFor({
+        fee: {side: "output", bps: 50},
+        inAmount: "2000000",
+        quotedFeeAmount: "721088",
+      }),
+      "721088",
+    );
+  });
+
+  it("rounds a buy down, never up", () => {
+    // 1 unit short of a clean 0.5%: the extra base unit stays with the trader.
+    assert.equal(
+      feeAmountFor({fee: {side: "input", bps: 50}, inAmount: "199", quotedFeeAmount: null}),
+      "0",
+    );
+    assert.equal(
+      feeAmountFor({fee: {side: "input", bps: 50}, inAmount: "100199", quotedFeeAmount: null}),
+      "500",
+    );
+  });
+
+  it("reports nothing rather than a guess when the amount is unusable", () => {
+    assert.equal(
+      feeAmountFor({fee: {side: "input", bps: 50}, inAmount: "", quotedFeeAmount: "1"}),
+      null,
+    );
+    assert.equal(
+      feeAmountFor({fee: {side: "output", bps: 50}, inAmount: "1000", quotedFeeAmount: null}),
+      null,
+    );
   });
 });

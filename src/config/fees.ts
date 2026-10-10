@@ -23,18 +23,6 @@ export const FEE_BPS = feeBpsFromEnv();
 
 export const DUST_USD = 1;
 
-/**
- * The fee in dollars, estimated from the trade's dollar value.
- *
- * An estimate, and only safe where the exact figure is not yet known. The
- * authority on what is actually charged is the server, which works it out from
- * the leg the fee comes out of.
- */
-export function feeFor(amountUsd: number): {usd: number; pct: number} {
-  const usd = (amountUsd * FEE_BPS) / 10_000;
-  return {usd, pct: FEE_BPS / 100};
-}
-
 export function tooSmall(amountUsd: number): boolean {
   return !Number.isFinite(amountUsd) || amountUsd < DUST_USD;
 }

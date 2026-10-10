@@ -3,7 +3,7 @@
 import {useCallback, useEffect, useMemo, useState} from "react";
 import {useQuery, useQueryClient} from "@tanstack/react-query";
 
-import {FEE_BPS, feeFor, tooSmall} from "@/config/fees";
+import {FEE_BPS, tooSmall} from "@/config/fees";
 import {balancesKey, useBalances} from "@/hooks/useBalances";
 import {WALLET_TRADES_KEY} from "@/hooks/useWalletTrades";
 import {
@@ -67,6 +67,24 @@ interface QuoteState {
 }
 
 /**
+ * The fee, exactly as the server charged it.
+ *
+ * Not recomputed here, and deliberately not derivable from anything on this
+ * screen. Which leg the fee comes out of is a server decision, and the router's
+ * own figure is in the wrong mint on buys, so a number worked out in the
+ * browser would disagree with the transaction being signed.
+ */
+interface FeeState {
+  /** Base units of `mint`. */
+  amount: string;
+  mint: string;
+  symbol: string;
+  decimals: number;
+  side: "input" | "output";
+  bps: number;
+}
+
+/**
  * The order ticket.
  *
  * A centred modal rather than a bottom sheet, and laid out the way the
@@ -119,6 +137,7 @@ export function OrderSheet({
   const [slippageBps, setSlippageBps] = useState(100);
   const [configOpen, setConfigOpen] = useState(false);
   const [quote, setQuote] = useState<QuoteState | null>(null);
+  const [fee, setFee] = useState<FeeState | null>(null);
   const [quoting, setQuoting] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -146,6 +165,7 @@ export function OrderSheet({
     setInputUnit(side === "buy" ? "usd" : "token");
     setAmount("");
     setQuote(null);
+    setFee(null);
     setError(null);
     setStatus(null);
     setSignature(null);
@@ -347,6 +367,7 @@ export function OrderSheet({
   useEffect(() => {
     if (!canQuote || !asset || amountBaseUnits === null) {
       setQuote(null);
+      setFee(null);
       return;
     }
 
@@ -363,14 +384,20 @@ export function OrderSheet({
           `/api/quote?inputMint=${inputMint}&outputMint=${outputMint}` +
             `&amount=${amountBaseUnits}&slippageBps=${slippageBps}`,
         );
-        const body = (await response.json()) as {quote?: QuoteState; error?: string};
+        const body = (await response.json()) as {
+          quote?: QuoteState;
+          fee?: FeeState | null;
+          error?: string;
+        };
         if (cancelled) return;
         if (!response.ok || !body.quote) {
           setQuote(null);
+          setFee(null);
           setError(body.error ?? "Could not price this trade.");
           return;
         }
         setQuote(body.quote);
+        setFee(body.fee ?? null);
       } catch {
         if (!cancelled) setError("Could not reach the router.");
       } finally {
@@ -384,7 +411,6 @@ export function OrderSheet({
     };
   }, [canQuote, asset, buying, amountBaseUnits, slippageBps]);
 
-  const fee = feeFor(Number.isFinite(amountUsd) ? amountUsd : 0);
   const impactPct = quote ? Math.abs(quote.priceImpactPct * 100) : 0;
   const impactBlocks = impactPct >= 50;
   const impactWarns = impactPct >= 15 && !impactBlocks;
@@ -604,6 +630,7 @@ export function OrderSheet({
                     setInputUnit(option === "buy" ? "usd" : "token");
                     setAmount("");
                     setQuote(null);
+                    setFee(null);
                     setError(null);
                     setSignature(null);
                   }}
@@ -649,6 +676,7 @@ export function OrderSheet({
                   setInputUnit(next);
                   setAmount("");
                   setQuote(null);
+                  setFee(null);
                 }}
               />
             </div>
@@ -769,7 +797,7 @@ export function OrderSheet({
               receivedSymbol={buying ? symbol : SOL.symbol}
               receivedDecimals={buying ? assetDecimals : SOL.decimals}
               receivedMultiplier={buying ? multiplier : 1}
-              feeUsd={quote.platformFee ? fee.usd : 0}
+              fee={fee}
               slippageBps={slippageBps}
               impactPct={impactPct}
               impactLevel={
@@ -890,16 +918,16 @@ function overBalanceMessage({
  *
  * Every row is either a number the router returned or an em dash. Nothing here
  * is estimated locally and presented as if it came from the quote — the fee row
- * in particular only claims a fee when `platformFee` is actually on the quote,
- * because claiming one the router did not take is the kind of error nobody
- * would ever catch.
+ * in particular prints the server's own figure and mint, because claiming a fee
+ * the router did not take, or naming the wrong token for one it did, is the
+ * kind of error nobody would ever catch.
  */
 function TicketBreakdown({
   quote,
   receivedSymbol,
   receivedDecimals,
   receivedMultiplier,
-  feeUsd,
+  fee,
   slippageBps,
   impactPct,
   impactLevel,
@@ -918,7 +946,8 @@ function TicketBreakdown({
   receivedDecimals: number;
   /** Scaled mints report fewer base units than tokens — see `baseUnitsToScaled`. */
   receivedMultiplier: number;
-  feeUsd: number;
+  /** What the server charged, or null when it charged nothing. */
+  fee: FeeState | null;
   slippageBps: number;
   impactPct: number;
   impactLevel: "ok" | "caution" | "warn" | "block";
@@ -931,8 +960,10 @@ function TicketBreakdown({
 
   return (
     <div className="mt-2.5 space-y-1 px-1 text-[12px] font-semibold">
-      <Line label={`Trador fee (${FEE_BPS / 100}%)`}>
-        {quote.platformFee ? `$${feeUsd.toFixed(2)}` : "Not taken"}
+      <Line label={`Trador fee (${(fee?.bps ?? FEE_BPS) / 100}%)`}>
+        {fee
+          ? `${units(Number(fromBaseUnits(BigInt(fee.amount), fee.decimals)))} ${fee.symbol}`
+          : "Not taken"}
       </Line>
       <Line
         label="Price impact"

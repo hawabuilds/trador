@@ -9,7 +9,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "node --import ./test/resolver.mjs --test \"test/**/*.test.ts\"",
-    "test:live": "TRADOR_LIVE_TESTS=1 node --import ./test/resolver.mjs --test \"test/live/**/*.test.ts\"",
+    "test:live": "TRADOR_LIVE_TESTS=1 node --import ./test/resolver.mjs --env-file=.env.local --test --test-concurrency=1 \"test/live/**/*.test.ts\"",
     "worker": "node --import ./test/resolver.mjs src/worker/index.ts",
     "probe:accounts": "node --import ./test/resolver.mjs --env-file=.env.local scripts/probe-accounts.ts",
     "seed:snapshot": "node --import ./test/resolver.mjs scripts/seed-snapshot.ts",

@@ -39,8 +39,10 @@ export interface QuoteRequest {
   /** Base units of the input mint. */
   amount: string;
   slippageBps: number;
-  /** The fee token account for the output mint, when one exists. */
+  /** The token account the fee is paid into, when one exists. */
   feeAccount?: Pubkey | null;
+  /** The rate to price it at. Defaults to the configured one. */
+  feeBps?: number;
 }
 
 export interface SwapQuote {
@@ -69,8 +71,9 @@ export async function quote(request: QuoteRequest): Promise<SwapQuote> {
   });
 
   // Fee params travel as a pair — see the note at the top of this file.
-  if (request.feeAccount && FEE_BPS > 0) {
-    params.set("platformFeeBps", String(FEE_BPS));
+  const feeBps = request.feeBps ?? FEE_BPS;
+  if (request.feeAccount && feeBps > 0) {
+    params.set("platformFeeBps", String(feeBps));
   }
 
   const response = await fetch(
@@ -101,7 +104,7 @@ export async function quote(request: QuoteRequest): Promise<SwapQuote> {
     slippageBps: Number(body.slippageBps ?? request.slippageBps),
     platformFee:
       fee?.amount != null
-        ? {amount: String(fee.amount), feeBps: Number(fee.feeBps ?? FEE_BPS)}
+        ? {amount: String(fee.amount), feeBps: Number(fee.feeBps ?? feeBps)}
         : null,
     routeLabels: plan
       .map((step) => step.swapInfo?.label)
