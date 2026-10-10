@@ -14,7 +14,7 @@
 
 import {lamportsFrom} from "@/lib/amounts";
 import {liveUiAmount} from "@/lib/scaledAmount";
-import {TOKEN_2022_PROGRAM, TOKEN_PROGRAM} from "@/lib/programs";
+import {TOKEN_2022_PROGRAM, TOKEN_PROGRAM, USDC_MINT} from "@/lib/programs";
 import {type Pubkey} from "@/lib/pubkey";
 import {snapshotStocks, snapshotStonks} from "@/lib/server/snapshot";
 import {hasDatabase} from "@/lib/server/db";
@@ -134,21 +134,51 @@ export interface Stonkfolio {
   /** Value of tokens held that are not in Trador's universe. */
   otherCount: number;
   solLamports: number;
+  /**
+   * USDC held, in tokens.
+   *
+   * Beside the holdings rather than among them, the same way SOL is: it is the
+   * money a trade is funded in, not a position taken. Before this it fell into
+   * `otherCount` and read as "not priced here", which is a strange thing to say
+   * about a dollar.
+   */
+  usdcAmount: number;
   totalUsd: number;
   stale: boolean;
+}
+
+/**
+ * Pull the money out of a wallet's token balances.
+ *
+ * USDC is not a position, so it does not belong among the holdings — and it is
+ * certainly not "not priced here", which is where it landed before, counted as
+ * an unknown token alongside whatever else a wallet has picked up.
+ */
+export function splitMoney(byMint: ReadonlyMap<string, number>): {
+  usdcAmount: number;
+  rest: Map<string, number>;
+} {
+  let usdcAmount = 0;
+  const rest = new Map<string, number>();
+  for (const [mint, amount] of byMint) {
+    if (mint === USDC_MINT) usdcAmount += amount;
+    else rest.set(mint, amount);
+  }
+  return {usdcAmount, rest};
 }
 
 async function stonkfolioFromBalances(
   byMint: ReadonlyMap<string, number>,
   solLamports: number,
 ): Promise<Omit<Stonkfolio, "stale">> {
-  const universe = await universeFor([...byMint.keys()]);
+  const {usdcAmount, rest} = splitMoney(byMint);
+  const universe = await universeFor([...rest.keys()]);
 
   const holdings: Holding[] = [];
   let otherCount = 0;
   let totalUsd = 0;
 
-  for (const [mint, amount] of byMint) {
+  for (const [mint, amount] of rest) {
     const asset = universe.get(mint);
     if (!asset) {
       otherCount += 1;
@@ -164,7 +194,7 @@ async function stonkfolioFromBalances(
 
   holdings.sort((a, b) => (b.valueUsd ?? 0) - (a.valueUsd ?? 0));
 
-  return {holdings, otherCount, solLamports, totalUsd};
+  return {holdings, otherCount, solLamports, usdcAmount, totalUsd};
 }
 
 type LoadedHoldings = Omit<Stonkfolio, "stale"> & {fromStaleBalances: boolean};
@@ -242,6 +272,7 @@ export async function stonkfolioFor(
       holdings: value.holdings,
       otherCount: value.otherCount,
       solLamports: value.solLamports,
+      usdcAmount: value.usdcAmount,
       totalUsd: value.totalUsd,
       stale: stale || value.fromStaleBalances,
     };

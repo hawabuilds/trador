@@ -3,7 +3,7 @@
 import {useCallback, useEffect, useMemo, useState} from "react";
 import {useQuery, useQueryClient} from "@tanstack/react-query";
 
-import {FEE_BPS, feeFor, tooSmall} from "@/config/fees";
+import {FEE_BPS, tooSmall} from "@/config/fees";
 import {balancesKey, useBalances} from "@/hooks/useBalances";
 import {WALLET_TRADES_KEY} from "@/hooks/useWalletTrades";
 import {
@@ -16,6 +16,17 @@ import {
   toBaseUnits,
 } from "@/lib/amounts";
 import {confirmSignature} from "@/lib/confirmSignature";
+import {
+  MIN_FEE_LAMPORTS,
+  MONEY,
+  SOL,
+  USDC,
+  type SettleMint,
+  moneyReceived,
+  overBalanceMessage,
+  shortOfNetworkFees,
+  spendableBalance,
+} from "@/lib/orderMoney";
 import {txUrl} from "@/config/explorer";
 import {useSession} from "@/lib/session";
 import {stockForMint} from "@/lib/stocks/registry";
@@ -23,13 +34,11 @@ import {cn} from "@/lib/cn";
 import {units} from "@/lib/format";
 import {formatPriceUsd} from "@/lib/priceState";
 import {readSlippageBps, writeSlippageBps} from "@/lib/localStore";
-import {WSOL_MINT} from "@/lib/programs";
 import type {Asset} from "@/lib/types";
 import {Modal} from "./ui/Modal";
 import {SettingsIcon} from "./ui/Icons";
 
-/** Buys spend SOL; sells pay out SOL (native, unwrapped on build). */
-const SOL = {mint: WSOL_MINT, symbol: "SOL", decimals: 9} as const;
+
 
 /**
  * Where the registry stops calling a stock tradable, and where this ticket
@@ -38,22 +47,11 @@ const SOL = {mint: WSOL_MINT, symbol: "SOL", decimals: 9} as const;
  */
 const TRADABLE_IMPACT_PCT = 2;
 
-type BuyAmountUnit = "sol" | "usd";
-type SellAmountUnit = "token" | "sol" | "usd";
-type AmountUnit = BuyAmountUnit | SellAmountUnit;
-
-const QUICK_USD = [10, 25, 100];
+/** Preset sizes, in the money being spent. A dollar of USDC is a dollar. */
 const QUICK_SOL = [0.05, 0.25, 1];
+const QUICK_USDC = [10, 25, 100];
 /** Sell sizes, as a share of the position. 100 sells the exact balance. */
 const SELL_STEPS = [25, 50, 75, 100];
-
-/**
- * SOL a trade funded in something else still needs, for its network fee and
- * possibly rent on a token account it opens. There is no fee sponsorship, so a
- * wallet below this cannot pay for the transaction it is about to be asked to
- * sign.
- */
-const MIN_FEE_LAMPORTS = 3_000_000n; // 0.003 SOL
 
 const SLIPPAGE_CHOICES = [50, 100, 300];
 
@@ -64,6 +62,24 @@ interface QuoteState {
   platformFee: {amount: string; feeBps: number} | null;
   routeLabels: string[];
   raw: unknown;
+}
+
+/**
+ * The fee, exactly as the server charged it.
+ *
+ * Not recomputed here, and deliberately not derivable from anything on this
+ * screen. Which leg the fee comes out of is a server decision, and the router's
+ * own figure is in the wrong mint on buys, so a number worked out in the
+ * browser would disagree with the transaction being signed.
+ */
+interface FeeState {
+  /** Base units of `mint`. */
+  amount: string;
+  mint: string;
+  symbol: string;
+  decimals: number;
+  side: "input" | "output";
+  bps: number;
 }
 
 /**
@@ -100,7 +116,13 @@ export function OrderSheet({
   const queryClient = useQueryClient();
 
   const [activeSide, setActiveSide] = useState<"buy" | "sell">(side);
-  const [inputUnit, setInputUnit] = useState<AmountUnit>("usd");
+  /*
+   * Which money the trade settles in, remembered while the ticket is open.
+   *
+   * Deliberately not reset when the side flips: someone who chose to deal in
+   * USDC meant it for this coin, not for this one press of Buy.
+   */
+  const [settleMint, setSettleMint] = useState<SettleMint>("sol");
   const [amount, setAmountText] = useState("");
   /*
    * Set only by the 100% button, and cleared the moment anything else moves.
@@ -119,6 +141,7 @@ export function OrderSheet({
   const [slippageBps, setSlippageBps] = useState(100);
   const [configOpen, setConfigOpen] = useState(false);
   const [quote, setQuote] = useState<QuoteState | null>(null);
+  const [fee, setFee] = useState<FeeState | null>(null);
   const [quoting, setQuoting] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -126,6 +149,8 @@ export function OrderSheet({
 
   const open = asset !== null;
   const buying = activeSide === "buy";
+  /** The money this trade is paid in or out of. */
+  const money = MONEY[settleMint];
   const symbol = asset?.kind === "stock" ? asset.ticker : (asset?.symbol ?? "");
 
   // Slippage is a browser preference, not an order field: someone who set 3%
@@ -143,9 +168,10 @@ export function OrderSheet({
    */
   useEffect(() => {
     setActiveSide(side);
-    setInputUnit(side === "buy" ? "usd" : "token");
+    setSettleMint("sol");
     setAmount("");
     setQuote(null);
+    setFee(null);
     setError(null);
     setStatus(null);
     setSignature(null);
@@ -172,11 +198,18 @@ export function OrderSheet({
    * scaled ten to one, the tokens arriving are ten times the raw figure, and
    * an estimate that says otherwise is off by that much.
    */
-  const balanceMints = useMemo(() => (asset ? [asset.mint] : []), [asset]);
+  const balanceMints = useMemo(
+    () => (asset ? [asset.mint, USDC.mint] : []),
+    [asset],
+  );
   const balances = useBalances(wallet, balanceMints, open && wallet !== null);
   const held = asset ? balances.data?.tokens[asset.mint] : undefined;
   const heldRaw = balances.data ? BigInt(held?.amount ?? "0") : null;
   const lamports = balances.data ? BigInt(balances.data.lamports) : null;
+  /** Real USDC, read from the wallet rather than inferred from a dollar value. */
+  const usdcRaw = balances.data
+    ? BigInt(balances.data.tokens[USDC.mint]?.amount ?? "0")
+    : null;
 
   /**
    * The asset's own decimals, which both the estimate and the minimum need.
@@ -208,9 +241,12 @@ export function OrderSheet({
   const typed = Number.parseFloat(amount);
   const entered = Number.isFinite(typed) && typed > 0 ? typed : 0;
 
-  const needsSolUsd =
-    open &&
-    (buying ? inputUnit === "usd" : inputUnit === "sol");
+  /*
+   * A SOL price is only needed to turn a SOL amount into the dollar figure
+   * printed beside it. A trade settled in USDC never needs one, which is also
+   * why a USDC buy keeps working when the price feed is down.
+   */
+  const needsSolUsd = open && buying && settleMint === "sol";
 
   const solUsdQuery = useQuery({
     queryKey: ["sol-usd"],
@@ -226,58 +262,39 @@ export function OrderSheet({
   });
   const solUsd = solUsdQuery.data ?? null;
 
-  const usdSized = inputUnit === "usd";
+  /**
+   * What one unit of the settlement currency is worth.
+   *
+   * A dollar for USDC, by definition rather than by lookup. Treating it as a
+   * dollar is what lets a USDC trade be sized, checked and quoted without a
+   * price feed in the way.
+   */
+  const moneyUsd = settleMint === "usdc" ? 1 : solUsd;
 
   /** Dollar value of the trade, when it can be derived. */
   const amountUsd = useMemo(() => {
     if (buying) {
-      if (inputUnit === "usd") return entered;
-      if (inputUnit === "sol" && solUsd !== null && solUsd > 0) return entered * solUsd;
-      return Number.NaN;
+      return moneyUsd !== null && moneyUsd > 0 ? entered * moneyUsd : Number.NaN;
     }
-    if (inputUnit === "usd") return entered;
-    if (inputUnit === "sol" && solUsd !== null && solUsd > 0) return entered * solUsd;
-    if (inputUnit === "token" && priceUsd !== null && priceUsd > 0) return entered * priceUsd;
-    return Number.NaN;
-  }, [buying, entered, inputUnit, priceUsd, solUsd]);
+    return priceUsd !== null && priceUsd > 0 ? entered * priceUsd : Number.NaN;
+  }, [buying, entered, moneyUsd, priceUsd]);
 
   /**
-   * Base units sent to the router: SOL on a buy, the asset on a sell.
+   * Base units sent to the router: the money on a buy, the asset on a sell.
    */
   const amountRaw = useMemo(() => {
     if (!asset || entered <= 0) return null;
 
     if (buying) {
-      if (inputUnit === "sol") {
-        const parsed = toBaseUnits(amount, SOL.decimals);
-        return parsed !== null && parsed > 0n ? parsed : null;
-      }
-      if (solUsd === null || solUsd <= 0) return null;
-      const solText = (entered / solUsd).toFixed(SOL.decimals);
-      const parsed = toBaseUnits(solText, SOL.decimals);
+      const parsed = toBaseUnits(amount, money.decimals);
       return parsed !== null && parsed > 0n ? parsed : null;
     }
 
-    if (inputUnit === "token") {
-      // Selling the lot sends the balance itself, not a number typed back in:
-      // a round trip through text can only ever lose base units, and leaving
-      // dust behind on "100%" is the thing people notice.
-      if (sellAll && heldRaw !== null && heldRaw > 0n) return heldRaw;
-      const parsed = scaledToBaseUnits(amount, assetDecimals, multiplier);
-      return parsed !== null && parsed > 0n ? parsed : null;
-    }
-
-    if (priceUsd === null || priceUsd <= 0) return null;
-
-    let tokens: number;
-    if (inputUnit === "usd") tokens = entered / priceUsd;
-    else {
-      if (solUsd === null || solUsd <= 0) return null;
-      tokens = (entered * solUsd) / priceUsd;
-    }
-    // `tokens` came from a price quoted per token, so it is in the same unit
-    // the person types in and converts the same way.
-    const parsed = scaledToBaseUnits(tokens.toFixed(assetDecimals), assetDecimals, multiplier);
+    // Selling the lot sends the balance itself, not a number typed back in:
+    // a round trip through text can only ever lose base units, and leaving
+    // dust behind on "100%" is the thing people notice.
+    if (sellAll && heldRaw !== null && heldRaw > 0n) return heldRaw;
+    const parsed = scaledToBaseUnits(amount, assetDecimals, multiplier);
     return parsed !== null && parsed > 0n ? parsed : null;
   }, [
     asset,
@@ -286,18 +303,28 @@ export function OrderSheet({
     buying,
     entered,
     heldRaw,
-    inputUnit,
+    money.decimals,
     multiplier,
-    priceUsd,
     sellAll,
-    solUsd,
   ]);
 
   const amountBaseUnits = amountRaw === null ? null : amountRaw.toString();
 
-  /** The most this side can spend, in the unit being typed. */
-  const availableRaw = buying ? (lamports === null ? null : spendableLamports(lamports)) : heldRaw;
-  const availableDecimals = buying ? SOL.decimals : assetDecimals;
+  /**
+   * The most this side can spend, in the unit being typed.
+   *
+   * SOL keeps a little back for network fees because the same balance has to
+   * pay for the transaction. USDC does not: it is spent in full, and the SOL
+   * needed for fees is checked separately.
+   */
+  const availableRaw = spendableBalance({
+    buying,
+    settleMint,
+    lamports,
+    usdc: usdcRaw,
+    held: heldRaw,
+  });
+  const availableDecimals = buying ? money.decimals : assetDecimals;
   const available =
     availableRaw === null
       ? null
@@ -310,13 +337,17 @@ export function OrderSheet({
     amountRaw !== null &&
     availableRaw !== null &&
     (buying ? amountRaw > availableRaw : amountRaw > availableRaw);
-  const shortOnFees = lamports !== null && lamports < MIN_FEE_LAMPORTS && !buying;
+  /*
+   * Every trade needs SOL for its network fee, whatever it is funded in. A USDC
+   * buy from a wallet with no SOL fails at signing, so it is caught here.
+   */
+  const shortOnFees = shortOfNetworkFees({buying, settleMint, lamports});
 
   const insufficientSol = useMemo(() => {
     if (!open || lamports === null || entered <= 0) return null;
     const balance = fromBaseUnits(lamports, 9);
 
-    if (buying) {
+    if (buying && settleMint === "sol") {
       const spendable = spendableLamports(lamports);
       if (overBalance || (amountRaw !== null && amountRaw > spendable) || spendable <= 0n) {
         return {
@@ -337,7 +368,7 @@ export function OrderSheet({
     }
 
     return null;
-  }, [open, lamports, entered, buying, amountRaw, overBalance, shortOnFees]);
+  }, [open, lamports, entered, buying, amountRaw, overBalance, settleMint, shortOnFees]);
 
   const undersized =
     entered > 0 && Number.isFinite(amountUsd) && tooSmall(amountUsd);
@@ -347,11 +378,12 @@ export function OrderSheet({
   useEffect(() => {
     if (!canQuote || !asset || amountBaseUnits === null) {
       setQuote(null);
+      setFee(null);
       return;
     }
 
-    const inputMint = buying ? SOL.mint : asset.mint;
-    const outputMint = buying ? asset.mint : SOL.mint;
+    const inputMint = buying ? money.mint : asset.mint;
+    const outputMint = buying ? asset.mint : money.mint;
 
     let cancelled = false;
     setQuoting(true);
@@ -363,14 +395,20 @@ export function OrderSheet({
           `/api/quote?inputMint=${inputMint}&outputMint=${outputMint}` +
             `&amount=${amountBaseUnits}&slippageBps=${slippageBps}`,
         );
-        const body = (await response.json()) as {quote?: QuoteState; error?: string};
+        const body = (await response.json()) as {
+          quote?: QuoteState;
+          fee?: FeeState | null;
+          error?: string;
+        };
         if (cancelled) return;
         if (!response.ok || !body.quote) {
           setQuote(null);
+          setFee(null);
           setError(body.error ?? "Could not price this trade.");
           return;
         }
         setQuote(body.quote);
+        setFee(body.fee ?? null);
       } catch {
         if (!cancelled) setError("Could not reach the router.");
       } finally {
@@ -382,9 +420,8 @@ export function OrderSheet({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [canQuote, asset, buying, amountBaseUnits, slippageBps]);
+  }, [canQuote, asset, buying, amountBaseUnits, money.mint, slippageBps]);
 
-  const fee = feeFor(Number.isFinite(amountUsd) ? amountUsd : 0);
   const impactPct = quote ? Math.abs(quote.priceImpactPct * 100) : 0;
   const impactBlocks = impactPct >= 50;
   const impactWarns = impactPct >= 15 && !impactBlocks;
@@ -396,9 +433,14 @@ export function OrderSheet({
    */
   const impactCautions = impactPct >= TRADABLE_IMPACT_PCT && !impactWarns && !impactBlocks;
 
-  const fundingSymbol = buying ? SOL.symbol : symbol;
-  const execSol =
-    buying && amountRaw !== null ? Number(fromBaseUnits(amountRaw, SOL.decimals)) : null;
+  const fundingSymbol = buying ? money.symbol : symbol;
+  /** Preset sizes in the money being spent: SOL is small, dollars are not. */
+  const quickSizes = settleMint === "usdc" ? QUICK_USDC : QUICK_SOL;
+  /** What a buy actually spends, in the money it spends it in. */
+  const execMoney =
+    buying && amountRaw !== null
+      ? Number(fromBaseUnits(amountRaw, money.decimals))
+      : null;
 
   /*
    * Checked in this order because each one is the more useful thing to say:
@@ -424,6 +466,8 @@ export function OrderSheet({
                     buying,
                     available: available ?? 0,
                     symbol: fundingSymbol,
+                    reserved: buying && settleMint === "sol",
+                    format: amountLabel,
                   })
                 : undersized
                   ? "Minimum trade is $1."
@@ -432,21 +476,17 @@ export function OrderSheet({
                     : needsSolUsd && solUsdQuery.isError
                       ? "Could not read SOL price. Try again in a moment."
                       : needsSolUsd && (solUsd === null || solUsd <= 0)
-                        ? "SOL price unavailable — try SOL sizing or wait a moment."
-                        : !buying &&
-                            inputUnit !== "token" &&
-                            (priceUsd === null || priceUsd <= 0)
-                          ? "No price for this asset, so this size cannot be converted."
-                    : impactBlocks
+                        ? "Could not read the SOL price. Try again in a moment."
+                        : impactBlocks
                       ? `Price impact is ${impactPct.toFixed(1)}% — too high to place.`
                       : null;
 
   /** What the confirm button receives, in the unit it will actually arrive in. */
   const estimatedOut = useMemo(() => {
     if (!quote || !asset) return null;
-    if (!buying) return Number(quote.outAmount) / 10 ** SOL.decimals;
+    if (!buying) return moneyReceived(quote.outAmount, money);
     return Number(baseUnitsToScaled(BigInt(quote.outAmount), assetDecimals, multiplier));
-  }, [quote, asset, assetDecimals, buying, multiplier]);
+  }, [quote, asset, assetDecimals, buying, money, multiplier]);
 
   async function confirm() {
     if (!asset || !quote || !wallet || !session.signAndSend) return;
@@ -535,15 +575,8 @@ export function OrderSheet({
     entered <= 0 ||
     signature !== null;
 
-  const unit = buying
-    ? inputUnit === "usd"
-      ? "USD"
-      : SOL.symbol
-    : inputUnit === "token"
-      ? symbol
-      : inputUnit === "usd"
-        ? "USD"
-        : SOL.symbol;
+  /** What the number in the field is counted in. */
+  const unit = buying ? money.symbol : symbol;
 
   return (
     <Modal
@@ -601,9 +634,9 @@ export function OrderSheet({
                   aria-pressed={active}
                   onClick={() => {
                     setActiveSide(option);
-                    setInputUnit(option === "buy" ? "usd" : "token");
                     setAmount("");
                     setQuote(null);
+                    setFee(null);
                     setError(null);
                     setSignature(null);
                   }}
@@ -626,37 +659,29 @@ export function OrderSheet({
           </div>
 
           <label htmlFor="order-amount" className="sr-only">
-            {buying
-              ? inputUnit === "usd"
-                ? "Amount in USD"
-                : "Amount in SOL"
-              : inputUnit === "token"
-                ? `Amount in ${symbol}`
-                : inputUnit === "usd"
-                  ? "Amount in USD"
-                  : "Amount in SOL"}
+            Amount in {unit}
           </label>
           <div className="rounded-2xl bg-[var(--bg-input)] px-4 py-3.5 shadow-inset-soft transition-[box-shadow,background-color] focus-within:shadow-inset-focus">
             <div className="mb-1 flex items-center justify-between gap-2">
               <span className="text-[10px] font-bold uppercase tracking-[0.09em] text-faint">
                 Amount
               </span>
-              <AmountUnitToggle
+              <MoneyToggle
                 buying={buying}
-                symbol={symbol}
-                value={inputUnit}
+                value={settleMint}
                 onChange={(next) => {
-                  setInputUnit(next);
+                  if (next === settleMint) return;
+                  setSettleMint(next);
                   setAmount("");
                   setQuote(null);
+                  setFee(null);
+                  setError(null);
+                  setSignature(null);
                 }}
               />
             </div>
 
             <div className="flex items-baseline gap-1.5">
-              {usdSized ? (
-                <span className="text-[24px] font-extrabold text-faint">$</span>
-              ) : null}
               <input
                 id="order-amount"
                 inputMode="decimal"
@@ -666,7 +691,8 @@ export function OrderSheet({
                 onChange={(event) => {
                   const next = event.target.value.replace(/[^0-9.]/g, "");
                   const parts = next.split(".");
-                  const places = usdSized ? 2 : 6;
+                  // Dollars are typed to the cent; everything else to six.
+                  const places = buying && settleMint === "usdc" ? 2 : 6;
                   setAmount(
                     parts.length > 1
                       ? `${parts[0]}.${parts.slice(1).join("").slice(0, places)}`
@@ -677,56 +703,42 @@ export function OrderSheet({
                 }}
                 className="tabular-nums w-full min-w-0 border-none bg-transparent text-[30px] font-extrabold tracking-[-0.03em] text-ink outline-none placeholder:text-faint focus:outline-none focus-visible:outline-none"
               />
-              {!usdSized ? (
-                <span className="text-[15px] font-extrabold text-faint">
-                  {buying ? SOL.symbol : inputUnit === "token" ? symbol : SOL.symbol}
-                </span>
-              ) : null}
+              <span className="text-[15px] font-extrabold text-faint">{unit}</span>
             </div>
 
             <div className="tabular-nums mt-1 text-[12px] font-semibold text-faint">
               {quote && estimatedOut !== null
-                ? `≈ ${units(estimatedOut)} ${buying ? symbol : SOL.symbol}`
+                ? `≈ ${units(estimatedOut)} ${buying ? symbol : money.symbol}`
                 : quoting && entered > 0
                   ? "Finding route…"
-                  : buying && inputUnit === "usd" && execSol !== null && entered > 0
-                    ? `≈ ${units(execSol)} SOL\u00a0\u00a0${formatPriceUsd(priceUsd)} per ${symbol}`
-                    : `${formatPriceUsd(priceUsd)} per ${symbol}`}
+                  : `${formatPriceUsd(priceUsd)} per ${symbol}`}
             </div>
           </div>
 
           <div className="mt-2.5 flex gap-2">
             {buying
-              ? (inputUnit === "sol" ? QUICK_SOL : QUICK_USD).map((value) => (
+              ? quickSizes.map((value) => (
                   <QuickButton
                     key={value}
-                    label={inputUnit === "sol" ? `${value} SOL` : `$${value}`}
+                    label={`${value} ${money.symbol}`}
                     onClick={() => setAmount(String(value))}
                   />
                 ))
-              : inputUnit === "token"
-                ? SELL_STEPS.map((step) => (
-                    <QuickButton
-                      key={step}
-                      label={`${step}%`}
-                      disabled={heldRaw === null || heldRaw <= 0n}
-                      onClick={() => {
-                        if (heldRaw === null) return;
-                        const part = shareOf(heldRaw, step);
-                        setAmount(baseUnitsToScaled(part, assetDecimals, multiplier));
-                        setSellAll(step === 100);
-                        setError(null);
-                        setSignature(null);
-                      }}
-                    />
-                  ))
-                : (inputUnit === "sol" ? QUICK_SOL : QUICK_USD).map((value) => (
-                    <QuickButton
-                      key={value}
-                      label={inputUnit === "sol" ? `${value} SOL` : `$${value}`}
-                      onClick={() => setAmount(String(value))}
-                    />
-                  ))}
+              : SELL_STEPS.map((step) => (
+                  <QuickButton
+                    key={step}
+                    label={`${step}%`}
+                    disabled={heldRaw === null || heldRaw <= 0n}
+                    onClick={() => {
+                      if (heldRaw === null) return;
+                      const part = shareOf(heldRaw, step);
+                      setAmount(baseUnitsToScaled(part, assetDecimals, multiplier));
+                      setSellAll(step === 100);
+                      setError(null);
+                      setSignature(null);
+                    }}
+                  />
+                ))}
           </div>
 
           {wallet ? (
@@ -737,8 +749,8 @@ export function OrderSheet({
                   ? "Couldn't read balance"
                   : available === null
                     ? "…"
-                    : `${amountLabel(available)} ${buying ? SOL.symbol : symbol}`}
-                {buying && available !== null
+                    : `${amountLabel(available)} ${buying ? money.symbol : symbol}`}
+                {buying && settleMint === "sol" && available !== null
                   ? `\u00a0\u00a0${Number(SOL_FEE_RESERVE_LAMPORTS) / 1e9} kept for fees`
                   : ""}
               </span>
@@ -750,10 +762,10 @@ export function OrderSheet({
             <span className="tabular-nums truncate font-extrabold">
               {buying
                 ? entered > 0
-                  ? execSol !== null
-                    ? `${units(execSol)} ${SOL.symbol}`
+                  ? execMoney !== null
+                    ? `${units(execMoney)} ${money.symbol}`
                     : `${units(entered)} ${unit}`
-                  : `— ${SOL.symbol}`
+                  : `— ${money.symbol}`
                 : entered > 0
                   ? `${units(entered)} ${unit}`
                   : `— ${unit}`}
@@ -766,10 +778,10 @@ export function OrderSheet({
           {quote ? (
             <TicketBreakdown
               quote={quote}
-              receivedSymbol={buying ? symbol : SOL.symbol}
-              receivedDecimals={buying ? assetDecimals : SOL.decimals}
+              receivedSymbol={buying ? symbol : money.symbol}
+              receivedDecimals={buying ? assetDecimals : money.decimals}
               receivedMultiplier={buying ? multiplier : 1}
-              feeUsd={quote.platformFee ? fee.usd : 0}
+              fee={fee}
               slippageBps={slippageBps}
               impactPct={impactPct}
               impactLevel={
@@ -868,38 +880,21 @@ function amountLabel(value: number): string {
 }
 
 /** Why an amount is more than the wallet can cover, in the unit being typed. */
-function overBalanceMessage({
-  buying,
-  available,
-  symbol,
-}: {
-  buying: boolean;
-  available: number;
-  symbol: string;
-}): string {
-  if (!buying) {
-    return available === 0
-      ? `You don't hold any ${symbol} in this wallet.`
-      : `You only hold ${amountLabel(available)} ${symbol}.`;
-  }
-  return `You can spend up to ${amountLabel(available)} SOL — a little is kept back for network fees.`;
-}
-
 /**
  * What the trade actually costs, line by line.
  *
  * Every row is either a number the router returned or an em dash. Nothing here
  * is estimated locally and presented as if it came from the quote — the fee row
- * in particular only claims a fee when `platformFee` is actually on the quote,
- * because claiming one the router did not take is the kind of error nobody
- * would ever catch.
+ * in particular prints the server's own figure and mint, because claiming a fee
+ * the router did not take, or naming the wrong token for one it did, is the
+ * kind of error nobody would ever catch.
  */
 function TicketBreakdown({
   quote,
   receivedSymbol,
   receivedDecimals,
   receivedMultiplier,
-  feeUsd,
+  fee,
   slippageBps,
   impactPct,
   impactLevel,
@@ -918,7 +913,8 @@ function TicketBreakdown({
   receivedDecimals: number;
   /** Scaled mints report fewer base units than tokens — see `baseUnitsToScaled`. */
   receivedMultiplier: number;
-  feeUsd: number;
+  /** What the server charged, or null when it charged nothing. */
+  fee: FeeState | null;
   slippageBps: number;
   impactPct: number;
   impactLevel: "ok" | "caution" | "warn" | "block";
@@ -931,8 +927,10 @@ function TicketBreakdown({
 
   return (
     <div className="mt-2.5 space-y-1 px-1 text-[12px] font-semibold">
-      <Line label={`Trador fee (${FEE_BPS / 100}%)`}>
-        {quote.platformFee ? `$${feeUsd.toFixed(2)}` : "Not taken"}
+      <Line label={`Trador fee (${(fee?.bps ?? FEE_BPS) / 100}%)`}>
+        {fee
+          ? `${units(Number(fromBaseUnits(BigInt(fee.amount), fee.decimals)))} ${fee.symbol}`
+          : "Not taken"}
       </Line>
       <Line
         label="Price impact"
@@ -989,35 +987,44 @@ function Line({
   );
 }
 
-/** SOL/USD on buys; token/SOL/USD on sells. Execution is always SOL ↔ token. */
-function AmountUnitToggle({
+/**
+ * Which money the trade is settled in.
+ *
+ * Two pills in the corner of the Amount card, where the typing-unit toggle used
+ * to sit — reused rather than joined by a second control, because a ticket this
+ * small cannot carry two groups of pills in the same corner.
+ *
+ * On a sell the pair is introduced by the word "Receive", because the same
+ * choice means something different on each side: on a buy it is what leaves the
+ * wallet, on a sell it is what arrives. Saying so costs one word and removes
+ * the only ambiguity in the control.
+ *
+ * It also decides what the number in the field is counted in, which is why
+ * changing it clears the amount: 0.25 SOL and 0.25 USDC are not the same trade.
+ */
+function MoneyToggle({
   buying,
-  symbol,
   value,
   onChange,
 }: {
   buying: boolean;
-  symbol: string;
-  value: AmountUnit;
-  onChange: (unit: AmountUnit) => void;
+  value: SettleMint;
+  onChange: (next: SettleMint) => void;
 }) {
-  const options: {id: AmountUnit; label: string}[] = buying
-    ? [
-        {id: "sol", label: "SOL"},
-        {id: "usd", label: "USD"},
-      ]
-    : [
-        {id: "token", label: symbol.length > 6 ? `${symbol.slice(0, 5)}…` : symbol},
-        {id: "sol", label: "SOL"},
-        {id: "usd", label: "USD"},
-      ];
+  const options: {id: SettleMint; label: string}[] = [
+    {id: "usdc", label: USDC.symbol},
+    {id: "sol", label: SOL.symbol},
+  ];
 
   return (
     <div
       role="group"
-      aria-label="Amount unit"
-      className="flex gap-0.5 rounded-full bg-[var(--segment-track)] p-[2px]"
+      aria-label={buying ? "Pay with" : "Receive in"}
+      className="flex items-center gap-0.5 rounded-full bg-[var(--segment-track)] p-[2px]"
     >
+      {buying ? null : (
+        <span className="px-1.5 text-[10.5px] font-extrabold text-faint">Receive</span>
+      )}
       {options.map((option) => {
         const active = option.id === value;
         return (

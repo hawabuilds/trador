@@ -6,7 +6,7 @@ import {
   quoteWithoutPlatformFee,
   type SwapQuote,
 } from "@/lib/server/live/jupiter";
-import {resolvePlatformFeeAccount} from "@/lib/server/live/platformFee";
+import {resolveTradeFee} from "@/lib/server/live/platformFee";
 import {simulateSwapTransaction} from "@/lib/server/live/simulateSwap";
 
 export const dynamic = "force-dynamic";
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
 
     let swapQuote: SwapQuote = body.quote;
     let feeAccount = swapQuote.platformFee
-      ? await resolvePlatformFeeAccount({inputMint, outputMint})
+      ? ((await resolveTradeFee({inputMint, outputMint}))?.account ?? null)
       : null;
 
     // Stale quote or collector not ready — strip fee from the agreed quote instead
