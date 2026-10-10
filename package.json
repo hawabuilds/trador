@@ -16,6 +16,7 @@
     "sync:stocks": "node --import ./test/resolver.mjs scripts/sync-stocks.ts",
     "probe:quotes": "node --import ./test/resolver.mjs scripts/probe-quote-mints.ts",
     "backfill:graduated-at": "node --import ./test/resolver.mjs scripts/backfill-graduated-at.ts",
+    "fee:accounts": "node --import ./test/resolver.mjs scripts/fee-accounts.ts",
     "vapid": "node --import ./test/resolver.mjs scripts/vapid-keys.ts",
     "cron": "node --import ./test/resolver.mjs scripts/cron.ts",
     "db:migrate": "node --import ./test/resolver.mjs --env-file=.env.local scripts/migrate.ts",
