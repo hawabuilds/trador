@@ -27,15 +27,11 @@
 
 import {type Pubkey} from "@/lib/pubkey";
 import {FEE_BPS} from "@/config/fees";
-import {FEE_COLLECTOR} from "@/lib/server/live/platformFee";
 import {
   JUPITER_API_BASE,
   JUPITER_SWAP_PATH,
   jupiterFetchHeaders,
 } from "@/lib/server/live/jupiterEnv";
-
-/** @deprecated Use `FEE_COLLECTOR` from `platformFee.ts`. */
-export const FEE_WALLET = FEE_COLLECTOR;
 
 export interface QuoteRequest {
   inputMint: Pubkey;

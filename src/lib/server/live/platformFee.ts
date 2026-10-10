@@ -1,21 +1,20 @@
 /**
- * Platform fee token account for Jupiter swaps.
+ * Where the platform fee lands, and in what.
  *
- * No Trador smart contract is involved. Jupiter's hosted API accepts
- * `platformFeeBps` on the quote and a matching, **initialized** `feeAccount`
- * on the build; the fee lands in that token account. Until you are ready, leave
- * `NEXT_PUBLIC_FEE_WALLET` unset — swaps price and simulate with no platform
- * fee.
+ * No Trador program is involved. Jupiter takes `platformFeeBps` on the quote
+ * and an initialised `feeAccount` on the build, and pays the fee into that
+ * account. All this file decides is which account to name.
  *
- * When you turn fees on: set the collector **wallet** (base58) and initialize
- * its wSOL associated token account once. Fees apply on **sells** (token → SOL)
- * only — Jupiter takes ExactIn platform fees from the output mint, so wSOL
- * collection on buys would need a per-stock collector ATA. You may paste an
- * existing wSOL token account instead of the wallet. Unset env, invalid base58,
- * placeholders, or a missing ATA all mean "no fee" — never a user-facing error.
+ * The rule is that the fee is only ever taken in money — USDC or wrapped SOL —
+ * never in the stock or coin being traded. On a sell the money is the output,
+ * on a buy it is the input, and Swap v2 accepts a fee account on either leg.
+ * That is the whole reason the app is on v2: v1 rejects an input-side fee
+ * account on-chain with error 6014.
  *
- * Passing a wSOL `feeAccount` on a buy (SOL → token) fails simulation with
- * Jupiter 6014/6025 — Privy surfaces that as "your transaction will likely fail."
+ * Two failure modes are deliberately quiet. An unset or malformed
+ * `TRADOR_FEE_WALLET`, and a vault whose token account has not been created
+ * yet, both mean "no fee" — the trade still goes through. Nobody should be
+ * unable to sell because a collection account is missing.
  */
 
 import {Connection, PublicKey} from "@solana/web3.js";
@@ -26,7 +25,7 @@ import {
 } from "@solana/spl-token";
 
 import {FEE_BPS} from "@/config/fees";
-import {TOKEN_2022_PROGRAM, TOKEN_PROGRAM, WSOL_MINT} from "@/lib/programs";
+import {TOKEN_2022_PROGRAM, TOKEN_PROGRAM, USDC_MINT, WSOL_MINT} from "@/lib/programs";
 import {
   type Pubkey,
   assertPubkey,
@@ -36,27 +35,53 @@ import {
 } from "@/lib/pubkey";
 import {serverRpcUrl} from "@/lib/server/rpcUrl";
 
-/** Parse fee collector from env; invalid or placeholder values mean no fee. */
-export function feeCollectorFromEnv(): Pubkey | null {
-  const raw = process.env.NEXT_PUBLIC_FEE_WALLET?.trim();
+/** The mints a fee may be taken in. Nothing else is money. */
+const FEE_MINTS: readonly Pubkey[] = [USDC_MINT, WSOL_MINT];
+
+/** Which leg of the trade the fee comes out of. */
+export type FeeSide = "input" | "output";
+
+export interface TradeFee {
+  /** The initialised token account Jupiter pays into. */
+  account: Pubkey;
+  /** Always USDC or wSOL. */
+  mint: Pubkey;
+  side: FeeSide;
+  bps: number;
+}
+
+const PLACEHOLDERS = new Set(["unset", "none", "tbd", "changeme", "placeholder"]);
+
+/** The collection wallet, or null when it is unset, invalid or a placeholder. */
+export function feeWalletFromEnv(): Pubkey | null {
+  const raw = process.env.TRADOR_FEE_WALLET?.trim();
   if (!raw) return null;
-  const lower = raw.toLowerCase();
-  if (
-    lower === "unset" ||
-    lower === "none" ||
-    lower === "tbd" ||
-    lower === "changeme" ||
-    lower === "placeholder"
-  ) {
-    return null;
-  }
+  if (PLACEHOLDERS.has(raw.toLowerCase())) return null; // pubkey-lint-ok: a placeholder word, not an address
   const parsed = asPubkey(raw);
   if (!parsed || isDefaultPubkey(parsed)) return null;
   return parsed;
 }
 
-/** Fee collector: owner wallet, or an existing wSOL token account. */
-export const FEE_COLLECTOR = feeCollectorFromEnv();
+function isFeeMint(mint: Pubkey): boolean {
+  return FEE_MINTS.some((candidate) => samePubkey(candidate, mint));
+}
+
+/**
+ * Which mint this trade's fee is taken in, and from which leg.
+ *
+ * Output first, so a sell pays out of its proceeds — which is both what the
+ * quote already prices and the only side where Jupiter's own figure can be
+ * trusted. A buy falls through to the input. A trade with money on neither
+ * side (a coin for a stock) takes no fee at all.
+ */
+export function feeLegFor(params: {
+  inputMint: Pubkey;
+  outputMint: Pubkey;
+}): {mint: Pubkey; side: FeeSide} | null {
+  if (isFeeMint(params.outputMint)) return {mint: params.outputMint, side: "output"};
+  if (isFeeMint(params.inputMint)) return {mint: params.inputMint, side: "input"};
+  return null;
+}
 
 const TOKEN_PROGRAMS = [
   new PublicKey(TOKEN_PROGRAM),
@@ -67,85 +92,96 @@ function rpc() {
   return new Connection(serverRpcUrl(), "confirmed");
 }
 
-async function readTokenAccount(
-  address: Pubkey,
-): Promise<{owner: Pubkey; mint: Pubkey} | null> {
+/** The mint an initialised token account holds, or null if it is neither. */
+async function mintOfTokenAccount(address: Pubkey): Promise<Pubkey | null> {
   const info = await rpc().getAccountInfo(new PublicKey(address));
   if (!info) return null;
   const program = TOKEN_PROGRAMS.find((id) => id.equals(info.owner));
   if (!program) return null;
   try {
-    const acct = unpackAccount(new PublicKey(address), info, program);
-    return {
-      owner: assertPubkey(acct.owner.toBase58(), "token account owner"),
-      mint: assertPubkey(acct.mint.toBase58(), "token account mint"),
-    };
+    const account = unpackAccount(new PublicKey(address), info, program);
+    return assertPubkey(account.mint.toBase58(), "token account mint");
   } catch {
     return null;
   }
 }
 
-async function initializedTokenAccount(address: Pubkey): Promise<boolean> {
-  return (await readTokenAccount(address)) !== null;
-}
-
-/** Whether this pair can take a wSOL platform fee (ExactIn: fee mint is output). */
-export function platformFeePairEligible(params: {
-  inputMint: Pubkey;
-  outputMint: Pubkey;
-}): boolean {
-  const wsolLeg =
-    samePubkey(params.inputMint, WSOL_MINT) || samePubkey(params.outputMint, WSOL_MINT);
-  return wsolLeg && samePubkey(params.outputMint, WSOL_MINT);
-}
-
-const FEE_ACCOUNT_CACHE_MS = 30_000;
-const feeAccountCache = new Map<string, {at: number; value: Pubkey | null}>();
-
-function feeAccountCacheKey(inputMint: Pubkey, outputMint: Pubkey): string {
-  return `${inputMint}\0${outputMint}`;
-}
-
-async function resolvePlatformFeeAccountUncached(params: {
-  inputMint: Pubkey;
-  outputMint: Pubkey;
-}): Promise<Pubkey | null> {
-  if (FEE_BPS <= 0 || !FEE_COLLECTOR) return null;
-  if (!platformFeePairEligible(params)) return null;
-
-  const configured = await readTokenAccount(FEE_COLLECTOR);
-  if (configured && samePubkey(configured.mint, WSOL_MINT)) {
-    return FEE_COLLECTOR;
-  }
-
-  const owner = configured?.owner ?? FEE_COLLECTOR;
-  const wsolAta = assertPubkey(
+/**
+ * The vault's associated token account for a mint.
+ *
+ * Off-curve owners are allowed because a Squads vault is a program address,
+ * not a keypair, and the on-curve check would throw on one.
+ */
+export function feeAccountAddress(wallet: Pubkey, mint: Pubkey): Pubkey {
+  return assertPubkey(
     getAssociatedTokenAddressSync(
-      new PublicKey(WSOL_MINT),
-      new PublicKey(owner),
-      false,
+      new PublicKey(mint),
+      new PublicKey(wallet),
+      true,
       TOKEN_PROGRAM_ID,
     ).toBase58(),
-    "collector wSOL ATA",
+    "fee token account",
   );
-
-  if (await initializedTokenAccount(wsolAta)) return wsolAta;
-  return null;
 }
 
 /**
- * Initialized wSOL ATA that can receive the platform fee for this pair, or null
- * when fees should not be priced (missing collector config or ATA).
+ * The decision itself, with every input handed in.
+ *
+ * Separated from the lookups so each way a fee can be declined — rate off, no
+ * wallet, no money leg, an account that was never created, an account holding
+ * the wrong mint — is a branch that can be tested without a network or a
+ * particular environment.
  */
-export async function resolvePlatformFeeAccount(params: {
+export function feeFromParts(params: {
+  bps: number;
+  wallet: Pubkey | null;
+  leg: {mint: Pubkey; side: FeeSide} | null;
+  /** The mint the collection account actually holds, or null if it has none. */
+  accountMint: Pubkey | null;
+}): TradeFee | null {
+  const {bps, wallet, leg, accountMint} = params;
+  if (!Number.isFinite(bps) || bps <= 0) return null;
+  if (!wallet) return null;
+  if (!leg) return null;
+  if (accountMint === null || !samePubkey(accountMint, leg.mint)) return null;
+
+  return {
+    account: feeAccountAddress(wallet, leg.mint),
+    mint: leg.mint,
+    side: leg.side,
+    bps,
+  };
+}
+
+const CACHE_MS = 30_000;
+const cache = new Map<string, {at: number; value: TradeFee | null}>();
+
+async function resolveUncached(params: {
   inputMint: Pubkey;
   outputMint: Pubkey;
-}): Promise<Pubkey | null> {
-  const key = feeAccountCacheKey(params.inputMint, params.outputMint);
-  const hit = feeAccountCache.get(key);
-  if (hit && Date.now() - hit.at < FEE_ACCOUNT_CACHE_MS) return hit.value;
+}): Promise<TradeFee | null> {
+  const wallet = feeWalletFromEnv();
+  const leg = feeLegFor(params);
+  if (FEE_BPS <= 0 || !wallet || !leg) return null;
 
-  const value = await resolvePlatformFeeAccountUncached(params);
-  feeAccountCache.set(key, {at: Date.now(), value});
+  // Jupiter does not check that the account's mint belongs to the pair — a
+  // wrong one builds cleanly and fails on-chain — so this is read here or not
+  // checked at all. It is also how an uncreated vault account is detected.
+  const accountMint = await mintOfTokenAccount(feeAccountAddress(wallet, leg.mint));
+
+  return feeFromParts({bps: FEE_BPS, wallet, leg, accountMint});
+}
+
+/** The fee this trade can take, or null when it should take none. */
+export async function resolveTradeFee(params: {
+  inputMint: Pubkey;
+  outputMint: Pubkey;
+}): Promise<TradeFee | null> {
+  const key = `${params.inputMint}\0${params.outputMint}`;
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < CACHE_MS) return hit.value;
+
+  const value = await resolveUncached(params);
+  cache.set(key, {at: Date.now(), value});
   return value;
 }

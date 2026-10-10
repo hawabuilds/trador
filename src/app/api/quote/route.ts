@@ -2,7 +2,7 @@ import {badRequest, json} from "@/lib/server/http";
 import {asPubkey} from "@/lib/pubkey";
 import {USDC_MINT, WSOL_MINT} from "@/lib/programs";
 import {isJupiterRateLimitError, quote} from "@/lib/server/live/jupiter";
-import {resolvePlatformFeeAccount} from "@/lib/server/live/platformFee";
+import {resolveTradeFee} from "@/lib/server/live/platformFee";
 
 export const dynamic = "force-dynamic";
 
@@ -30,14 +30,14 @@ export async function GET(request: Request) {
   }
 
   try {
-    const feeAccount = await resolvePlatformFeeAccount({inputMint, outputMint});
+    const tradeFee = await resolveTradeFee({inputMint, outputMint});
     const priced = await quote({
       inputMint,
       outputMint,
       amount,
       slippageBps,
-      // A fee is only priced when there is an initialized account to receive it.
-      feeAccount,
+      // A fee is only priced when there is an initialised account to receive it.
+      feeAccount: tradeFee?.account ?? null,
     });
 
     return json({
