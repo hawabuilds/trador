@@ -92,13 +92,20 @@ function rpc() {
   return new Connection(serverRpcUrl(), "confirmed");
 }
 
-/** The mint an initialised token account holds, or null if it is neither. */
+/**
+ * The mint an initialised token account holds, or null if it is neither.
+ *
+ * Null for every way this can fail, including the RPC being down or out of
+ * quota. A fee that cannot be confirmed is a fee that is not charged, and the
+ * alternative — letting the lookup throw — takes the quote down with it and
+ * stops someone trading because a collection account could not be read.
+ */
 async function mintOfTokenAccount(address: Pubkey): Promise<Pubkey | null> {
-  const info = await rpc().getAccountInfo(new PublicKey(address));
-  if (!info) return null;
-  const program = TOKEN_PROGRAMS.find((id) => id.equals(info.owner));
-  if (!program) return null;
   try {
+    const info = await rpc().getAccountInfo(new PublicKey(address));
+    if (!info) return null;
+    const program = TOKEN_PROGRAMS.find((id) => id.equals(info.owner));
+    if (!program) return null;
     const account = unpackAccount(new PublicKey(address), info, program);
     return assertPubkey(account.mint.toBase58(), "token account mint");
   } catch {
@@ -213,7 +220,15 @@ export async function resolveTradeFee(params: {
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.value;
 
-  const value = await resolveUncached(params);
+  // Belt and braces over the catch inside the lookup: nothing about resolving a
+  // fee may ever be the reason a trade cannot be priced.
+  let value: TradeFee | null = null;
+  try {
+    value = await resolveUncached(params);
+  } catch {
+    value = null;
+  }
+
   cache.set(key, {at: Date.now(), value});
   return value;
 }
