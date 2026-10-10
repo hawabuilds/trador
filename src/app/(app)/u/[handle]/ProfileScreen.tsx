@@ -18,7 +18,7 @@ import {ChevronLeftIcon, UserIcon} from "@/components/ui/Icons";
 import {useSession} from "@/lib/session";
 import {cn} from "@/lib/cn";
 import {fromBaseUnits, lamportsFrom} from "@/lib/amounts";
-import {compact, compactMoney} from "@/lib/format";
+import {compact, compactMoney, units} from "@/lib/format";
 import {shortPubkey} from "@/lib/pubkey";
 import type {Holding, Profile} from "@/lib/types";
 
@@ -232,6 +232,7 @@ interface StonkfolioResponse {
   holdings: Holding[];
   otherCount: number;
   solLamports: number;
+  usdcAmount: number;
   totalUsd: number;
   error?: string;
 }
@@ -284,6 +285,9 @@ function PublicStonkfolio({wallet, handle, isSelf}: {wallet: string; handle: str
   }, [query.data?.holdings, split]);
 
   const solLabel = fromBaseUnits(BigInt(lamportsFrom(query.data?.solLamports) ?? 0), 9);
+  // Money, beside the SOL rather than inside the total, and only when there is
+  // some: an empty USDC line on every wallet is noise.
+  const usdc = query.data?.usdcAmount ?? 0;
 
   return (
     <section className="mt-5">
@@ -295,6 +299,7 @@ function PublicStonkfolio({wallet, handle, isSelf}: {wallet: string; handle: str
       </div>
       <div className="tabular-nums mt-1.5 flex items-center gap-2 text-[12px] font-bold text-faint">
         <span>{solLabel} SOL</span>
+        {usdc > 0 ? <span>{units(usdc)} USDC</span> : null}
         {query.data && query.data.otherCount > 0 ? (
           <span>{query.data.otherCount} not priced here</span>
         ) : null}
