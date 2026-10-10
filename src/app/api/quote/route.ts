@@ -2,7 +2,11 @@ import {badRequest, json} from "@/lib/server/http";
 import {asPubkey} from "@/lib/pubkey";
 import {USDC_MINT, WSOL_MINT} from "@/lib/programs";
 import {isJupiterRateLimitError, quote} from "@/lib/server/live/jupiter";
-import {resolvePlatformFeeAccount} from "@/lib/server/live/platformFee";
+import {
+  feeAmountFor,
+  feeTokenFace,
+  resolveTradeFee,
+} from "@/lib/server/live/platformFee";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +16,12 @@ export const dynamic = "force-dynamic";
  * The client sends mints and an amount in base units; nothing about routing or
  * fees is decided here beyond passing the platform fee, so a change to either
  * is a server change rather than a client release.
+ *
+ * The fee is reported, not implied. Only this side knows which leg it comes out
+ * of, and the router's own figure is denominated in the output mint whichever
+ * leg that is — so a browser working it out from the dollar value would print a
+ * number that disagrees with the transaction on buys. The ticket shows what
+ * comes back here and does no arithmetic of its own.
  */
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -30,21 +40,40 @@ export async function GET(request: Request) {
   }
 
   try {
-    const feeAccount = await resolvePlatformFeeAccount({inputMint, outputMint});
+    const tradeFee = await resolveTradeFee({inputMint, outputMint});
     const priced = await quote({
       inputMint,
       outputMint,
       amount,
       slippageBps,
-      // A fee is only priced when there is an initialized account to receive it.
-      feeAccount,
+      // A fee is only priced when there is an initialised account to receive it.
+      feeAccount: tradeFee?.account ?? null,
+      feeBps: tradeFee?.bps,
     });
+
+    // Priced and charged have to agree. If the router declined to price a fee,
+    // none is reported however the collector is configured.
+    const charged = tradeFee !== null && priced.platformFee !== null;
+    const feeAmount = charged
+      ? feeAmountFor({
+          fee: tradeFee,
+          inAmount: priced.inAmount,
+          quotedFeeAmount: priced.platformFee?.amount ?? null,
+        })
+      : null;
 
     return json({
       quote: priced,
-      // Told to the client rather than inferred there, so the ticket cannot
-      // claim a fee that was never priced in.
-      feeCharged: priced.platformFee !== null,
+      fee:
+        charged && feeAmount !== null
+          ? {
+              amount: feeAmount,
+              mint: tradeFee.mint,
+              side: tradeFee.side,
+              bps: tradeFee.bps,
+              ...feeTokenFace(tradeFee.mint),
+            }
+          : null,
       nativeMint: WSOL_MINT,
       stableMint: USDC_MINT,
     });

@@ -11,15 +11,27 @@
  * must always be sent together: a quote priced with a fee and a build without
  * one silently gives the fee away, and the reverse is rejected. They are
  * emitted as a pair here or not at all.
+ *
+ * Two things about the fee that the API will not tell you, both measured
+ * against mainnet rather than read off a doc page:
+ *
+ *   - `platformFee.amount` on the quote is **always** denominated in the
+ *     output mint, even when the fee is actually taken from the input. On a
+ *     $25 USDC buy it read 16,076 token base units while the collector
+ *     received 125,000 USDC base units. Callers that take the fee on the input
+ *     must work the amount out themselves; see `platformFee.ts`.
+ *   - The build does **not** check that the fee account's mint belongs to the
+ *     pair. A wrong mint returns a perfectly ordinary transaction that then
+ *     fails on-chain, so the guard has to be ours.
  */
 
 import {type Pubkey} from "@/lib/pubkey";
 import {FEE_BPS} from "@/config/fees";
-import {FEE_COLLECTOR} from "@/lib/server/live/platformFee";
-import {JUPITER_API_BASE, jupiterFetchHeaders} from "@/lib/server/live/jupiterEnv";
-
-/** @deprecated Use `FEE_COLLECTOR` from `platformFee.ts`. */
-export const FEE_WALLET = FEE_COLLECTOR;
+import {
+  JUPITER_API_BASE,
+  JUPITER_SWAP_PATH,
+  jupiterFetchHeaders,
+} from "@/lib/server/live/jupiterEnv";
 
 export interface QuoteRequest {
   inputMint: Pubkey;
@@ -27,8 +39,10 @@ export interface QuoteRequest {
   /** Base units of the input mint. */
   amount: string;
   slippageBps: number;
-  /** The fee token account for the output mint, when one exists. */
+  /** The token account the fee is paid into, when one exists. */
   feeAccount?: Pubkey | null;
+  /** The rate to price it at. Defaults to the configured one. */
+  feeBps?: number;
 }
 
 export interface SwapQuote {
@@ -57,14 +71,18 @@ export async function quote(request: QuoteRequest): Promise<SwapQuote> {
   });
 
   // Fee params travel as a pair — see the note at the top of this file.
-  if (request.feeAccount && FEE_BPS > 0) {
-    params.set("platformFeeBps", String(FEE_BPS));
+  const feeBps = request.feeBps ?? FEE_BPS;
+  if (request.feeAccount && feeBps > 0) {
+    params.set("platformFeeBps", String(feeBps));
   }
 
-  const response = await fetch(`${JUPITER_API_BASE}/swap/v1/quote?${params}`, {
-    cache: "no-store",
-    headers: jupiterFetchHeaders(),
-  });
+  const response = await fetch(
+    `${JUPITER_API_BASE}${JUPITER_SWAP_PATH}/quote?${params}`,
+    {
+      cache: "no-store",
+      headers: jupiterFetchHeaders(),
+    },
+  );
 
   if (!response.ok) {
     const body = await response.text();
@@ -86,7 +104,7 @@ export async function quote(request: QuoteRequest): Promise<SwapQuote> {
     slippageBps: Number(body.slippageBps ?? request.slippageBps),
     platformFee:
       fee?.amount != null
-        ? {amount: String(fee.amount), feeBps: Number(fee.feeBps ?? FEE_BPS)}
+        ? {amount: String(fee.amount), feeBps: Number(fee.feeBps ?? feeBps)}
         : null,
     routeLabels: plan
       .map((step) => step.swapInfo?.label)
@@ -109,13 +127,14 @@ export interface BuiltSwap {
 }
 
 export async function buildSwap(request: BuildRequest): Promise<BuiltSwap> {
-  const response = await fetch(`${JUPITER_API_BASE}/swap/v1/swap`, {
+  const response = await fetch(`${JUPITER_API_BASE}${JUPITER_SWAP_PATH}/swap`, {
     method: "POST",
     headers: jupiterFetchHeaders({"content-type": "application/json"}),
     cache: "no-store",
     body: JSON.stringify({
       quoteResponse: request.quote.raw,
-      userPublicKey: request.userPublicKey,
+      // v2's name for what v1 called `userPublicKey`.
+      taker: request.userPublicKey,
       ...(request.feeAccount ? {feeAccount: request.feeAccount} : {}),
       // SOL is wrapped and unwrapped around the swap so a user never has to
       // hold wSOL or know it exists.

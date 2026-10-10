@@ -37,7 +37,7 @@ import {
   writePieTargets,
 } from "@/lib/localStore";
 import {fromBaseUnits, lamportsFrom} from "@/lib/amounts";
-import {compact, compactMoney, stamp} from "@/lib/format";
+import {compact, compactMoney, stamp, units} from "@/lib/format";
 import {shortPubkey} from "@/lib/pubkey";
 import type {Holding} from "@/lib/types";
 import {positionByMint} from "@/lib/walletTrades";
@@ -79,6 +79,7 @@ interface StonkfolioResponse {
   holdings: Holding[];
   otherCount: number;
   solLamports: number;
+  usdcAmount: number;
   totalUsd: number;
   stale: boolean;
   error?: string;
@@ -186,6 +187,9 @@ export function StonkfolioScreen() {
   }, [query.data?.holdings, split]);
 
   const solLabel = fromBaseUnits(BigInt(lamportsFrom(query.data?.solLamports) ?? 0), 9);
+  // Money, beside the SOL rather than inside the total, and only when there is
+  // some: an empty USDC line on every wallet is noise.
+  const usdc = query.data?.usdcAmount ?? 0;
 
   // Cost basis for the gain line — after holdings so the first paint is one RPC batch.
   const trades = useWalletTrades(wallet, {enabled: Boolean(wallet)});
@@ -373,6 +377,9 @@ export function StonkfolioScreen() {
                   />
                 ) : null}
                 <span className="tabular-nums">{solLabel} SOL</span>
+                {usdc > 0 ? (
+                  <span className="tabular-nums">{units(usdc)} USDC</span>
+                ) : null}
                 {/*
                   Counted and named rather than folded into the total. The
                   number above is what this app can price, not everything in
