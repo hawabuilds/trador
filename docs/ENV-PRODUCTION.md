@@ -2,7 +2,7 @@
 
 Copy-paste blocks for **Railway** (`trador-indexer`) and **Vercel** (`trador`). Use
 placeholder values below — never commit real secrets. Local dev uses a single
-`.env.local`; see `.env.local.example` for the full variable list.
+`.env.local`; see `.env.example` for every variable the code reads.
 
 Operational detail for the worker (pooler URL, restarts, logs): [RAILWAY.md](../RAILWAY.md).
 

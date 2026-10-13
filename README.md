@@ -1,38 +1,121 @@
 # Trador
 
-**Live:** [https://www.trador.one](https://www.trador.one)
+A mobile web app for trading tokenized stocks on Solana, and the coins paired to
+them, with the stock behind every coin verified.
 
-**Demo video:** [https://youtu.be/Xe4WDS4D5uo](https://youtu.be/Xe4WDS4D5uo)
+**Live app:** [trador.one](https://www.trador.one) · **Demo video:**
+[youtu.be/Xe4WDS4D5uo](https://youtu.be/Xe4WDS4D5uo) · **X:**
+[@Tradorone](https://x.com/Tradorone)
 
 ![Trador — Stock app for trenchers](docs/screenshots/cover.png)
 
-Coins priced in stocks, on Solana. Trador is the feed, chart, order ticket and
-launchpad for that.
+## The problem
 
-Two launchpads now let a creator pick a tokenized stock as the quote asset —
-**StonkFun**, which runs on Raydium LaunchLab, and **pump.fun Custom Pairs**. So
-a coin can be denominated in NVDAx instead of SOL, and a StonkFun reward launch
-routes a share of every trade back to holders in stock.
+Tokenized stocks are arriving on Solana quickly — Backed, Backpack, PreStocks
+and Tessera have put equities, ETFs and pre-IPO names on chain. But a ticker on
+Solana proves nothing: anyone can mint a token called `NVDA`, and a coin that
+claims to be paired with a real stock usually isn't.
 
-[![Trador demo](https://img.youtube.com/vi/Xe4WDS4D5uo/maxresdefault.jpg)](https://youtu.be/Xe4WDS4D5uo)
+Trador verifies the stock behind every pairing by reading the mint's own
+authority on chain, not a token's name or a listing site, and keeps the result
+in a registry that a coin must match before it can claim a pairing. On top of
+that it is an ordinary trading app: feed, chart, order ticket, portfolio.
 
-![Trador users by day, 20–24 September 2026](docs/screenshots/traction-users.png)
+## What's live
 
-Live since Sunday 20 September 2026. Users went from 36 at launch to 62 by
-Thursday 24 September, by UK signup date.
+Everything in this table is in the code on this branch.
+
+| Feature | Where it lives |
+| --- | --- |
+| Stonks and stocks feeds, with per-tab sorting | `src/app/(app)/home` |
+| Verified stock registry — **114 stocks**, 100 currently tradable, from Backed (30), Backpack (73), PreStocks (8) and Tessera (3) | `src/lib/stocks/mints.generated.json` |
+| Token page: chart, timeframes, live trade tape, info | `src/app/(app)/stock/[ticker]`, `src/components/PriceChart.tsx` |
+| Real swaps through Jupiter Swap v2, one signature, no approval step | `src/lib/server/live/jupiter.ts` |
+| Pay with SOL or USDC on a buy, receive either on a sell | `src/lib/orderMoney.ts`, `src/components/OrderSheet.tsx` |
+| A 0.5% platform fee, taken only in USDC or SOL and never in the coin being traded. Off by default — see the note below | `src/lib/server/live/platformFee.ts`, `src/config/fees.ts` |
+| Comments only from holders, with reputation and five ranks | `src/lib/server/comments.ts`, `src/lib/ranks.ts` |
+| Stonkfolio: on-chain holdings, split into stocks and coins | `src/app/(app)/stonkfolio` |
+| Referrals and invite links | `src/lib/server/referrals.ts` |
+| Web push notifications | `src/lib/server/notifications` |
+| Create: plan, build and sign a launch against live chain state | `src/app/(app)/create` |
+
+**On the fee.** It is implemented and tested but switched off: `FEE_BPS`
+defaults to `0`, and nothing is charged until both `NEXT_PUBLIC_TRADOR_FEE_BPS`
+and `TRADOR_FEE_WALLET` are set and the collection wallet's token accounts
+exist. The wallet is intended to be a Squads multisig, and the fee resolver
+derives its token accounts off-curve for exactly that reason. No fee is being
+taken on trador.one today.
+
+## Traction
+
+103 users as of 12 October 2026, and about $20K of volume since launch on
+20 September 2026. No paid advertising.
+
+## How it works
+
+| Piece | Role |
+| --- | --- |
+| Next.js (App Router) | UI and API routes, deployed on Vercel |
+| Supabase | Postgres store. The app reads through PostgREST, the worker writes over `DATABASE_URL` |
+| Privy | Sign-in and an embedded wallet. Transactions are signed in the browser |
+| Jupiter Swap v2 | Quotes and swap transactions |
+| Helius | Indexer RPC (`getProgramAccounts`) and parsed transactions |
+| Railway | Always-on worker that discovers launches and keeps the universe growing |
+
+The server never holds a private key. It prices a trade, builds an unsigned
+transaction, simulates it, and hands it to the browser to sign.
+
+```mermaid
+flowchart TD
+  U["Person on a phone"] -->|signs in| P[Privy]
+  U -->|browses, trades| N["Next.js on Vercel"]
+
+  N -->|quote and build| J["Jupiter Swap v2"]
+  N -->|simulate before signing| R["Helius RPC"]
+  N -->|feed, comments, ranks| S["Supabase Postgres"]
+  N -->|prices and candles| M["CoinGecko and GeckoTerminal"]
+
+  J -->|unsigned transaction| N
+  N -->|unsigned transaction| U
+  U -->|signature| C["Solana mainnet"]
+
+  W["Railway worker"] -->|discovers launches| C
+  W -->|writes the universe| S
+  W -->|reads program accounts| R
+```
+
+## Run it locally
+
+Needs Node 22.18 or newer.
 
 ```bash
-cp .env.local.example .env.local
 npm install
-npm run db:migrate   # needs DATABASE_URL; skip if you are staying on the snapshot
+cp .env.example .env.local
 npm run dev
 ```
 
-It runs with no keys. Without Privy the session is a demo that cannot sign;
-without Supabase the feed reads a captured snapshot of real launches. Charts,
-the trade tape, news, search, the Stonkfolio and Jupiter quotes all work
-keyless. The indexer and the probe scripts need an RPC that allows
+It starts with no keys. Without Privy the session is a demo that can browse but
+cannot sign; without Supabase the feed reads a captured snapshot of real
+launches. Charts, the trade tape, news, search, the Stonkfolio and Jupiter
+quotes all work keyless. The indexer and probe scripts need an RPC that allows
 `getProgramAccounts`, which public endpoints refuse.
+
+```bash
+npm test          # full suite, no network
+npm run typecheck
+npm run build
+```
+
+## Team
+
+- **[@hawabuilds](https://x.com/hawabuilds)** — founder, built the app.
+- **[@eatsleepdefi](https://x.com/eatsleepdefi)** — co-founder.
+
+2nd place at the TxODDS × Superteam Solana hackathon with Mundial.
+
+---
+
+The sections below are for anyone reading the code.
 
 ## Vocabulary
 
@@ -61,44 +144,6 @@ Left to right: `/home` on the Stonks tab, the NVDAx stock page, and
 | `/learn` | Three lessons. Finishing them unlocks Create |
 | `/stonkfolio` | On-chain holdings, split into stocks and stonks |
 | `/create` | Plan, build and sign a launch against live chain state |
-
-## What is live
-
-| Surface | Source |
-| --- | --- |
-| Coin universe | Captured snapshot of real StonkFun launches; Supabase when configured |
-| Prices, liquidity, 24h change | Jupiter |
-| Candles, trade tape | GeckoTerminal, oriented by mint so the chart is never inverted |
-| Market caps | Price × supply measured on chain. Never a guess |
-| News | Yahoo per-ticker RSS, keyless |
-| Stonkfolio | `getTokenAccountsByOwner` across both token programs |
-| Quotes and swaps | Jupiter, 50 bps when the fee wallet is set, one signature. Leave the wallet unset and swaps run with no platform fee |
-| Create | Plans, builds and signs against chain state. StonkFun / LaunchLab has launched a coin on mainnet; pump.fun Custom Pairs has not yet — see below |
-
-The chain decides what exists. The store keeps it. Providers only decorate it.
-If every provider is down the feed still renders without live prices.
-
-## How it's built
-
-| Piece | Role |
-| --- | --- |
-| Next.js | App Router UI and API routes, deployed on Vercel |
-| Privy | Sign-in and transaction signing |
-| Jupiter | Quotes and swaps |
-| Supabase | Postgres store; the app reads through PostgREST, the worker writes over `DATABASE_URL` |
-| Helius | Indexer RPC (`getProgramAccounts`) and parsed transactions |
-| Railway | Always-on worker that discovers launches and keeps the universe growing |
-
-### Program IDs
-
-Printed exactly as `src/lib/programs.ts` spells them — case is meaning.
-
-| What | Address |
-| --- | --- |
-| Raydium LaunchLab | `LanMV9sAd7wArD4vJFi2qDdfnVhFxYSUg6eADduJ3uj` |
-| PumpSwap AMM | `pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA` |
-| StonkFun platform (rewards) | `6BwHHDg3u1854jC8PDLXvR4spTcLNaoBxLJNGC4nTESt` |
-| StonkFun platform (standard) | `4E876qZTE9FJMrBzgVtBrSrzz2TLivB5Y5QXPjB4gZL7` |
 
 ## Membership
 
@@ -151,6 +196,17 @@ tradeable.
 That count is mints the sync sees in the StonkFun census plus the live range
 members of each verified issuer family — not a guarantee that every mint an
 issuer has ever created is listed.
+
+## Program IDs
+
+Printed exactly as `src/lib/programs.ts` spells them — case is meaning.
+
+| What | Address |
+| --- | --- |
+| Raydium LaunchLab | `LanMV9sAd7wArD4vJFi2qDdfnVhFxYSUg6eADduJ3uj` |
+| PumpSwap AMM | `pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA` |
+| StonkFun platform (rewards) | `6BwHHDg3u1854jC8PDLXvR4spTcLNaoBxLJNGC4nTESt` |
+| StonkFun platform (standard) | `4E876qZTE9FJMrBzgVtBrSrzz2TLivB5Y5QXPjB4gZL7` |
 
 ## Scripts
 
