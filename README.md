@@ -4,7 +4,7 @@ A mobile web app for trading tokenized stocks on Solana, and the coins paired to
 them, with the stock behind every coin verified.
 
 **Live app:** [trador.one](https://www.trador.one) · **Demo video:**
-[youtu.be/Xe4WDS4D5uo](https://youtu.be/Xe4WDS4D5uo) · **X:**
+[youtu.be/FxCNCT6csDs](https://youtu.be/FxCNCT6csDs) · **X:**
 [@Tradorone](https://x.com/Tradorone)
 
 ![Trador — Stock app for trenchers](docs/screenshots/cover.png)
